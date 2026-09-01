@@ -13,16 +13,9 @@ import { cpus, loadavg, totalmem, freemem } from 'node:os'
 import { cpuUsage } from 'node:process'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type { HostMetrics } from './types.ts'
 
-/** One sampled host resource snapshot; all values are 0–100 percent (gpu nullable). */
-export interface HostMetrics {
-  /** CPU utilization percent. System load normalized by core count on Unix; this process's user+sys delta otherwise. */
-  cpu: number
-  /** Memory utilization percent (used / total). */
-  memory: number
-  /** GPU utilization percent, or `null` when no adapter is available. */
-  gpu: number | null
-}
+export type { HostMetrics } from './types.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'host-metrics'
@@ -98,15 +91,4 @@ export function apply(ctx: Context, config: Config): void {
     ctx.emit('host/metrics', payload)
   }, config.intervalMs)
   ctx.effect(() => () => clearInterval(timer), 'host-metrics: sampler')
-}
-
-declare module '@deepseek-ai/cordis' {
-  interface Events {
-    /**
-     * One sampled host resource snapshot, emitted on the configured interval.
-     * @param payload - the sampled CPU, memory, and best-effort GPU utilization.
-     * @mode emit
-     */
-    'host/metrics': (payload: HostMetrics) => void
-  }
 }
