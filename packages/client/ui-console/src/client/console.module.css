@@ -1,0 +1,283 @@
+/* Console workbench styling: semantic dsw tokens only, no literal colors. */
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-text-primary, currentColor);
+  font: inherit;
+}
+
+.triggerLabel {
+  font-size: 13px;
+}
+
+.consoleContent {
+  width: min(1100px, 96vw);
+  height: min(86vh, 720px);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  border: 1px solid var(--dsw-alias-border-subtle, #e5e5e5);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.cardTitle {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sessionCounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.countItem {
+  display: inline-flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.systemStatus {
+  display: flex;
+  gap: 20px;
+}
+
+.ringItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.ring {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+
+.ringTrack,
+.ringValue {
+  fill: none;
+}
+
+.ringTrack {
+  stroke: var(--dsw-alias-border-subtle, #e5e5e5);
+}
+
+.ringText {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.ringLabel {
+  color: var(--dsw-alias-text-secondary, #666);
+}
+
+.emptyHint {
+  color: var(--dsw-alias-text-secondary, #666);
+  font-size: 13px;
+}
+
+.pendingList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pendingItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.pendingText {
+  color: var(--dsw-alias-text-secondary, #666);
+}
+
+.pendingKind {
+  font-weight: 600;
+}
+
+.pendingKindPlan {
+  color: var(--dsw-alias-state-warn-primary, #b8860b);
+}
+
+.timelineToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.timelineMode {
+  display: inline-flex;
+  gap: 0;
+}
+
+.modeButton {
+  border: 1px solid var(--dsw-alias-border-subtle, #e5e5e5);
+  background: transparent;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.modeButtonActive {
+  background: var(--dsw-alias-state-info-bg, rgba(0, 120, 255, 0.12));
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.timelineItem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.timelineDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex: 0 0 auto;
+}
+
+.t-info {
+  background: var(--dsw-alias-state-info-primary, #0078ff);
+}
+
+.t-action {
+  background: var(--dsw-alias-state-success-primary, #24a148);
+}
+
+.timelineLine {
+  width: 1px;
+  align-self: stretch;
+  background: var(--dsw-alias-border-subtle, #e5e5e5);
+}
+
+.timelineMain {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 1;
+}
+
+.timelineText {
+  font-size: 13px;
+}
+
+.timelineTime {
+  font-size: 12px;
+  color: var(--dsw-alias-text-secondary, #666);
+}
+
+.smartQACard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.smartQA {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chatMessages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.message {
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.user {
+  align-self: flex-end;
+  background: var(--dsw-alias-state-info-bg, rgba(0, 120, 255, 0.12));
+}
+
+.assistant {
+  align-self: flex-start;
+  background: var(--dsw-alias-bg-secondary, rgba(0, 0, 0, 0.04));
+}
+
+.qaError {
+  color: var(--dsw-alias-state-error-primary, #d93025);
+  font-size: 12px;
+}
+
+.inputArea {
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  border: 1px solid var(--dsw-alias-border-subtle, #e5e5e5);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.sendButton {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  background: var(--dsw-alias-state-info-primary, #0078ff);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.sendButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
