@@ -255,6 +255,71 @@ export interface LlmModelDiscoveryOperation extends LlmModelDiscoveryRequest {
   signal?: AbortSignal
 }
 
+/** Serializable subset of {@link LlmFailure} for the `chat` wire. */
+export interface LlmChatFailure {
+  /** Human-readable provider or transport failure. */
+  message: string
+  /** Stable provider-neutral machine-routing code. */
+  code: string
+  /** HTTP status returned by the provider, when available. */
+  status?: number
+  /** Provider-requested delay in milliseconds, when valid and available. */
+  providerRetryAfterMs?: number
+  /** Opaque provider-issued request identifier for diagnostics. */
+  requestId?: string
+}
+
+/**
+ * One JSON-safe finish reason for the `chat` wire. This is the reduced
+ * projection of the merge-extensible {@link FinishReason}: the one-shot panel
+ * routes on the known discriminants and treats any provider-specific finish as
+ * a terminal error below.
+ */
+export type LlmChatFinish =
+  | { kind: 'stop' }
+  | { kind: 'tool-calls' }
+  | { kind: 'max-tokens' }
+  | { kind: 'aborted'; failure: LlmChatFailure }
+  | { kind: 'error'; failure: LlmChatFailure }
+
+/**
+ * One reduced streaming chunk of the `chat` wire. This is a JSON-safe subset
+ * of the merge-extensible {@link StreamChunk}: text deltas, reasoning deltas,
+ * usage, and the terminal finish. `block-start`/`block-end`/`tool-call-delta`
+ * are dropped because they carry merge-extensible block types, which the
+ * proxy never serializes.
+ */
+export type LlmChatChunk =
+  | { type: 'text-delta'; index: number; text: string }
+  | { type: 'reasoning-delta'; index: number; text: string }
+  | { type: 'usage'; usage: TokenUsage }
+  | { type: 'finish'; reason: LlmChatFinish }
+
+/** One `chat` message carried over the wire; text blocks only. */
+export interface LlmChatMessage {
+  /** Provider-neutral conversation role; a `system` role becomes the request system prompt. */
+  role: 'user' | 'assistant' | 'system'
+  /** Model-facing text blocks. */
+  content: TextBlock[]
+}
+
+/** One one-shot streaming completion request carried over the `chat` Remote. */
+export interface LlmChatRequest {
+  /** Registered provider route selecting the adapter. */
+  provider: string
+  /** Provider model id. */
+  model: string
+  /** Ordered conversation messages (see {@link LlmChatMessage}). */
+  messages: LlmChatMessage[]
+  /** System prompt text; takes precedence over any `system`-role message. */
+  system?: string
+  temperature?: number
+  maxTokens?: number
+  stop?: string[]
+  /** Adapter-owned reasoning effort selected for the exact model. */
+  reasoningEffort?: ReasoningEffortId
+}
+
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** A draft provider interrogation refused or failed. */

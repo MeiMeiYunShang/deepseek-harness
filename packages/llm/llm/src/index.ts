@@ -10,9 +10,14 @@ import { Context } from '@deepseek-ai/cordis'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type {
+  FinishReason,
   GenerateOptions,
+  LlmChatChunk,
+  LlmChatFailure,
+  LlmChatFinish,
   LlmConfigurableProvider,
   LlmDiscoveredModel,
+  LlmChatRequest,
   LlmFailure,
   LlmImageRequestPricing,
   LlmModelContext,
@@ -23,7 +28,7 @@ import type {
   ModelModality,
   StreamChunk,
 } from './types.ts'
-import { freezeMessage, type Message } from './message.ts'
+import { createAssistantMessage, createUserMessage, freezeMessage, type Message } from './message.ts'
 import { resolveRetryPolicy } from './retry-policy.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
 import type { ProviderRequestId } from './brand.ts'
@@ -1052,6 +1057,64 @@ export class LlmRuntime extends TypertRemoteService {
     return this.streamWithRegistration(options)
   }
 
+  /**
+   * Stream one one-shot completion over the wire. The request carries the
+   * provider-neutral routing fields and an ordered message list; each message
+   * is mapped into the immutable {@link Message} vocabulary
+   * (`createUserMessage` for a user role, `createAssistantMessage` for an
+   * assistant role whose provenance names the request's provider/model), and a
+   * `system`-role message becomes {@link GenerateOptions.system} (the request's
+   * own `system` field wins). The assembled request then goes through
+   * {@link LlmRuntime.stream}, so adapter resolution, the `llm/stream`
+   * waterfall, call-config validation, and replay handling all still apply.
+   * Chunks are the reduced {@link LlmChatChunk} subset (text deltas, usage,
+   * and the terminal finish), so the caller renders them without importing the
+   * merge-extensible ContentBlock vocabulary.
+   * @param request - provider/model route, message list, and optional controls.
+   * @param signal - caller cancellation supplied by the Remote carrier.
+   * @returns the reduced chunk stream.
+   */
+  @Remote({ mode: 'stream' })
+  async * chat(request: LlmChatRequest, signal: AbortSignal): AsyncIterable<LlmChatChunk> {
+    for await (const chunk of this.stream(this.toGenerateOptions(request, signal))) {
+      const reduced = toWireChatChunk(chunk)
+      if (reduced !== undefined) yield reduced
+    }
+  }
+
+  /** Map a wire `chat` request into a fully-assembled {@link GenerateOptions}. */
+  private toGenerateOptions(request: LlmChatRequest, signal: AbortSignal): GenerateOptions {
+    const messages: Message[] = []
+    let system = request.system
+    for (const message of request.messages) {
+      if (message.role === 'system') {
+        // The target models the system prompt through GenerateOptions.system,
+        // so a system-role message feeds it instead of becoming a message.
+        if (system === undefined) system = chatSystemText(message.content)
+        continue
+      }
+      if (message.role === 'user') {
+        messages.push(createUserMessage({ content: message.content, source: { kind: 'user' } }))
+        continue
+      }
+      messages.push(createAssistantMessage({
+        content: message.content,
+        source: { provider: request.provider, model: request.model },
+      }))
+    }
+    return {
+      provider: request.provider,
+      model: request.model,
+      messages,
+      ...system === undefined ? {} : { system },
+      ...request.temperature === undefined ? {} : { temperature: request.temperature },
+      ...request.maxTokens === undefined ? {} : { maxTokens: request.maxTokens },
+      ...request.stop === undefined ? {} : { stop: request.stop },
+      ...request.reasoningEffort === undefined ? {} : { reasoningEffort: request.reasoningEffort },
+      signal,
+    }
+  }
+
   private streamWithRegistration(
     options: GenerateOptions,
     prepared?: PreparedDispatch,
@@ -1065,9 +1128,69 @@ export class LlmRuntime extends TypertRemoteService {
   }
 }
 
+/** Concatenate the text content of a `system`-role wire message's blocks. */
+function chatSystemText(content: LlmChatRequest['messages'][number]['content']): string {
+  let text = ''
+  for (const block of content) {
+    if (block.type === 'text') text += block.text
+  }
+  return text
+}
+
+/** Project one {@link StreamChunk} onto the reduced {@link LlmChatChunk} wire. */
+function toWireChatChunk(chunk: StreamChunk): LlmChatChunk | undefined {
+  switch (chunk.type) {
+    case 'block-start':
+    case 'block-end':
+    case 'tool-call-delta':
+      // These carry merge-extensible block/type vocabulary the wire never
+      // serializes; the panel renders deltas and the terminal finish only.
+      return undefined
+    case 'text-delta':
+      return { type: 'text-delta', index: chunk.index, text: chunk.text }
+    case 'reasoning-delta':
+      return { type: 'reasoning-delta', index: chunk.index, text: chunk.text }
+    case 'usage':
+      return { type: 'usage', usage: chunk.usage }
+    case 'finish':
+      return { type: 'finish', reason: toWireChatFinish(chunk.reason) }
+  }
+}
+
+/** Project one merge-extensible {@link FinishReason} onto a concrete wire finish. */
+function toWireChatFinish(reason: FinishReason): LlmChatFinish {
+  switch (reason.kind) {
+    case 'stop':
+    case 'tool-calls':
+    case 'max-tokens':
+      return { kind: reason.kind }
+    case 'aborted':
+      return { kind: 'aborted', failure: chatFailureOf(reason.failure) }
+    case 'error':
+      return { kind: 'error', failure: chatFailureOf(reason.failure) }
+    default: {
+      // Merge-extensible fall-through: an adapter-added reason kind the core
+      // does not know cannot be named on the wire, so it degrades to a
+      // terminal error while staying observable in the message text.
+      const kind = (reason as { kind?: unknown }).kind
+      return { kind: 'error', failure: { message: `unsupported finish reason: ${String(kind)}`, code: 'UNKNOWN' } }
+    }
+  }
+}
+
+/** Copy one {@link LlmFailure} onto the wire's brand-free failure shape. */
+function chatFailureOf(failure: LlmFailure): LlmChatFailure {
+  return {
+    message: failure.message,
+    code: failure.code,
+    ...failure.status === undefined ? {} : { status: failure.status },
+    ...failure.providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: failure.providerRetryAfterMs },
+    ...failure.requestId === undefined ? {} : { requestId: failure.requestId },
+  }
+}
+
 /** Convert one adapter throw into the stream protocol's terminal outcome. */
-function adapterFailureChunk(error: unknown, signal?: AbortSignal): StreamChunk {
-  const failure = normalizeLlmFailure(error)
+function adapterFailureChunk(error: unknown, signal?: AbortSignal): StreamChunk {  const failure = normalizeLlmFailure(error)
   return {
     type: 'finish',
     reason: signal?.aborted || failure.code === 'ABORTED'

@@ -59,6 +59,7 @@ for await (const chunk of ctx.llm.stream({
 ### 你可以做什么
 
 - **流式发起一次模型调用**——`ctx.llm.stream(options)` 为任何已注册提供方与模型产出原始分片（token 级增量）；消费方用 `BlockAssembler` 组装。
+- **通过 Web 流式发起一次补全**——`@Remote({ mode: 'stream' })` 的 `LlmRuntime.chat(request)` 方法携带一个 wire 消息列表，将其映射进不可变的 `Message` 词汇，并向 `ctx.remote.llm.chat(...)` 产出约简后的 `LlmChatChunk` 联合类型（文本增量、用量与终态结束）——因此浏览器面板无需导入可扩展的 ContentBlock 词汇即可渲染补全。
 - **注册提供方适配器**——一个适配器拥有一个或多个提供方路由，其注册会捕获该路由的重试策略；重复注册同一路由会以 `DUPLICATE_ADAPTER` 失败。
 - **通过配置暴露并激活提供方**——适配器声明可配置提供方路由与 settings namespace，配置界面因此可以激活休眠提供方并编辑连接事实，无需重启。
 - **发现与解析模型**——列出适配器公布的模型、询问端点它提供哪些模型，并解析某个精确模型的上下文窗口、输出默认值、推理（reasoning）强度与输入模态。

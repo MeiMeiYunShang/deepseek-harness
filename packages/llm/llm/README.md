@@ -59,6 +59,7 @@ After a successful mount, `ctx.llm.listProviders()` reports the registered route
 ### What you can do
 
 - **Stream one model call** — `ctx.llm.stream(options)` yields raw chunks (token-level deltas) for any registered provider and model; consumers assemble them with `BlockAssembler`.
+- **Stream a one-shot completion over the web** — the `@Remote({ mode: 'stream' })` `LlmRuntime.chat(request)` method carries a wire message list, maps it into the immutable `Message` vocabulary, and yields the reduced `LlmChatChunk` union (text deltas, usage, and the terminal finish) to `ctx.remote.llm.chat(...)` — so a browser panel renders a completion without importing the merge-extensible ContentBlock vocabulary.
 - **Register provider adapters** — an adapter owns one or more provider routes, and its registration captures that route's retry policy; registering the same route twice fails with `DUPLICATE_ADAPTER`.
 - **Expose and activate providers through configuration** — adapters declare configurable-provider routes plus a settings namespace, so configuration surfaces can activate dormant providers and edit connection facts without a restart.
 - **Discover and resolve models** — list the models an adapter advertises, interrogate an endpoint for the models it serves, and resolve one exact model's context window, output default, reasoning efforts, and input modalities.

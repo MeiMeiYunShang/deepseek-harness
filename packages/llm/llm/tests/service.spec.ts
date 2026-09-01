@@ -13,10 +13,13 @@ import LlmRuntime, {
   ReasoningEffortId,
   resolveRetryPolicy,
   StreamChunk,
+  ToolCallId,
   createMessage,
   createUserMessage,
 } from '@deepseek-ai/dsh-llm'
 import type {
+  FinishReason,
+  LlmChatChunk,
   LlmModelContext,
   LlmModelInfo,
   LlmModelReasoningInfo,
@@ -1336,5 +1339,127 @@ describe('LlmRuntime', () => {
     expect(ctx.llm.listProviders()).toEqual([{ id: 'm2', name: 'm2' }])
     handle()
     expect(ctx.llm.listProviders()).toEqual([])
+  })
+})
+
+describe('LlmRuntime.chat', () => {
+  const chatSignal = (): AbortSignal => new AbortController().signal
+
+  it('maps wire messages to immutable Message[] and streams reduced chunks', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new RecordingAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['chat-provider'], adapter)
+    const chunks: LlmChatChunk[] = []
+    for await (const chunk of ctx.llm.chat({
+      provider: 'chat-provider',
+      model: 'chat-model',
+      messages: [
+        { role: 'system', content: [{ type: 'text', text: 'be brief' }] },
+        { role: 'user', content: [{ type: 'text', text: 'hi' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'hello' }] },
+      ],
+    }, chatSignal())) chunks.push(chunk)
+
+    // The reduced projection drops block-start / block-end and keeps the text
+    // delta plus the terminal finish.
+    expect(chunks).toEqual([
+      { type: 'text-delta', index: 0, text: 'hi' },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+    const options = adapter.lastOptions
+    expect(options?.system).toBe('be brief')
+    expect(options?.messages[0]).toMatchObject({ role: 'user', source: { kind: 'user' } })
+    expect(options?.messages[1]?.role).toBe('assistant')
+    // Provenance on an assistant message names the request's route.
+    expect(options?.messages[1]?.source).toEqual({
+      kind: 'model', provider: 'chat-provider', model: 'chat-model',
+    })
+    expect(Object.isFrozen(options?.messages[0])).toBe(true)
+  })
+
+  it('prefers the request system field over a system-role message', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new RecordingAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['chat-provider'], adapter)
+    for await (const _chunk of ctx.llm.chat({
+      provider: 'chat-provider',
+      model: 'chat-model',
+      system: 'the preferred system',
+      messages: [{ role: 'system', content: [{ type: 'text', text: 'be brief' }] }],
+    }, chatSignal())) { /* drain */ }
+    expect(adapter.lastOptions?.system).toBe('the preferred system')
+  })
+
+  it('passes the request controls and cancellation through to the stream', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new RecordingAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['chat-provider'], adapter)
+    const controller = new AbortController()
+    for await (const _chunk of ctx.llm.chat({
+      provider: 'chat-provider',
+      model: 'chat-model',
+      messages: [],
+      temperature: 0.2,
+      maxTokens: 64,
+      stop: ['end'],
+    }, controller.signal)) { /* drain */ }
+    expect(adapter.lastOptions).toMatchObject({
+      provider: 'chat-provider',
+      model: 'chat-model',
+      temperature: 0.2,
+      maxTokens: 64,
+      stop: ['end'],
+      signal: controller.signal,
+    })
+  })
+
+  it('drops tool-call deltas and projects a terminal error finish', async () => {
+    const toolScript: StreamChunk[] = [
+      { type: 'block-start', index: 0, blockType: 'tool-call' },
+      { type: 'tool-call-delta', index: 0, id: ToolCallId('c1'), name: 'search', argumentsDelta: '{}' },
+      { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'search', arguments: '{}' } },
+      {
+        type: 'finish',
+        reason: { kind: 'error', failure: { message: 'boom', code: 'SERVER' } },
+      },
+    ]
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['chat-provider'], new ScriptedAdapter(toolScript))
+    const chunks: LlmChatChunk[] = []
+    for await (const chunk of ctx.llm.chat({
+      provider: 'chat-provider',
+      model: 'chat-model',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'go' }] }],
+    }, chatSignal())) chunks.push(chunk)
+    expect(chunks).toEqual([{
+      type: 'finish',
+      reason: { kind: 'error', failure: { message: 'boom', code: 'SERVER' } },
+    }])
+  })
+
+  it('projects an unknown adapter finish reason to a terminal error', async () => {
+    const unknown: StreamChunk[] = [
+      { type: 'finish', reason: { kind: 'plugin-only' } as unknown as FinishReason },
+    ]
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['chat-provider'], new ScriptedAdapter(unknown))
+    const chunks: LlmChatChunk[] = []
+    for await (const chunk of ctx.llm.chat({
+      provider: 'chat-provider',
+      model: 'chat-model',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'go' }] }],
+    }, chatSignal())) chunks.push(chunk)
+    expect(chunks).toEqual([{
+      type: 'finish',
+      reason: {
+        kind: 'error',
+        failure: { message: 'unsupported finish reason: plugin-only', code: 'UNKNOWN' },
+      },
+    }])
   })
 })
