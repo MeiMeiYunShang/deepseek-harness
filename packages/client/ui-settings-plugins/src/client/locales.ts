@@ -17,6 +17,14 @@ export type PluginsSettingsLocaleKey =
   | 'subagentModelSelectionPartial' | 'subagentModelSelectionUnavailable'
   | 'subagentModelSelectionUnavailableGroup' | 'subagentModelSelectionEmpty'
   | 'subagentModelSelectionRequired' | 'subagentModelSelectionConflict' | 'subagentModelSelectionOff'
+  | 'consoleBridgeTitle' | 'consoleBridgeDescription' | 'consoleBridgeEnabled' | 'consoleBridgeEnabledHint'
+  | 'consoleBridgeAgentId' | 'consoleBridgeAgentIdHint'
+  | 'consoleBridgeBrokerUrl' | 'consoleBridgeBrokerUrlHint'
+  | 'consoleBridgeMqttUsername' | 'consoleBridgeMqttUsernameHint'
+  | 'consoleBridgeMqttPassword' | 'consoleBridgeMqttPasswordHint'
+  | 'consoleBridgeBaseUrl' | 'consoleBridgeBaseUrlHint'
+  | 'consoleBridgeToken' | 'consoleBridgeTokenHint'
+  | 'consoleBridgeTest' | 'consoleBridgeTesting' | 'consoleBridgeTestOk' | 'consoleBridgeTestFail'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -72,6 +80,26 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   subagentModelSelectionRequired: 'Select at least one model before saving.',
   subagentModelSelectionConflict: 'Settings changed elsewhere. Discard your draft and try again.',
   subagentModelSelectionOff: 'Subagents use configured defaults or inherit the parent agent\'s model. Saved model choices are retained.',
+  consoleBridgeTitle: 'Console bridge',
+  consoleBridgeDescription: 'Task commands from an external agent console.',
+  consoleBridgeEnabled: 'Enable the console bridge',
+  consoleBridgeEnabledHint: 'Subscribes to console commands over the DSH console contract.',
+  consoleBridgeAgentId: 'Agent id',
+  consoleBridgeAgentIdHint: 'This terminal\'s identity reported to the console.',
+  consoleBridgeBrokerUrl: 'MQTT broker URL',
+  consoleBridgeBrokerUrlHint: 'Console address when the mqtt transport is used.',
+  consoleBridgeMqttUsername: 'MQTT username',
+  consoleBridgeMqttUsernameHint: 'Broker login when the mqtt transport requires it.',
+  consoleBridgeMqttPassword: 'MQTT password',
+  consoleBridgeMqttPasswordHint: 'Broker password; stored as a secret, so it never echoes here.',
+  consoleBridgeBaseUrl: 'Console base URL',
+  consoleBridgeBaseUrlHint: 'Console REST address when the http transport is used.',
+  consoleBridgeToken: 'Console token',
+  consoleBridgeTokenHint: 'Console auth token; stored as a secret, so it never echoes here.',
+  consoleBridgeTest: 'Test connection',
+  consoleBridgeTesting: 'Testing…',
+  consoleBridgeTestOk: 'Reachable',
+  consoleBridgeTestFail: 'Not reachable',
 }
 
 /** Simplified Chinese copy. */
@@ -128,4 +156,24 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   subagentModelSelectionRequired: '保存前请至少选择一个模型。',
   subagentModelSelectionConflict: '设置已在其他位置更新。请放弃修改后重试。',
   subagentModelSelectionOff: '关闭后，Subagent 使用配置的默认模型或继承父 Agent 的模型；已选模型会保留。',
+  consoleBridgeTitle: 'Console 桥接',
+  consoleBridgeDescription: '来自外部智能体控制台的任务命令。',
+  consoleBridgeEnabled: '启用 console 桥接',
+  consoleBridgeEnabledHint: '基于 DSH 控制台契约订阅控制台命令。',
+  consoleBridgeAgentId: 'Agent id',
+  consoleBridgeAgentIdHint: '报告给控制台的本终端标识。',
+  consoleBridgeBrokerUrl: 'MQTT broker 地址',
+  consoleBridgeBrokerUrlHint: '使用 mqtt 传输时的控制台地址。',
+  consoleBridgeMqttUsername: 'MQTT 用户名',
+  consoleBridgeMqttUsernameHint: 'mqtt 传输需要登录时的 broker 账号。',
+  consoleBridgeMqttPassword: 'MQTT 密码',
+  consoleBridgeMqttPasswordHint: 'broker 密码；作为密钥存储，不会在此回显。',
+  consoleBridgeBaseUrl: '控制台 base URL',
+  consoleBridgeBaseUrlHint: '使用 http 传输时的控制台 REST 地址。',
+  consoleBridgeToken: '控制台令牌',
+  consoleBridgeTokenHint: '控制台鉴权令牌；作为密钥存储，不会在此回显。',
+  consoleBridgeTest: '测试连接',
+  consoleBridgeTesting: '测试中…',
+  consoleBridgeTestOk: '可达',
+  consoleBridgeTestFail: '不可达',
 }

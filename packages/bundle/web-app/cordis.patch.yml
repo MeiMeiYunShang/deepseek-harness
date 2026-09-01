@@ -82,6 +82,11 @@
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
 
+    # Periodic host resource sampler (CPU/memory, best-effort GPU) forwarded to
+    # the browser console status panel via the `host/metrics` forward event.
+    - id: host-metrics
+      name: '@deepseek-ai/dsh-host-metrics'
+
     # Session commands, cold reads, and live control over Typert Remote.
     - id: session-controller
       name: '@deepseek-ai/dsh-api-session-controller'

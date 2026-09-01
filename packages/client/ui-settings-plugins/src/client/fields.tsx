@@ -48,6 +48,8 @@ export function ValueField(props: FieldProps & {
   numeric?: boolean
   /** Placeholder shown while the draft is empty. */
   placeholder?: string
+  /** Renders a write-only masked control for a section secret field. */
+  password?: boolean
 }) {
   return (
     <div className={css.field}>
@@ -72,7 +74,8 @@ export function ValueField(props: FieldProps & {
       <input
         id={props.id}
         className={props.invalid ? css.inputInvalid : css.input}
-        type="text"
+        type={props.password === true ? 'password' : 'text'}
+        autoComplete={props.password === true ? 'off' : undefined}
         {...props.numeric === true ? { inputMode: 'numeric' as const } : {}}
         {...props.invalid ? { 'aria-invalid': true } : {}}
         value={props.text}

@@ -6,6 +6,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteError, stubSettingsScope, type StubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { CardForm, numberField, textField } from '../src/client/card-form.ts'
 import { AgentLoopCardController, type AgentLoopSettings } from '../src/client/agent-loop-card-controller.ts'
 import { BashCardController, type BashSettings } from '../src/client/bash-card-controller.ts'
@@ -19,6 +20,12 @@ import {
   type SubagentModelSelectionSettings,
 } from '../src/client/subagent-model-selection-card-controller.ts'
 import { WebSearchCardController, type WebSearchSettings } from '../src/client/web-search-card-controller.ts'
+import {
+  ConsoleBridgeCardController,
+  type ConsoleBridgeSettings,
+  type ConsoleBridgeTestRequest,
+  type ConsoleBridgeTestResult,
+} from '../src/client/console-bridge-card-controller.ts'
 
 /** Make the stub behave like a Host that accepts every write. */
 function acceptWrites<T>(host: StubSettingsScope<T>): void {
@@ -1156,5 +1163,113 @@ describe('ConfigurablePluginsTabController', () => {
 
     expect(controller.inject().hooks.configurablePlugins.getSnapshot())
       .toEqual({ loaded: true, namespaces: [] })
+  })
+})
+
+describe('ConsoleBridgeCardController', () => {
+  /** A test-connection remote that reports the given reachability. */
+  function consoleApi(ok: boolean, message = 'reachable (200)') {
+    const testConnection = vi.fn<
+      (input: ConsoleBridgeTestRequest) => Promise<RemoteResult<ConsoleBridgeTestResult>>
+    >(async _input => (
+      ok
+        ? { ok: true as const, value: { ok, message } }
+        : { ok: false as const, error: new RemoteError('gateway/internal', message, {}) }
+    ))
+    return { testConnection }
+  }
+
+  it('projects the connection fields, writes them on save, and toggles the enable switch', async () => {
+    const host = stubSettingsScope<ConsoleBridgeSettings>()
+    acceptWrites(host)
+    const controller = new ConsoleBridgeCardController(host.scope, consoleApi(true).testConnection)
+    host.publish({
+      status: 'ready', writable: true,
+      value: { agentId: 'a', brokerUrl: 'mqtt://x', transport: 'http', enabled: false },
+      base: { agentId: 'a' },
+      user: { agentId: 'a' },
+    })
+    const face = controller.inject()
+
+    expect(face.getEnabled()).toBe(false)
+    expect(face.hooks.consoleBridgeCard.getSnapshot()).toMatchObject({
+      available: true, writable: true, dirty: false,
+      agentId: { text: 'a', overridden: true },
+      brokerUrl: { text: 'mqtt://x', overridden: false },
+    })
+    // Write-only secrets render blank and never reveal a stored value.
+    expect(face.hooks.consoleBridgeCard.getSnapshot().token.text).toBe('')
+
+    face.edit('brokerUrl', 'mqtt://new')
+    face.save()
+    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledWith('brokerUrl', 'mqtt://new') })
+
+    await face.setEnabled(true)
+    expect(host.set).toHaveBeenCalledWith('enabled', true)
+    expect(face.getEnabled()).toBe(true)
+  })
+
+  it('reads the enabled flag as false when the namespace carries none', () => {
+    const host = stubSettingsScope<ConsoleBridgeSettings>()
+    host.publish({ status: 'ready', writable: true, value: { transport: 'http' }, user: {} })
+    const controller = new ConsoleBridgeCardController(host.scope, consoleApi(true).testConnection)
+
+    expect(controller.getEnabled()).toBe(false)
+  })
+
+  it('builds a request from the current scope and unwraps an ok connection probe', async () => {
+    const host = stubSettingsScope<ConsoleBridgeSettings>()
+    host.publish({
+      status: 'ready', writable: true,
+      value: { agentId: 'a', brokerUrl: 'mqtt://x', mqttUsername: 'u', mqttPassword: 'p', consoleBaseUrl: 'http://h', token: 't', transport: 'http' },
+      user: {},
+    })
+    const { testConnection } = consoleApi(true)
+    const controller = new ConsoleBridgeCardController(host.scope, testConnection)
+
+    expect(await controller.runTest()).toEqual({ ok: true, message: 'reachable (200)' })
+    const request = testConnection.mock.calls[0]![0] as ConsoleBridgeTestRequest
+    expect(request).toMatchObject({ agentId: 'a', transport: 'http', brokerUrl: 'mqtt://x', token: 't' })
+  })
+
+  it('unwraps a refused connection probe into a failed result', async () => {
+    const host = stubSettingsScope<ConsoleBridgeSettings>()
+    host.publish({ status: 'ready', writable: true, value: {}, user: {} })
+    const controller = new ConsoleBridgeCardController(host.scope, consoleApi(false, 'auth failed').testConnection)
+
+    expect(await controller.runTest()).toEqual({ ok: false, message: 'auth failed' })
+  })
+
+  it('writes a secret only when the draft is non-empty', async () => {
+    const host = stubSettingsScope<ConsoleBridgeSettings>()
+    acceptWrites(host)
+    const controller = new ConsoleBridgeCardController(host.scope, consoleApi(true).testConnection)
+    host.publish({ status: 'ready', writable: true, value: {}, user: {} })
+    const face = controller.inject()
+
+    // A blank draft writes nothing, so saving other fields never wipes the key.
+    face.edit('token', '   ')
+    face.save()
+    await Promise.resolve()
+    expect(host.set).not.toHaveBeenCalledWith('token', '   ')
+
+    face.edit('token', 'secret-tok')
+    face.save()
+    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledWith('token', 'secret-tok') })
+  })
+
+  it('reports a save failure when the Host rejects a write', async () => {
+    const host = stubSettingsScope<ConsoleBridgeSettings>()
+    host.set.mockRejectedValueOnce(new Error('reject'))
+    const controller = new ConsoleBridgeCardController(host.scope, consoleApi(true).testConnection)
+    host.publish({ status: 'ready', writable: true, value: {}, user: {} })
+    const face = controller.inject()
+
+    face.edit('token', 'secret-tok')
+    face.save()
+
+    await vi.waitFor(() => {
+      expect(face.hooks.consoleBridgeCard.getSnapshot()).toMatchObject({ failed: true, dirty: true })
+    })
   })
 })

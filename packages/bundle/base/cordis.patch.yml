@@ -78,6 +78,16 @@
         provider: deepseek-official
         model: deepseek-v4-flash
 
+    # Console bridge: accepts `down/cmd` commands from an external agent console
+    # and reports task results back over the DSH console contract. It loads
+    # (registering the `console-bridge` settings namespace and the
+    # `testConnection` probe) but does not subscribe until an operator enables
+    # it, so a bare profile never opens a transport to an unknown endpoint.
+    - id: console-bridge
+      name: '@deepseek-ai/dsh-console-bridge'
+      config:
+        enabled: false
+
     - id: jobs
       name: '@deepseek-ai/dsh-jobs-local'
 

@@ -30,6 +30,8 @@ import { WebSearchCard } from './WebSearchCard.tsx'
 import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
 import { SHELL_NS, BashCardController } from './bash-card-controller.ts'
 import { ConfigurablePluginsTabController } from './tab-store.ts'
+import { ConsoleBridgeCard } from './ConsoleBridgeCard.tsx'
+import { CONSOLE_BRIDGE_NS, ConsoleBridgeCardController } from './console-bridge-card-controller.ts'
 import {
   SUBAGENT_MODEL_SELECTION_NS, SubagentModelSelectionCardController,
 } from './subagent-model-selection-card-controller.ts'
@@ -48,6 +50,7 @@ export type {
 export type { AgentLoopCardFace, AgentLoopCardState } from './agent-loop-card-controller.ts'
 export type { BashCardFace, BashCardState } from './bash-card-controller.ts'
 export type { WebSearchCardFace, WebSearchCardState } from './web-search-card-controller.ts'
+export type { ConsoleBridgeCardFace, ConsoleBridgeCardState } from './console-bridge-card-controller.ts'
 
 /** Dictionary namespace owned by this plugin. */
 const NS = 'settings.plugins'
@@ -72,6 +75,10 @@ export function apply(ctx: ClientContext): void {
   const subagentModelSelection = new SubagentModelSelectionCardController(
     ctx.settingsScope.bind({ namespace: SUBAGENT_MODEL_SELECTION_NS }),
     ctx,
+  )
+  const consoleBridge = new ConsoleBridgeCardController(
+    ctx.settingsScope.bind({ namespace: CONSOLE_BRIDGE_NS }),
+    input => ctx.remote.consoleBridge.testConnection(input),
   )
 
   // The credential a card reports is not part of any settings section, so its
@@ -189,5 +196,11 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       inject: () => webSearch.inject(),
     }, WebSearchCard)
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      key: CONSOLE_BRIDGE_NS,
+      locale: NS,
+      inject: () => consoleBridge.inject(),
+    }, ConsoleBridgeCard)
   })
 }

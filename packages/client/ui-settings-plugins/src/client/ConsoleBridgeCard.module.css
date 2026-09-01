@@ -1,0 +1,37 @@
+.enabled {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 8px;
+}
+
+.enabled label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.enabledHint {
+  color: var(--dsw-text-muted, #8a8a8a);
+  font-size: 12px;
+}
+
+.test {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 4px;
+}
+
+.testButton {
+  cursor: pointer;
+}
+
+.testOk {
+  color: var(--dsw-success, #2e9e5b);
+}
+
+.testFail {
+  color: var(--dsw-danger, #d4453a);
+}

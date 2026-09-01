@@ -16,6 +16,9 @@ import { SubagentModelSelectionCard } from '../src/client/SubagentModelSelection
 import type { SubagentModelSelectionCardProps } from '../src/client/SubagentModelSelectionCard.tsx'
 import { WebSearchCard } from '../src/client/WebSearchCard.tsx'
 import type { WebSearchCardProps } from '../src/client/WebSearchCard.tsx'
+import { ConsoleBridgeCard } from '../src/client/ConsoleBridgeCard.tsx'
+import type { ConsoleBridgeCardProps } from '../src/client/ConsoleBridgeCard.tsx'
+import type { ConsoleBridgeCardState } from '../src/client/console-bridge-card-controller.ts'
 import type { AgentLoopCardState } from '../src/client/agent-loop-card-controller.ts'
 import type { BashCardState } from '../src/client/bash-card-controller.ts'
 import type { CardFieldState, CardShell } from '../src/client/card-form.ts'
@@ -84,6 +87,28 @@ function renderBashCard(state: Partial<BashCardState> = {}) {
 
 function renderBash(state: Partial<BashCardState> = {}) {
   return renderBashCard(state).actions
+}
+
+function renderConsoleBridge(state: Partial<ConsoleBridgeCardState> = {}) {
+  const store = createSnapshotStore<ConsoleBridgeCardState>({
+    ...settled,
+    agentId: field('local-dsh-native-01'),
+    brokerUrl: field(''),
+    mqttUsername: field(''),
+    mqttPassword: field(''),
+    consoleBaseUrl: field(''),
+    token: field(''),
+    ...state,
+  })
+  const actions = {
+    ...cardActions(),
+    testConnection: vi.fn(() => Promise.resolve({ ok: true, message: 'reachable (200)' })),
+    getEnabled: vi.fn(() => false),
+    setEnabled: vi.fn(() => Promise.resolve()),
+  }
+  const props = { ...actions, t, useConsoleBridgeCard: bindSnapshotSelector(store) } as unknown as ConsoleBridgeCardProps
+  render(<ConsoleBridgeCard {...props} />)
+  return actions
 }
 
 function renderSubagentModelSelection(state: Partial<SubagentModelSelectionCardState> = {}) {
@@ -567,5 +592,38 @@ describe('WebSearchCard', () => {
       ['maxUses', '4'],
     ])
     expect(actions.resetField.mock.calls).toEqual([['baseURL'], ['maxUses']])
+  })
+})
+
+describe('ConsoleBridgeCard', () => {
+  function expandCard(actions: ReturnType<typeof renderConsoleBridge>) {
+    fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.consoleBridgeTitle}` }))
+    return actions
+  }
+
+  it('renders the connection fields and the enable switch once expanded', () => {
+    expandCard(renderConsoleBridge())
+
+    expect(screen.getByLabelText(en.consoleBridgeAgentId)).toBeTruthy()
+    expect(screen.getByLabelText(en.consoleBridgeAgentId).getAttribute('value')).toBe('local-dsh-native-01')
+    // Secrets render as write-only masked controls.
+    expect(screen.getByLabelText(en.consoleBridgeToken).getAttribute('type')).toBe('password')
+    expect(screen.getByLabelText(en.consoleBridgeEnabled)).toBeTruthy()
+  })
+
+  it('fields a connection probe after enabling the bridge', async () => {
+    const actions = expandCard(renderConsoleBridge())
+
+    await act(async () => { fireEvent.click(screen.getByLabelText(en.consoleBridgeEnabled)) })
+    expect(actions.setEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it('probes the connection and surfaces the reachable result', async () => {
+    const actions = expandCard(renderConsoleBridge())
+
+    fireEvent.click(screen.getByRole('button', { name: en.consoleBridgeTest }))
+
+    expect(await screen.findByText(`${en.consoleBridgeTestOk}: reachable (200)`)).toBeTruthy()
+    expect(actions.testConnection).toHaveBeenCalledTimes(1)
   })
 })
