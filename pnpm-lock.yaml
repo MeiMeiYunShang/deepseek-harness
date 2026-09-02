@@ -4186,6 +4186,9 @@ importers:
       mqtt:
         specifier: ^5.10.1
         version: 5.15.2
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
