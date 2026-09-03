@@ -62,7 +62,7 @@ describe('SmartQA', () => {
     const impl: ChatFetcher = async function* (_request, signal) {
       signal.addEventListener('abort', aborted)
       yield { type: 'text-delta', index: 0, text: 'part' }
-      await new Promise<void>((resolve) => { signal.addEventListener('abort', () => resolve()) })
+      await new Promise<void>((resolve) => { signal.addEventListener('abort', () =>{  resolve() }) })
     }
     const chat = vi.fn(impl) as unknown as ChatFetcher & ReturnType<typeof vi.fn>
     render(<SmartQA t={t} chat={chat} model={{ provider: 'p', model: 'm' }} />)

@@ -1,5 +1,5 @@
 ---
-description: "面向维护者的控制台工作台：一个侧栏底部操作，打开全屏监控弹窗（会话状态、任务统计、主机指标、活动时间线与智能问答）。"
+description: "面向维护者的控制台工作台：一个侧栏底部操作，打开全屏三列监控弹窗（会话状态、任务统计、主机指标、带指令输入框的活动时间线、知识库视图与智能问答）。"
 kind: "package-reference"
 ---
 
@@ -9,10 +9,20 @@ kind: "package-reference"
 
 ## Summary
 
-`@deepseek-ai/dsh-client-ui-console` 是 dsh web GUI 的浏览器控制台工作台。它贡献一个侧栏底部操作，打开全屏监控弹窗：会话状态与累计任务统计来自标准的 `ctx.sessions` 数据流与 `sessionStats` 投影；待处理的 `ask_user_question` 交互来自 `ctx.uiSession.pendingInteractions`；主机资源指标来自转发的 `host/metrics` 事件；活动时间线来自转发的 `api-session/*` 事件；智能问答面板通过 `ctx.remote.llm.chat` 流式完成一次性补全。
+`@deepseek-ai/dsh-client-ui-console` 是 dsh web GUI 的浏览器控制台工作台。它贡献一个侧栏底部操作，打开真正的全屏弹窗（自定义的 `role="dialog"` 面板，而非盒式原始 `Modal`），以三列排布：
+
+- **会话状态** —— 统计/网格视图切换。统计视图计数总数、运行中、等待输入、已完成与已归档；网格视图为每个会话铺一块状态色方块（绿色运行中、琥珀等待、红色规划/等待输入、品牌蓝可用、灰色已归档），带当前/选中描边与右键菜单（重命名、Fork、归档）。
+- **任务统计** —— 作用域行（整个列表或选中会话）加来自 `sessionStats` 投影的运行中、轮数、步骤数、LLM 耗时与工具耗时计数。
+- **系统状态** —— 来自转发 `host/metrics` 事件的 CPU / 内存 / GPU 环形仪表。
+- **时间线** —— 简要/全部两种粒度的粗略活动列表，可限定到单个会话或整个列表，带可折叠的提问详情，另有向选中会话发送指令的输入框。
+- **知识库** —— 来源列表，当前渲染空/占位状态（尚无后端 seam）。
+- **智能问答** —— 通过 `ctx.remote.llm.chat` 流式完成一次性补全。
+
+会话状态、累计任务统计与当前选择来自标准的 `ctx.sessions` 数据流与 `sessionStats` 投影；待处理交互通过 `ctx.uiSession.pendingInteractions` 的网格相位着色呈现；主机资源指标与活动时间线来自转发的 `host/metrics` 与 `api-session/*` 事件；会话动词（打开、重命名、Fork、归档、新建、预设选择、发送指令）经由 `ctx.sessions`、`ctx.workspaces` 与 `ctx.remote.agentPresets` 面。一个「新建会话」弹窗收集工作区、可选的代理预设与首条指令。
 
 ## Known Limitations and Deferred Work
 
 - **智能问答需要已配置的模型** —— 面板从 `console-bridge` 设置命名空间读取模型覆盖（`smartQaModel`，形如 `provider/model`）。未设置时保持禁用；没有客户端模型目录 Remote 可回退。
 - **时间线是粗略镜像** —— 它把转发的 `api-session/activity` 与 `api-session/status` 事件渲染为标签，而非完整的会话事件流。会话级事件窗口的细节有意留给对话界面。
-- **待处理交互是监控视图** —— 控制台标识哪些会话有待处理的提问或计划审阅，但不在内联回答；回答属于对话编辑器。
+- **知识库没有后端 seam** —— 卡片渲染空/占位状态，并导出行类型供未来来源填充。
+- **待处理交互是监控提示** —— 控制台以会话网格方块颜色标识待处理的提问或计划审阅，但不在内联回答；回答属于对话编辑器。

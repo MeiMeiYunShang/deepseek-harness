@@ -5,14 +5,21 @@ export type ConsoleKey = 'console'
   | 'title'
   | 'close'
   | 'trigger'
+  | 'newSession'
   | 'sessionStatus'
+  | 'sessionViewToggleAria'
+  | 'sessionStatsView'
+  | 'sessionGridView'
   | 'sessionTotal'
   | 'sessionRunning'
   | 'sessionPending'
   | 'sessionCompleted'
   | 'sessionArchived'
-  | 'currentSession'
+  | 'sessionCurrent'
   | 'taskStats'
+  | 'taskAllSessions'
+  | 'taskScope'
+  | 'taskRunning'
   | 'taskTurns'
   | 'taskSteps'
   | 'taskLlmMs'
@@ -26,23 +33,70 @@ export type ConsoleKey = 'console'
   | 'pendingPlanReview'
   | 'noPending'
   | 'timeline'
-  | 'timelineEmpty'
-  | 'timelineActivity'
+  | 'timelineScopeAll'
+  | 'timelineClear'
   | 'timelineStatus'
+  | 'timelineActivity'
   | 'timelineModeAria'
+  | 'timelineEmpty'
+  | 'timelineExpand'
+  | 'timelineCollapse'
   | 'sessionPrefix'
-  | 'na'
-  | 'pageSelection'
-  | 'selectedSession'
-  | 'noSession'
-  | 'comingSoon'
+  | 'knowledge'
+  | 'knowledgeEmpty'
+  | 'knowledgeLatest'
   | 'smartQA'
   | 'qaEmpty'
   | 'qaThinking'
   | 'inputPlaceholder'
+  | 'composerPlaceholder'
+  | 'composerDisabled'
+  | 'composerError'
   | 'send'
   | 'stop'
   | 'qaError'
+  | 'rename'
+  | 'renameTitle'
+  | 'renameInputAria'
+  | 'renameConfirm'
+  | 'renameCancel'
+  | 'fork'
+  | 'archive'
+  | 'archiveConfirmTitle'
+  | 'archiveConfirmBody'
+  | 'confirm'
+  | 'cancel'
+  | 'contextMenuAria'
+  | 'newSessionTitle'
+  | 'workspaceLabel'
+  | 'addWorkspace'
+  | 'presetLabel'
+  | 'presetNone'
+  | 'instructionLabel'
+  | 'instructionPlaceholder'
+  | 'sessionGridAria'
+  | 'sessionGridSelected'
+  | 'sessionGridCurrent'
+  | 'sessionGridUpdated'
+  | 'sessionGridCwd'
+  | 'sessionStatusRunning'
+  | 'sessionStatusPlanning'
+  | 'sessionStatusPending'
+  | 'sessionStatusWaiting'
+  | 'sessionStatusAvailable'
+  | 'sessionStatusArchived'
+  | 'na'
+  | 'selectedSession'
+  | 'noSession'
+  | 'updatedAt'
+  | 'askUserTitle'
+  | 'askUserRecommend'
+  | 'askUserSelfInput'
+  | 'askUserSkip'
+  | 'askUserBack'
+  | 'askUserNext'
+  | 'askUserSubmit'
+  | 'askUserCancel'
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'console'
@@ -53,14 +107,21 @@ export const en: Record<ConsoleKey, string> = {
   title: 'Console',
   close: 'Close',
   trigger: 'Console',
+  newSession: 'New session',
   sessionStatus: 'Session status',
+  sessionViewToggleAria: 'Session view',
+  sessionStatsView: 'Stats',
+  sessionGridView: 'Grid',
   sessionTotal: 'Total',
   sessionRunning: 'Running',
   sessionPending: 'Awaiting input',
   sessionCompleted: 'Completed',
   sessionArchived: 'Archived',
-  currentSession: 'current',
+  sessionCurrent: 'current',
   taskStats: 'Task statistics',
+  taskAllSessions: 'All sessions',
+  taskScope: 'Scope',
+  taskRunning: 'Running now',
   taskTurns: 'Turns',
   taskSteps: 'Steps',
   taskLlmMs: 'LLM time',
@@ -74,23 +135,70 @@ export const en: Record<ConsoleKey, string> = {
   pendingPlanReview: 'Plan review',
   noPending: 'None',
   timeline: 'Timeline',
-  timelineEmpty: 'No session activity yet.',
-  timelineActivity: 'activity',
-  timelineStatus: 'status',
+  timelineScopeAll: 'All sessions',
+  timelineClear: 'Clear',
+  timelineStatus: 'Status',
+  timelineActivity: 'Activity',
   timelineModeAria: 'Timeline mode',
+  timelineEmpty: 'No session activity yet.',
+  timelineExpand: 'Expand',
+  timelineCollapse: 'Collapse',
   sessionPrefix: 'Session',
-  na: 'N/A',
-  pageSelection: 'Page',
-  selectedSession: 'selected',
-  noSession: 'No session selected',
-  comingSoon: 'Coming soon',
+  knowledge: 'Knowledge base',
+  knowledgeEmpty: 'No knowledge sources yet.',
+  knowledgeLatest: 'Latest',
   smartQA: 'Smart Q&A',
   qaEmpty: 'Ask a question to start.',
   qaThinking: 'Thinking…',
   inputPlaceholder: 'Ask about the sessions',
+  composerPlaceholder: 'Send an instruction to the session…',
+  composerDisabled: 'Select a session to send instructions',
+  composerError: 'Instruction failed',
   send: 'Send',
   stop: 'Stop',
   qaError: 'Request failed',
+  rename: 'Rename',
+  renameTitle: 'Rename session',
+  renameInputAria: 'Session title',
+  renameConfirm: 'Rename',
+  renameCancel: 'Cancel',
+  fork: 'Fork',
+  archive: 'Archive',
+  archiveConfirmTitle: 'Archive session',
+  archiveConfirmBody: 'Archive this session? Its history is kept but it is removed from the active list.',
+  confirm: 'Confirm',
+  cancel: 'Cancel',
+  contextMenuAria: 'Session actions',
+  newSessionTitle: 'New session',
+  workspaceLabel: 'Workspace',
+  addWorkspace: 'Add workspace…',
+  presetLabel: 'Preset',
+  presetNone: 'None',
+  instructionLabel: 'First instruction',
+  instructionPlaceholder: 'Type the first instruction…',
+  sessionGridAria: 'Sessions',
+  sessionGridSelected: 'Selected',
+  sessionGridCurrent: 'Current',
+  sessionGridUpdated: 'Updated',
+  sessionGridCwd: 'cwd',
+  sessionStatusRunning: 'Running',
+  sessionStatusPlanning: 'Planning',
+  sessionStatusPending: 'Pending',
+  sessionStatusWaiting: 'Waiting',
+  sessionStatusAvailable: 'Available',
+  sessionStatusArchived: 'Archived',
+  na: 'N/A',
+  selectedSession: 'selected',
+  noSession: 'No session selected',
+  updatedAt: 'updated',
+  askUserTitle: 'Question',
+  askUserRecommend: 'Recommended',
+  askUserSelfInput: 'Type your own answer',
+  askUserSkip: 'Skip',
+  askUserBack: 'Previous',
+  askUserNext: 'Next',
+  askUserSubmit: 'Submit',
+  askUserCancel: 'Cancel',
 }
 
 /** Chinese dictionary for the console namespace. */
@@ -99,14 +207,21 @@ export const zh: Record<ConsoleKey, string> = {
   title: '控制台',
   close: '关闭',
   trigger: '控制台',
+  newSession: '新建会话',
   sessionStatus: '会话状态',
+  sessionViewToggleAria: '会话视图',
+  sessionStatsView: '统计',
+  sessionGridView: '网格',
   sessionTotal: '总数',
   sessionRunning: '运行中',
   sessionPending: '等待输入',
   sessionCompleted: '已完成',
   sessionArchived: '已归档',
-  currentSession: '当前',
+  sessionCurrent: '当前',
   taskStats: '任务统计',
+  taskAllSessions: '全部会话',
+  taskScope: '作用域',
+  taskRunning: '运行中',
   taskTurns: '轮数',
   taskSteps: '步骤数',
   taskLlmMs: 'LLM 耗时',
@@ -120,21 +235,68 @@ export const zh: Record<ConsoleKey, string> = {
   pendingPlanReview: '计划审阅',
   noPending: '无',
   timeline: '时间线',
-  timelineEmpty: '暂无会话活动。',
-  timelineActivity: '活动',
+  timelineScopeAll: '全部会话',
+  timelineClear: '清除',
   timelineStatus: '状态',
+  timelineActivity: '活动',
   timelineModeAria: '时间线模式',
+  timelineEmpty: '暂无会话活动。',
+  timelineExpand: '展开',
+  timelineCollapse: '收起',
   sessionPrefix: '会话',
-  na: 'N/A',
-  pageSelection: '页面',
-  selectedSession: '已选',
-  noSession: '未选择会话',
-  comingSoon: '即将推出',
+  knowledge: '知识库',
+  knowledgeEmpty: '暂无知识来源。',
+  knowledgeLatest: '最新',
   smartQA: '智能问答',
   qaEmpty: '输入问题开始。',
   qaThinking: '思考中…',
   inputPlaceholder: '询问会话相关内容',
+  composerPlaceholder: '向会话发送指令…',
+  composerDisabled: '请选择会话后再发送指令',
+  composerError: '指令发送失败',
   send: '发送',
   stop: '停止',
   qaError: '请求失败',
+  rename: '重命名',
+  renameTitle: '重命名会话',
+  renameInputAria: '会话标题',
+  renameConfirm: '重命名',
+  renameCancel: '取消',
+  fork: 'Fork',
+  archive: '归档',
+  archiveConfirmTitle: '归档会话',
+  archiveConfirmBody: '要归档这个会话吗？历史会保留，但会从活动列表中移除。',
+  confirm: '确认',
+  cancel: '取消',
+  contextMenuAria: '会话操作',
+  newSessionTitle: '新建会话',
+  workspaceLabel: '工作区',
+  addWorkspace: '添加工作区…',
+  presetLabel: '预设',
+  presetNone: '无',
+  instructionLabel: '首条指令',
+  instructionPlaceholder: '输入首条指令…',
+  sessionGridAria: '会话',
+  sessionGridSelected: '已选',
+  sessionGridCurrent: '当前',
+  sessionGridUpdated: '更新于',
+  sessionGridCwd: 'cwd',
+  sessionStatusRunning: '运行中',
+  sessionStatusPlanning: '规划中',
+  sessionStatusPending: '等待输入',
+  sessionStatusWaiting: '等待中',
+  sessionStatusAvailable: '可用',
+  sessionStatusArchived: '已归档',
+  na: 'N/A',
+  selectedSession: '已选',
+  noSession: '未选择会话',
+  updatedAt: '更新于',
+  askUserTitle: '问题',
+  askUserRecommend: '推荐',
+  askUserSelfInput: '输入自定义答案',
+  askUserSkip: '跳过',
+  askUserBack: '上一条',
+  askUserNext: '下一条',
+  askUserSubmit: '提交',
+  askUserCancel: '取消',
 }

@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { createConsoleStore } from '../src/client/consoleStore.ts'
 
 describe('createConsoleStore', () => {
-  it('starts empty with a bounded timeline and no host sample', () => {
+  it('starts empty with a bounded timeline and default views', () => {
     const store = createConsoleStore().create()
     expect(store.getSnapshot()).toEqual({
       timeline: [],
       seq: 0,
       systemStatus: null,
       timelineMode: 'brief',
+      sessionView: 'stats',
+      selectedSession: undefined,
+      timelineScope: undefined,
     })
   })
 
@@ -33,15 +36,29 @@ describe('createConsoleStore', () => {
     expect(entries.at(-1)).toMatchObject({ id: 205 })
   })
 
-  it('updates the system sample and the timeline mode', () => {
+  it('updates the system sample and the view/timeline writers', () => {
     const store = createConsoleStore().create()
     store.actions.updateSystemStatus({ cpu: 42, memory: 61, gpu: null })
     expect(store.getSnapshot().systemStatus).toEqual({ cpu: 42, memory: 61, gpu: null })
 
     store.actions.setTimelineMode('all')
     expect(store.getSnapshot().timelineMode).toBe('all')
-
     store.actions.setTimelineMode('brief')
     expect(store.getSnapshot().timelineMode).toBe('brief')
+
+    store.actions.setSessionView('grid')
+    expect(store.getSnapshot().sessionView).toBe('grid')
+    store.actions.setSessionView('stats')
+    expect(store.getSnapshot().sessionView).toBe('stats')
+
+    store.actions.setSelectedSession('s1')
+    expect(store.getSnapshot().selectedSession).toBe('s1')
+    store.actions.setSelectedSession(undefined)
+    expect(store.getSnapshot().selectedSession).toBeUndefined()
+
+    store.actions.setTimelineScope('s1')
+    expect(store.getSnapshot().timelineScope).toBe('s1')
+    store.actions.setTimelineScope(undefined)
+    expect(store.getSnapshot().timelineScope).toBeUndefined()
   })
 })

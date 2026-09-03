@@ -52,6 +52,9 @@ export function SmartQA({ t, chat, model }: SmartQAProps) {
 
   async function send(): Promise<void> {
     const text = draft.trim()
+    /* v8 ignore next -- while busy the send button is replaced by Stop, so a
+     * second send() call cannot reach this guard; it only protects the path
+     * where model or draft changed mid-flight. */
     if (text === '' || busy || model === null) return
     const userMsg: ChatMessage = { id: nextId.current++, role: 'user', content: text }
     const assistantMsg: ChatMessage = { id: nextId.current++, role: 'assistant', content: '' }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { timelineLabelKey, timelineTone, shortId } from '../src/client/timelineText.ts'
+import { foldText, FOLD_LIMIT, shortId, timelineLabelKey, timelineTone } from '../src/client/timelineText.ts'
 
 describe('timelineText', () => {
   it('maps known timeline kinds to dictionary keys and unknown kinds to the activity label', () => {
@@ -17,5 +17,11 @@ describe('timelineText', () => {
   it('shortens long session ids to a stable trailing suffix', () => {
     expect(shortId('session-12345678')).toBe('345678')
     expect(shortId('abc')).toBe('abc')
+  })
+
+  it('folds text over the default limit and leaves short text intact', () => {
+    expect(FOLD_LIMIT).toBe(48)
+    expect(foldText('short', 48)).toBe('short')
+    expect(foldText('x'.repeat(60), 48)).toBe(`${'x'.repeat(48)}…`)
   })
 })
