@@ -5,6 +5,13 @@ export type ConsoleKey = 'console'
   | 'title'
   | 'close'
   | 'trigger'
+  | 'layout'
+  | 'layoutAria'
+  | 'layoutBalanced'
+  | 'layoutTimeline'
+  | 'layoutCompact'
+  | 'collapse'
+  | 'expand'
   | 'newSession'
   | 'sessionStatus'
   | 'sessionViewToggleAria'
@@ -107,6 +114,13 @@ export const en: Record<ConsoleKey, string> = {
   title: 'Console',
   close: 'Close',
   trigger: 'Console',
+  layout: 'Layout',
+  layoutAria: 'Column layout',
+  layoutBalanced: 'Balanced',
+  layoutTimeline: 'Focus',
+  layoutCompact: 'Compact',
+  collapse: 'Collapse',
+  expand: 'Expand',
   newSession: 'New session',
   sessionStatus: 'Session status',
   sessionViewToggleAria: 'Session view',
@@ -207,6 +221,13 @@ export const zh: Record<ConsoleKey, string> = {
   title: '控制台',
   close: '关闭',
   trigger: '控制台',
+  layout: '布局',
+  layoutAria: '列布局',
+  layoutBalanced: '均衡',
+  layoutTimeline: '聚焦',
+  layoutCompact: '紧凑',
+  collapse: '折叠',
+  expand: '展开',
   newSession: '新建会话',
   sessionStatus: '会话状态',
   sessionViewToggleAria: '会话视图',

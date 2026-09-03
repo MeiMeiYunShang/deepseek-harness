@@ -49,6 +49,8 @@ const baseStore = (): ConsoleStoreState => ({
   sessionView: 'stats',
   selectedSession: 's1',
   timelineScope: undefined,
+  layout: 'balanced',
+  collapsed: {},
 })
 
 function renderWorkbench(overrides: {
@@ -60,7 +62,14 @@ function renderWorkbench(overrides: {
   titleOf?: (id: string) => string | undefined
 } = {}) {
   const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? baseStore())
-  const store = { setTimelineMode: vi.fn(), setSessionView: vi.fn(), setSelectedSession: vi.fn(), setTimelineScope: vi.fn() }
+  const store = {
+    setTimelineMode: vi.fn(),
+    setSessionView: vi.fn(),
+    setSelectedSession: vi.fn(),
+    setTimelineScope: vi.fn(),
+    setLayout: vi.fn(),
+    toggleCollapsed: vi.fn(),
+  }
   const srv = services(overrides.services)
   render(<Workbench
     t={t}
@@ -193,6 +202,22 @@ describe('Workbench', () => {
     expect(store.setSessionView).toHaveBeenCalledWith('grid')
     fireEvent.click(screen.getByRole('button', { name: en.timelineActivity }))
     expect(store.setTimelineMode).toHaveBeenCalledWith('all')
+  })
+
+  it('switches the column layout preset through the header switcher', () => {
+    const { store } = renderWorkbench()
+    fireEvent.click(screen.getByRole('button', { name: en.layoutTimeline }))
+    expect(store.setLayout).toHaveBeenCalledWith('timeline')
+    fireEvent.click(screen.getByRole('button', { name: en.layoutCompact }))
+    expect(store.setLayout).toHaveBeenCalledWith('compact')
+    fireEvent.click(screen.getByRole('button', { name: en.layoutBalanced }))
+    expect(store.setLayout).toHaveBeenCalledWith('balanced')
+  })
+
+  it('collapses a card body through its fold button', () => {
+    const { store } = renderWorkbench()
+    fireEvent.click(screen.getAllByRole('button', { name: en.collapse })[0]!)
+    expect(store.toggleCollapsed).toHaveBeenCalled()
   })
 
   it('clears the timeline scope through the pill', () => {

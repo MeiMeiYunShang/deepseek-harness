@@ -11,7 +11,7 @@ const t = (key: string): string => (en as Record<string, string>)[key] ?? key
 
 describe('KnowledgeCard', () => {
   it('renders the empty hint when no sources are provided', () => {
-    render(<KnowledgeCard t={t} />)
+    render(<KnowledgeCard t={t} collapsed={false} onToggleCollapse={() => {}} />)
     expect(screen.getByText(en.knowledgeEmpty)).toBeTruthy()
   })
 
@@ -19,9 +19,15 @@ describe('KnowledgeCard', () => {
     render(<KnowledgeCard t={t} items={[
       { id: 'a', name: 'Repo docs', latest: true },
       { id: 'b', name: 'Design notes', latest: false },
-    ]} />)
+    ]} collapsed={false} onToggleCollapse={() => {}} />)
     expect(screen.getByText('Repo docs')).toBeTruthy()
     expect(screen.getByText('Design notes')).toBeTruthy()
     expect(screen.getByText(en.knowledgeLatest)).toBeTruthy()
+  })
+
+  it('hides the body when collapsed', () => {
+    render(<KnowledgeCard t={t} items={[{ id: 'a', name: 'Repo docs', latest: false }]} collapsed onToggleCollapse={() => {}} />)
+    expect(screen.getByText(en.knowledge)).toBeTruthy()
+    expect(screen.queryByText('Repo docs')).toBeNull()
   })
 })

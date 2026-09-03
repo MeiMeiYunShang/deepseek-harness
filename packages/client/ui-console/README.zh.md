@@ -18,6 +18,8 @@ kind: "package-reference"
 - **知识库** —— 来源列表，当前渲染空/占位状态（尚无后端 seam）。
 - **智能问答** —— 通过 `ctx.remote.llm.chat` 流式完成一次性补全。
 
+每张卡在标题行都有折叠开关，把卡片主体收起到仅剩标题栏；顶部的列布局切换（均衡 / 聚焦 / 紧凑）在宽屏下改变网格列比例。在低分辨率屏幕上网格按响应式重排（三列 → 二加一 → 单列堆叠），不受所选预设影响。
+
 会话状态、累计任务统计与当前选择来自标准的 `ctx.sessions` 数据流与 `sessionStats` 投影；待处理交互通过 `ctx.uiSession.pendingInteractions` 的网格相位着色呈现；主机资源指标与活动时间线来自转发的 `host/metrics` 与 `api-session/*` 事件；会话动词（打开、重命名、Fork、归档、新建、预设选择、发送指令）经由 `ctx.sessions`、`ctx.workspaces` 与 `ctx.remote.agentPresets` 面。一个「新建会话」弹窗收集工作区、可选的代理预设与首条指令。
 
 ## Known Limitations and Deferred Work

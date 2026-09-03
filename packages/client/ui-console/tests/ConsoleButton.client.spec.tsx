@@ -37,6 +37,8 @@ function makeStore(overrides: Partial<ConsoleStoreState> = {}): ConsoleStoreStat
     sessionView: 'stats',
     selectedSession: undefined,
     timelineScope: undefined,
+    layout: 'balanced',
+    collapsed: {},
     ...overrides,
   }
 }
@@ -75,6 +77,8 @@ function renderConsole(overrides: {
     setSessionView: vi.fn(),
     setSelectedSession: vi.fn(),
     setTimelineScope: vi.fn(),
+    setLayout: vi.fn(),
+    toggleCollapsed: vi.fn(),
   }
   const props = {
     wide: overrides.wide ?? true,

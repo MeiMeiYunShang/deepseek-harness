@@ -7,6 +7,7 @@ import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/cli
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import type { ConsoleKey } from './locales.ts'
 import { formatDuration } from './format.ts'
+import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
 
 /** One counted block: a leading status bar, the figure, and a label. */
@@ -52,10 +53,14 @@ export interface TaskStatsCardProps {
   scope: string | undefined
   /** Resolve a session's display title for the scope line. */
   titleOf: (id: string) => string | undefined
+  /** Whether the card body is collapsed. */
+  collapsed: boolean
+  /** Toggle the collapsed state. */
+  onToggleCollapse: () => void
 }
 
 /** Task-statistics card over the scoped rows. */
-export function TaskStatsCard({ t, byId, scope, titleOf }: TaskStatsCardProps) {
+export function TaskStatsCard({ t, byId, scope, titleOf, collapsed, onToggleCollapse }: TaskStatsCardProps) {
   const scopeLabel = scope === undefined
     ? t('taskAllSessions')
     : titleOf(scope) ?? t('taskAllSessions')
@@ -64,16 +69,20 @@ export function TaskStatsCard({ t, byId, scope, titleOf }: TaskStatsCardProps) {
     : (byId[scope]?.running === true ? 1 : 0)
   const stats = aggregateSessionStats(byId, scope)
   return (
-    <div className={css.card}>
-      <h3 className={css.cardTitle}>{t('taskStats')}</h3>
-      <span className={css.taskScope}>{t('taskScope')}: {scopeLabel}</span>
-      <div className={css.taskStats}>
-        <StatItem tone="Running" label={t('taskRunning')}>{String(running)}</StatItem>
-        <StatItem tone="Current" label={t('taskTurns')}>{String(stats.turns)}</StatItem>
-        <StatItem tone="Running" label={t('taskSteps')}>{String(stats.steps)}</StatItem>
-        <StatItem tone="Waiting" label={t('taskLlmMs')}>{formatDuration(stats.llmMs)}</StatItem>
-        <StatItem tone="Pending" label={t('taskToolMs')}>{formatDuration(stats.toolMs)}</StatItem>
-      </div>
+    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+      <CardHeader t={t} title={t('taskStats')} collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
+      {!collapsed && (
+        <>
+          <span className={css.taskScope}>{t('taskScope')}: {scopeLabel}</span>
+          <div className={css.taskStats}>
+            <StatItem tone="Running" label={t('taskRunning')}>{String(running)}</StatItem>
+            <StatItem tone="Current" label={t('taskTurns')}>{String(stats.turns)}</StatItem>
+            <StatItem tone="Running" label={t('taskSteps')}>{String(stats.steps)}</StatItem>
+            <StatItem tone="Waiting" label={t('taskLlmMs')}>{formatDuration(stats.llmMs)}</StatItem>
+            <StatItem tone="Pending" label={t('taskToolMs')}>{formatDuration(stats.toolMs)}</StatItem>
+          </div>
+        </>
+      )}
     </div>
   )
 }

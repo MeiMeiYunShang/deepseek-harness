@@ -56,6 +56,8 @@ export function apply(ctx: ClientContext): void {
     setSessionView: store.actions.setSessionView,
     setSelectedSession: store.actions.setSelectedSession,
     setTimelineScope: store.actions.setTimelineScope,
+    setLayout: store.actions.setLayout,
+    toggleCollapsed: store.actions.toggleCollapsed,
   }
 
   // The timeline is a monitoring mirror: forward the coarse session activity

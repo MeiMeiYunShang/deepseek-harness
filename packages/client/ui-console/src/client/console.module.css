@@ -79,6 +79,12 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .closeButton {
   display: inline-flex;
   align-items: center;
@@ -118,6 +124,52 @@
   padding: 16px;
 }
 
+/* Preset column layouts. Only applied on wide viewports: the responsive
+   breakpoints below always own a narrow screen, so a preset choice never
+   fights a reflow. */
+@media (min-width: 1100px) {
+  .columns[data-layout='timeline'] {
+    grid-template-columns: 1fr 3fr 1fr;
+  }
+
+  .columns[data-layout='compact'] {
+    grid-template-columns: 1.4fr 2fr 1.4fr;
+  }
+}
+
+/* Layout preset switcher in the header. */
+.layoutSwitcher {
+  display: inline-flex;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+}
+
+.layoutButton {
+  border: none;
+  border-right: 1px solid var(--dsw-alias-border-l2);
+  background: transparent;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.layoutButton:last-child {
+  border-right: none;
+}
+
+.layoutButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.layoutButtonActive {
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+}
+
 .column {
   display: flex;
   flex-direction: column;
@@ -138,12 +190,53 @@
   padding: 16px;
 }
 
+/* A collapsed card shrinks to its title bar and releases its flex share, so
+   the sibling cards in the same column absorb the freed height. */
+.cardCollapsed {
+  flex: none;
+}
+
 .cardTitle {
   flex: none;
   margin: 0 0 12px;
   font-size: 14px;
   font-weight: 500;
   color: var(--dsw-alias-label-primary);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cardHeader .cardTitle {
+  margin: 0;
+  flex: 1;
+}
+
+.cardHeaderActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.foldButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.foldButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 /* --- Session status card --- */

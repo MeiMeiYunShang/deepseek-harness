@@ -12,6 +12,8 @@ describe('createConsoleStore', () => {
       sessionView: 'stats',
       selectedSession: undefined,
       timelineScope: undefined,
+      layout: 'balanced',
+      collapsed: {},
     })
   })
 
@@ -60,5 +62,15 @@ describe('createConsoleStore', () => {
     expect(store.getSnapshot().timelineScope).toBe('s1')
     store.actions.setTimelineScope(undefined)
     expect(store.getSnapshot().timelineScope).toBeUndefined()
+
+    store.actions.setLayout('timeline')
+    expect(store.getSnapshot().layout).toBe('timeline')
+    store.actions.setLayout('compact')
+    expect(store.getSnapshot().layout).toBe('compact')
+
+    store.actions.toggleCollapsed('session')
+    expect(store.getSnapshot().collapsed.session).toBe(true)
+    store.actions.toggleCollapsed('session')
+    expect(store.getSnapshot().collapsed.session).toBe(false)
   })
 })

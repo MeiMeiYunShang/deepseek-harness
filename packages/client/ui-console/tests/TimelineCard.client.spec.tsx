@@ -36,6 +36,8 @@ describe('TimelineCard', () => {
       setTimelineMode={() => {}}
       clearScope={() => {}}
       sendInstruction={vi.fn(async () => undefined)}
+      collapsed={false}
+      onToggleCollapse={() => {}}
     />)
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
     // the activity row is filtered out in brief mode.
@@ -52,6 +54,8 @@ describe('TimelineCard', () => {
       setTimelineMode={() => {}}
       clearScope={() => {}}
       sendInstruction={vi.fn(async () => undefined)}
+      collapsed={false}
+      onToggleCollapse={() => {}}
     />)
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
     expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
@@ -70,6 +74,8 @@ describe('TimelineCard', () => {
       setTimelineMode={setTimelineMode}
       clearScope={clearScope}
       sendInstruction={vi.fn(async () => undefined)}
+      collapsed={false}
+      onToggleCollapse={() => {}}
     />)
     fireEvent.click(screen.getByRole('button', { name: en.timelineScopeAll }))
     expect(clearScope).toHaveBeenCalled()
@@ -87,8 +93,28 @@ describe('TimelineCard', () => {
       setTimelineMode={() => {}}
       clearScope={() => {}}
       sendInstruction={vi.fn(async () => undefined)}
+      collapsed={false}
+      onToggleCollapse={() => {}}
     />)
     expect(screen.getByText(en.timelineEmpty)).toBeTruthy()
+  })
+
+  it('hides the list and composer when collapsed', () => {
+    render(<TimelineCard
+      t={t}
+      timeline={[entry(1, 's1', 'status', 1000)]}
+      timelineMode="all"
+      scope={undefined}
+      selected="s1"
+      setTimelineMode={() => {}}
+      clearScope={() => {}}
+      sendInstruction={vi.fn(async () => undefined)}
+      collapsed
+      onToggleCollapse={() => {}}
+    />)
+    expect(screen.getByText(en.timeline)).toBeTruthy()
+    expect(screen.queryByText(en.timelineEmpty)).toBeNull()
+    expect(screen.queryByPlaceholderText(en.composerPlaceholder)).toBeNull()
   })
 })
 

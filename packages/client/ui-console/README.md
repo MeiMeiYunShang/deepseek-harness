@@ -18,6 +18,8 @@ English | [中文](README.zh.md)
 - **Knowledge base** — a source list that currently renders an empty/placeholder state (no backend seam exists yet).
 - **Smart Q&A** — streams one-shot completions over `ctx.remote.llm.chat`.
 
+Each card has a fold toggle in its title row that collapses the body to the title bar, and a column-layout switcher in the header (Balanced / Focus / Compact) changes the grid's column proportions on wide viewports. On low-resolution screens the grid reflows responsively (three columns → two-plus-one → a single stacked column) regardless of the selected preset.
+
 Session status, cumulative task statistics, and the current selection come from the standard `ctx.sessions` feed and the `sessionStats` projection; pending interactions surface through the grid phase colors from `ctx.uiSession.pendingInteractions`; host resource metrics and the activity timeline come from the forwarded `host/metrics` and `api-session/*` events; and session verbs (open, rename, fork, archive, create, preset select, send instruction) ride the `ctx.sessions`, `ctx.workspaces`, and `ctx.remote.agentPresets` faces. A "new session" modal collects a workspace, an optional agent preset, and a first instruction.
 
 ## Known Limitations and Deferred Work

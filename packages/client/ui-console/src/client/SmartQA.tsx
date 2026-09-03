@@ -124,7 +124,7 @@ export function SmartQA({ t, chat, model }: SmartQAProps) {
           placeholder={t('inputPlaceholder')}
           value={draft}
           disabled={busy}
-          onChange={event => setDraft(event.target.value)}
+          onChange={(event) =>{  setDraft(event.target.value) }}
           onKeyDown={onKeyDown}
         />
         {busy

@@ -10,6 +10,7 @@ import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/cli
 import type { SessionView } from './consoleStore.ts'
 import type { ConsoleKey } from './locales.ts'
 import { sessionPhase, sessionPhaseLabel } from './sessionState.ts'
+import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
 
 /** A session-phase colored square in the grid view. */
@@ -98,11 +99,16 @@ export interface SessionStatusCardProps {
   onContextMenu: (id: string, x: number, y: number) => void
   /** New-session action. */
   onNewSession: () => void
+  /** Whether the card body is collapsed. */
+  collapsed: boolean
+  /** Toggle the collapsed state. */
+  onToggleCollapse: () => void
 }
 
 /** Session status card: the header row plus the selected view body. */
 export function SessionStatusCard({
-  t, byId, current, sessionView, selected, isArchived, pendingKindOf, setSessionView, selectSession, onContextMenu, onNewSession,
+  t, byId, current, sessionView, selected, isArchived, pendingKindOf,
+  setSessionView, selectSession, onContextMenu, onNewSession, collapsed, onToggleCollapse,
 }: SessionStatusCardProps) {
   const sessions = Object.values(byId)
   const running = sessions.filter(session => session.running).length
@@ -110,63 +116,72 @@ export function SessionStatusCard({
   const pending = sessions.filter(session => pendingKindOf(session.id) !== undefined).length
 
   return (
-    <div className={css.card}>
-      <div className={css.sessionCardHeader}>
-        <h3 className={css.cardTitle}>{t('sessionStatus')}</h3>
-        <button type="button" className={css.newSessionButton} onClick={onNewSession}>
-          <IconPlusOutline16 size={14} />
-          <span>{t('newSession')}</span>
-        </button>
-      </div>
-      <div className={css.sessionViewToggle} role="group" aria-label={t('sessionViewToggleAria')}>
-        <button
-          type="button"
-          className={clsx(css.modeButton, sessionView === 'stats' && css.modeButtonActive)}
-          aria-pressed={sessionView === 'stats'}
-          onClick={() => { setSessionView('stats') }}
-        >
-          {t('sessionStatsView')}
-        </button>
-        <button
-          type="button"
-          className={clsx(css.modeButton, sessionView === 'grid' && css.modeButtonActive)}
-          aria-pressed={sessionView === 'grid'}
-          onClick={() => { setSessionView('grid') }}
-        >
-          {t('sessionGridView')}
-        </button>
-      </div>
-      {sessionView === 'stats'
-        ? (
-          <div className={css.countsBlock}>
-            <CountItem tone="Current" label={t('sessionCurrent')}>{String(sessions.length)}</CountItem>
-            <CountItem tone="Running" label={t('sessionRunning')}>{String(running)}</CountItem>
-            <CountItem tone="Waiting" label={t('sessionPending')}>{String(pending)}</CountItem>
-            <CountItem tone="Pending" label={t('sessionCompleted')}>{String(completed)}</CountItem>
-            <CountItem tone="Waiting" label={t('sessionArchived')}>{String(sessions.filter(session => isArchived(session.id)).length)}</CountItem>
-          </div>
-        )
-        : (
-          <div className={css.sessionGrid} aria-label={t('sessionGridAria')}>
-            {sessions.length === 0
-              ? <span className={css.emptyHint}>{t('noSession')}</span>
-              : sessions.map((session) => {
-                const phase = cellPhase(session, pendingKindOf(session.id), isArchived(session.id))
-                return (
-                  <GridCell
-                    key={session.id}
-                    summary={session}
-                    tone={phase.tone}
-                    aria={phase.aria}
-                    active={session.id === current}
-                    selected={session.id === selected}
-                    onClick={() => { selectSession(session.id) }}
-                    onContextMenu={(x, y) => { onContextMenu(session.id, x, y) }}
-                  />
-                )
-              })}
-          </div>
+    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+      <CardHeader
+        t={t}
+        title={t('sessionStatus')}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        actions={(
+          <button type="button" className={css.newSessionButton} onClick={onNewSession}>
+            <IconPlusOutline16 size={14} />
+            <span>{t('newSession')}</span>
+          </button>
         )}
+      />
+      {!collapsed && (
+        <>
+          <div className={css.sessionViewToggle} role="group" aria-label={t('sessionViewToggleAria')}>
+            <button
+              type="button"
+              className={clsx(css.modeButton, sessionView === 'stats' && css.modeButtonActive)}
+              aria-pressed={sessionView === 'stats'}
+              onClick={() => { setSessionView('stats') }}
+            >
+              {t('sessionStatsView')}
+            </button>
+            <button
+              type="button"
+              className={clsx(css.modeButton, sessionView === 'grid' && css.modeButtonActive)}
+              aria-pressed={sessionView === 'grid'}
+              onClick={() => { setSessionView('grid') }}
+            >
+              {t('sessionGridView')}
+            </button>
+          </div>
+          {sessionView === 'stats'
+            ? (
+              <div className={css.countsBlock}>
+                <CountItem tone="Current" label={t('sessionCurrent')}>{String(sessions.length)}</CountItem>
+                <CountItem tone="Running" label={t('sessionRunning')}>{String(running)}</CountItem>
+                <CountItem tone="Waiting" label={t('sessionPending')}>{String(pending)}</CountItem>
+                <CountItem tone="Pending" label={t('sessionCompleted')}>{String(completed)}</CountItem>
+                <CountItem tone="Waiting" label={t('sessionArchived')}>{String(sessions.filter(session => isArchived(session.id)).length)}</CountItem>
+              </div>
+            )
+            : (
+              <div className={css.sessionGrid} aria-label={t('sessionGridAria')}>
+                {sessions.length === 0
+                  ? <span className={css.emptyHint}>{t('noSession')}</span>
+                  : sessions.map((session) => {
+                    const phase = cellPhase(session, pendingKindOf(session.id), isArchived(session.id))
+                    return (
+                      <GridCell
+                        key={session.id}
+                        summary={session}
+                        tone={phase.tone}
+                        aria={phase.aria}
+                        active={session.id === current}
+                        selected={session.id === selected}
+                        onClick={() => { selectSession(session.id) }}
+                        onContextMenu={(x, y) => { onContextMenu(session.id, x, y) }}
+                      />
+                    )
+                  })}
+              </div>
+            )}
+        </>
+      )}
     </div>
   )
 }

@@ -5,6 +5,8 @@
  */
 
 import type { ConsoleKey } from './locales.ts'
+import clsx from 'clsx'
+import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
 
 /** One knowledge source row. */
@@ -23,23 +25,29 @@ export interface KnowledgeCardProps {
   t: (key: ConsoleKey) => string
   /** Source rows; absent/empty renders the empty hint. */
   items?: readonly KnowledgeItem[]
+  /** Whether the card body is collapsed. */
+  collapsed: boolean
+  /** Toggle the collapsed state. */
+  onToggleCollapse: () => void
 }
 
 /** Knowledge-base card: the source list or its empty state. */
-export function KnowledgeCard({ t, items = [] }: KnowledgeCardProps) {
+export function KnowledgeCard({ t, items = [], collapsed, onToggleCollapse }: KnowledgeCardProps) {
   return (
-    <div className={css.card}>
-      <h3 className={css.cardTitle}>{t('knowledge')}</h3>
-      <div className={css.knowledgeList}>
-        {items.length === 0
-          ? <span className={css.emptyHint}>{t('knowledgeEmpty')}</span>
-          : items.map(item => (
-            <div key={item.id} className={css.knowledgeItem}>
-              <span className={css.knowledgeName}>{item.name}</span>
-              {item.latest && <span className={css.latestBadge}>{t('knowledgeLatest')}</span>}
-            </div>
-          ))}
-      </div>
+    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+      <CardHeader t={t} title={t('knowledge')} collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
+      {!collapsed && (
+        <div className={css.knowledgeList}>
+          {items.length === 0
+            ? <span className={css.emptyHint}>{t('knowledgeEmpty')}</span>
+            : items.map(item => (
+              <div key={item.id} className={css.knowledgeItem}>
+                <span className={css.knowledgeName}>{item.name}</span>
+                {item.latest && <span className={css.latestBadge}>{t('knowledgeLatest')}</span>}
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   )
 }

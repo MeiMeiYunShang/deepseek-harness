@@ -6,13 +6,14 @@
  */
 
 import { useState } from 'react'
+import clsx from 'clsx'
 import { IconCloseOutline16, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { contextMenuItems, contextAnchorRect } from './ContextMenu.tsx'
-import type { ConsoleStoreState, ConsoleStoreWrite } from './consoleStore.ts'
-import { NS } from './locales.ts'
+import type { ConsoleCardKey, ConsoleStoreState, ConsoleStoreWrite, LayoutPreset } from './consoleStore.ts'
+import { NS, type ConsoleKey } from './locales.ts'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
 import { SmartQA } from './SmartQA.tsx'
@@ -21,8 +22,16 @@ import { TaskStatsCard } from './TaskStatsCard.tsx'
 import { SystemStatusCard } from './SystemStatusCard.tsx'
 import { TimelineCard } from './TimelineCard.tsx'
 import { KnowledgeCard } from './KnowledgeCard.tsx'
+import { CardHeader } from './CardHeader.tsx'
 import { NewSessionModal, RenameModal } from './modals.tsx'
 import css from './console.module.css'
+
+/** The selectable column layout presets and their dictionary labels. */
+const LAYOUT_OPTIONS: readonly { preset: LayoutPreset; label: ConsoleKey }[] = [
+  { preset: 'balanced', label: 'layoutBalanced' },
+  { preset: 'timeline', label: 'layoutTimeline' },
+  { preset: 'compact', label: 'layoutCompact' },
+]
 
 /** One workspace option for the new-session form. */
 export interface ConsoleWorkspaceOption {
@@ -77,6 +86,11 @@ export function Workbench({
   const selected = useConsole(value => value.selectedSession)
   const timelineScope = useConsole(value => value.timelineScope)
   const systemStatus = useConsole(value => value.systemStatus)
+  const layout = useConsole(value => value.layout)
+  const collapsed = useConsole(value => value.collapsed)
+
+  const isCollapsed = (card: ConsoleCardKey): boolean => collapsed[card] === true
+  const toggleCard = (card: ConsoleCardKey): (() => void) => () => { store.toggleCollapsed(card) }
 
   const [contextMenu, setContextMenu] = useState<OpenContextMenu | null>(null)
   const [renameTarget, setRenameTarget] = useState<string | null>(null)
@@ -109,11 +123,26 @@ export function Workbench({
       <div className={css.panel} role="dialog" aria-modal="true" aria-label={t('title')}>
         <div className={css.header}>
           <h1 className={css.headerTitle}>{t('title')}</h1>
-          <button type="button" className={css.closeButton} aria-label={t('close')} onClick={onClose}>
-            <IconCloseOutline16 size={14} />
-          </button>
+          <div className={css.headerActions}>
+            <div className={css.layoutSwitcher} role="group" aria-label={t('layoutAria')}>
+              {LAYOUT_OPTIONS.map(option => (
+                <button
+                  key={option.preset}
+                  type="button"
+                  className={clsx(css.layoutButton, layout === option.preset && css.layoutButtonActive)}
+                  aria-pressed={layout === option.preset}
+                  onClick={() => { store.setLayout(option.preset) }}
+                >
+                  {t(option.label)}
+                </button>
+              ))}
+            </div>
+            <button type="button" className={css.closeButton} aria-label={t('close')} onClick={onClose}>
+              <IconCloseOutline16 size={14} />
+            </button>
+          </div>
         </div>
-        <div className={css.columns}>
+        <div className={css.columns} data-layout={layout}>
           <div className={css.column}>
             <SessionStatusCard
               t={t}
@@ -127,9 +156,11 @@ export function Workbench({
               selectSession={(id) => { services.open(id as SessionId) }}
               onContextMenu={(id, x, y) => { setContextMenu({ id, x, y, archived: archived.has(id) }) }}
               onNewSession={() => { void openNewSession() }}
+              collapsed={isCollapsed('session')}
+              onToggleCollapse={toggleCard('session')}
             />
-            <TaskStatsCard t={t} byId={byId} scope={selected} titleOf={titleOf} />
-            <SystemStatusCard t={t} status={systemStatus} />
+            <TaskStatsCard t={t} byId={byId} scope={selected} titleOf={titleOf} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} />
+            <SystemStatusCard t={t} status={systemStatus} collapsed={isCollapsed('system')} onToggleCollapse={toggleCard('system')} />
           </div>
           <div className={css.column}>
             <TimelineCard
@@ -141,13 +172,15 @@ export function Workbench({
               setTimelineMode={store.setTimelineMode}
               clearScope={() => { store.setTimelineScope(undefined) }}
               sendInstruction={text => sendToSession(services, selected, text)}
+              collapsed={isCollapsed('timeline')}
+              onToggleCollapse={toggleCard('timeline')}
             />
           </div>
           <div className={css.column}>
-            <KnowledgeCard t={t} />
+            <KnowledgeCard t={t} collapsed={isCollapsed('knowledge')} onToggleCollapse={toggleCard('knowledge')} />
             <div className={css.smartQACard}>
-              <h3 className={css.cardTitle}>{t('smartQA')}</h3>
-              <SmartQA t={t} chat={chat} model={defaultModel} />
+              <CardHeader t={t} title={t('smartQA')} collapsed={isCollapsed('qa')} onToggleCollapse={toggleCard('qa')} />
+              {!isCollapsed('qa') && <SmartQA t={t} chat={chat} model={defaultModel} />}
             </div>
           </div>
         </div>

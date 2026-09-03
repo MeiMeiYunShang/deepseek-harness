@@ -32,11 +32,14 @@ function renderCard(overrides: {
   selectSession?: (id: string) => void
   onContextMenu?: (id: string, x: number, y: number) => void
   onNewSession?: () => void
+  collapsed?: boolean
+  onToggleCollapse?: () => void
 } = {}) {
   const setSessionView = overrides.setSessionView ?? vi.fn()
   const selectSession = overrides.selectSession ?? vi.fn()
   const onContextMenu = overrides.onContextMenu ?? vi.fn()
   const onNewSession = overrides.onNewSession ?? vi.fn()
+  const onToggleCollapse = overrides.onToggleCollapse ?? vi.fn()
   render(<SessionStatusCard
     t={t}
     byId={overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }}
@@ -49,8 +52,10 @@ function renderCard(overrides: {
     selectSession={selectSession}
     onContextMenu={onContextMenu}
     onNewSession={onNewSession}
+    collapsed={overrides.collapsed ?? false}
+    onToggleCollapse={onToggleCollapse}
   />)
-  return { setSessionView, selectSession, onContextMenu, onNewSession }
+  return { setSessionView, selectSession, onContextMenu, onNewSession, onToggleCollapse }
 }
 
 describe('cellPhase', () => {
@@ -89,6 +94,18 @@ describe('SessionStatusCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: en.sessionStatsView }))
     expect(setSessionView).toHaveBeenCalledWith('stats')
+  })
+
+  it('collapses and expands its body through the fold button', () => {
+    const { onToggleCollapse } = renderCard({ collapsed: false })
+    fireEvent.click(screen.getByRole('button', { name: en.collapse }))
+    expect(onToggleCollapse).toHaveBeenCalled()
+  })
+
+  it('hides the counts body when collapsed', () => {
+    renderCard({ collapsed: true })
+    expect(screen.getByText(en.sessionStatus)).toBeTruthy()
+    expect(screen.queryByText(en.sessionStatsView)).toBeNull()
   })
 
   it('renders the grid square view and selects a session', () => {

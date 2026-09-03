@@ -1,7 +1,9 @@
 /** System-status card: three SVG ring gauges (CPU / memory / GPU). */
 
 import type { ConsoleKey } from './locales.ts'
+import clsx from 'clsx'
 import { GAUGE_COLOR, toneOf } from './format.ts'
+import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
 
 /** One ring gauge value: a 0-100 percent, or null for a missing adapter. */
@@ -60,18 +62,24 @@ export interface SystemStatusCardProps {
   t: (key: ConsoleKey) => string
   /** Latest host sample, or null before any frame arrives. */
   status: { cpu: number; memory: number; gpu: number | null } | null
+  /** Whether the card body is collapsed. */
+  collapsed: boolean
+  /** Toggle the collapsed state. */
+  onToggleCollapse: () => void
 }
 
 /** System-status card: title plus three ring gauges. */
-export function SystemStatusCard({ t, status }: SystemStatusCardProps) {
+export function SystemStatusCard({ t, status, collapsed, onToggleCollapse }: SystemStatusCardProps) {
   return (
-    <div className={css.card}>
-      <h3 className={css.cardTitle}>{t('systemStatus')}</h3>
-      <div className={css.systemStatus}>
-        <RingGauge label={t('cpu')} naLabel={t('na')} value={status === null ? null : Math.round(status.cpu)} />
-        <RingGauge label={t('ram')} naLabel={t('na')} value={status === null ? null : Math.round(status.memory)} />
-        <RingGauge label={t('gpu')} naLabel={t('na')} value={status?.gpu == null ? null : Math.round(status.gpu)} />
-      </div>
+    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+      <CardHeader t={t} title={t('systemStatus')} collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
+      {!collapsed && (
+        <div className={css.systemStatus}>
+          <RingGauge label={t('cpu')} naLabel={t('na')} value={status === null ? null : Math.round(status.cpu)} />
+          <RingGauge label={t('ram')} naLabel={t('na')} value={status === null ? null : Math.round(status.memory)} />
+          <RingGauge label={t('gpu')} naLabel={t('na')} value={status?.gpu == null ? null : Math.round(status.gpu)} />
+        </div>
+      )}
     </div>
   )
 }

@@ -9,6 +9,12 @@ export type TimelineKind = 'activity' | 'status'
 /** Whether the timeline renders every event or only status/activity rows. */
 export type TimelineMode = 'all' | 'brief'
 
+/** A preset column layout for the workbench grid. */
+export type LayoutPreset = 'balanced' | 'timeline' | 'compact'
+
+/** The foldable workbench cards, keyed for per-card collapse state. */
+export type ConsoleCardKey = 'session' | 'task' | 'system' | 'timeline' | 'knowledge' | 'qa'
+
 /** One derived timeline entry from a forwarded `api-session/*` event. */
 export interface TimelineEntry {
   /** Monotonic insertion id (store-owned; not the session event seq). */
@@ -39,6 +45,8 @@ export interface ConsoleStoreWrite {
   setSessionView: (view: SessionView) => void
   setSelectedSession: (sessionId: string | undefined) => void
   setTimelineScope: (sessionId: string | undefined) => void
+  setLayout: (layout: LayoutPreset) => void
+  toggleCollapsed: (card: ConsoleCardKey) => void
 }
 
 /** Console store state: the live activity/timeline the apply closure feeds. */
@@ -55,6 +63,10 @@ export interface ConsoleStoreState {
   selectedSession: string | undefined
   /** Timeline scope: one session id, or `undefined` for the whole list. */
   timelineScope: string | undefined
+  /** Selected column layout preset. */
+  layout: LayoutPreset
+  /** Per-card fold state: a true value hides that card's body. */
+  collapsed: Partial<Record<ConsoleCardKey, boolean>>
 }
 
 /** Timeline cap: a monitoring panel keeps a bounded recent window. */
@@ -68,6 +80,8 @@ type ConsoleStoreActions = {
   setSessionView: (draft: ConsoleStoreState, view: SessionView) => void
   setSelectedSession: (draft: ConsoleStoreState, sessionId: string | undefined) => void
   setTimelineScope: (draft: ConsoleStoreState, sessionId: string | undefined) => void
+  setLayout: (draft: ConsoleStoreState, layout: LayoutPreset) => void
+  toggleCollapsed: (draft: ConsoleStoreState, card: ConsoleCardKey) => void
 }
 
 /**
@@ -86,6 +100,8 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       sessionView: 'stats',
       selectedSession: undefined,
       timelineScope: undefined,
+      layout: 'balanced',
+      collapsed: {},
     }),
     actions: {
       pushTimeline(draft, entry): void {
@@ -109,6 +125,12 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       },
       setTimelineScope(draft, sessionId): void {
         draft.timelineScope = sessionId
+      },
+      setLayout(draft, layout): void {
+        draft.layout = layout
+      },
+      toggleCollapsed(draft, card): void {
+        draft.collapsed[card] = !(draft.collapsed[card] ?? false)
       },
     },
   })

@@ -10,6 +10,7 @@ import type { TimelineEntry, TimelineMode } from './consoleStore.ts'
 import type { ConsoleKey } from './locales.ts'
 import { FOLD_LIMIT, foldText, shortId, timelineLabelKey } from './timelineText.ts'
 import { formatTime } from './format.ts'
+import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
 
 /** A timeline row's decorative tone class suffix. */
@@ -43,6 +44,10 @@ export interface TimelineCardProps {
   clearScope: () => void
   /** Send one instruction over the composer. */
   sendInstruction: (text: string) => Promise<unknown>
+  /** Whether the card body is collapsed. */
+  collapsed: boolean
+  /** Toggle the collapsed state. */
+  onToggleCollapse: () => void
 }
 
 /** Dot tone for a timeline entry kind. */
@@ -239,44 +244,55 @@ export function Composer({ t, selected, sendInstruction }: ComposerProps) {
 
 /** The timeline card: toolbar, list, and composer. */
 export function TimelineCard(props: TimelineCardProps) {
-  const { t, timeline, timelineMode, scope, selected, setTimelineMode, clearScope, sendInstruction } = props
+  const { t, timeline, timelineMode, scope, selected, setTimelineMode, clearScope, sendInstruction, collapsed, onToggleCollapse } = props
   const byMode = timelineMode === 'all'
     ? timeline
     : timeline.filter(entry => entry.kind === 'status')
   return (
-    <div className={css.card}>
-      <div className={css.timelineToolbar}>
-        <h3 className={css.cardTitle}>{t('timeline')}</h3>
-        <div className={css.timelineScope}>
-          {scope !== undefined && (
-            <button type="button" className={css.timelineScopePill} onClick={clearScope}>
-              {t('timelineScopeAll')}
-            </button>
-          )}
-        </div>
-        <div className={css.timelineMode} role="group" aria-label={t('timelineModeAria')}>
-          <button
-            type="button"
-            className={clsx(css.modeButton, timelineMode === 'brief' && css.modeButtonActive)}
-            aria-pressed={timelineMode === 'brief'}
-            onClick={() => { setTimelineMode('brief') }}
-          >
-            {t('timelineStatus')}
-          </button>
-          <button
-            type="button"
-            className={clsx(css.modeButton, timelineMode === 'all' && css.modeButtonActive)}
-            aria-pressed={timelineMode === 'all'}
-            onClick={() => { setTimelineMode('all') }}
-          >
-            {t('timelineActivity')}
-          </button>
-        </div>
-      </div>
-      <div className={css.timeline}>
-        <TimelineList t={t} timeline={byMode} scope={scope} detailOf={() => undefined} />
-      </div>
-      <Composer t={t} selected={selected} sendInstruction={sendInstruction} />
+    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+      <CardHeader
+        t={t}
+        title={t('timeline')}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        actions={(
+          <>
+            <div className={css.timelineScope}>
+              {scope !== undefined && (
+                <button type="button" className={css.timelineScopePill} onClick={clearScope}>
+                  {t('timelineScopeAll')}
+                </button>
+              )}
+            </div>
+            <div className={css.timelineMode} role="group" aria-label={t('timelineModeAria')}>
+              <button
+                type="button"
+                className={clsx(css.modeButton, timelineMode === 'brief' && css.modeButtonActive)}
+                aria-pressed={timelineMode === 'brief'}
+                onClick={() => { setTimelineMode('brief') }}
+              >
+                {t('timelineStatus')}
+              </button>
+              <button
+                type="button"
+                className={clsx(css.modeButton, timelineMode === 'all' && css.modeButtonActive)}
+                aria-pressed={timelineMode === 'all'}
+                onClick={() => { setTimelineMode('all') }}
+              >
+                {t('timelineActivity')}
+              </button>
+            </div>
+          </>
+        )}
+      />
+      {!collapsed && (
+        <>
+          <div className={css.timeline}>
+            <TimelineList t={t} timeline={byMode} scope={scope} detailOf={() => undefined} />
+          </div>
+          <Composer t={t} selected={selected} sendInstruction={sendInstruction} />
+        </>
+      )}
     </div>
   )
 }
