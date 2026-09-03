@@ -53,16 +53,24 @@
   width: 100vw;
   height: 100vh;
   background: var(--dsw-alias-bg-layer-2);
+  /* A low-resolution viewport can be shorter than the combined card stack, so
+     the panel scrolls rather than clipping the workbench. */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .header {
   flex: none;
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 54px;
   padding: 0 14px 0 20px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
 }
 
 .headerTitle {
@@ -103,11 +111,11 @@
 /* --- Three-column grid --- */
 .columns {
   flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 1.7fr 2.6fr 1.7fr;
   gap: 16px;
   padding: 16px;
-  min-height: 0;
 }
 
 .column {
@@ -198,7 +206,7 @@
 
 .countsBlock {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   gap: 8px;
 }
 
@@ -320,7 +328,7 @@
 
 .taskStats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   gap: 8px;
 }
 
@@ -749,7 +757,15 @@
 
 /* --- Smart QA card --- */
 .smartQACard {
+  display: flex;
+  flex-direction: column;
   flex: 2;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  padding: 16px;
 }
 
 .smartQA {
@@ -964,5 +980,80 @@
 
   .gridCell:hover {
     transform: none;
+  }
+}
+
+/* --- Responsive layout --- */
+
+/* Medium viewport: collapse the three columns to two, moving the knowledge /
+   Smart Q&A column to a full-width row below. Cards grow with their content. */
+@media (max-width: 1099px) {
+  .columns {
+    grid-template-columns: 1fr 1.6fr;
+  }
+
+  /* A stacked column must size to its content, never shrink below it and
+     overflow into the row beneath. */
+  .column {
+    min-height: auto;
+  }
+
+  .column .card {
+    flex: none;
+    min-height: auto;
+  }
+
+  /* The third column (knowledge + Smart Q&A) drops below and spans the width. */
+  .column:last-child {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .column:last-child .card,
+  .column:last-child .smartQACard {
+    flex: 1 1 280px;
+  }
+
+  /* Long internal scrollers keep a bounded height once stacked so a card never
+     balloons past the viewport. */
+  .timeline,
+  .sessionGrid,
+  .chatMessages,
+  .knowledgeList {
+    max-height: 42vh;
+    flex: none;
+  }
+}
+
+/* Narrow viewport: single column stack with a page scroll. */
+@media (max-width: 759px) {
+  .columns {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .column,
+  .column:last-child {
+    flex-direction: column;
+    grid-column: auto;
+    min-height: auto;
+  }
+
+  .column .card,
+  .column:last-child .card,
+  .column:last-child .smartQACard {
+    flex: none;
+    min-height: auto;
+  }
+
+  .timelineToolbar,
+  .sessionCardHeader {
+    flex-wrap: wrap;
+  }
+
+  .systemStatus {
+    justify-content: space-between;
+    gap: 8px;
   }
 }
