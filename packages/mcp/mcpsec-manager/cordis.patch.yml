@@ -1,0 +1,3 @@
+- insert:
+    - id: mcpsec-manager
+      name: '@deepseek-ai/dsh-mcpsec-manager'
