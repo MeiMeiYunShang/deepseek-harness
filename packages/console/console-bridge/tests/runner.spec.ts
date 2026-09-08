@@ -52,7 +52,7 @@ function makeFixture(): Fixture {
               fixture.onFollowup()
             },
             whenIdle: () => idlePromise,
-            cancel: () => idleResolve(),
+            cancel: () => { idleResolve() },
           },
           dispose: async () => undefined,
         }

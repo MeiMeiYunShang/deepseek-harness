@@ -24,7 +24,7 @@ const ref = (name = 'shot.png'): ImageAttachmentRef => ({
 const stored: StoredImageAttachment = { ref: ref(), data: PNG }
 
 const options = (backends: Partial<ResolvedOptions> = {}): ResolvedOptions => ({
-  backend: { recognize: vi.fn(async () => 'ok') } as unknown as ResolvedOptions['backend'],
+  backend: { recognize: vi.fn(async () => 'ok') },
   maxTextChars: 100,
   timeoutMs: 1000,
   normalizeToPng: false,
@@ -41,7 +41,7 @@ describe('ImageUnderstandingService', () => {
   it('recognizes and bounds the backend output', async () => {
     const service = new ImageUnderstandingService(
       ctxWithAttachments(async () => stored),
-      options({ backend: { recognize: vi.fn(async () => 'a'.repeat(200)) } } as never),
+      options({ backend: { recognize: vi.fn(async () => 'a'.repeat(200)) } }),
     )
     const text = await service.describe(ref())
     expect(text).toMatch(/^a{100}…$/)
@@ -51,7 +51,7 @@ describe('ImageUnderstandingService', () => {
     const recognize = vi.fn(async () => 'text')
     const service = new ImageUnderstandingService(
       ctxWithAttachments(async () => stored),
-      options({ backend: { recognize } } as never),
+      options({ backend: { recognize } }),
     )
     await service.describe(ref())
     await service.describe(ref())
@@ -62,7 +62,7 @@ describe('ImageUnderstandingService', () => {
     const recognize = vi.fn(async () => 'text')
     const service = new ImageUnderstandingService(
       ctxWithAttachments(async () => stored),
-      options({ backend: { recognize } } as never),
+      options({ backend: { recognize } }),
     )
     await service.describe(ref(), undefined, 'question one')
     await service.describe(ref(), undefined, 'question two')
@@ -70,14 +70,15 @@ describe('ImageUnderstandingService', () => {
   })
 
   it('normalizes the raster to PNG when the backend requires it', async () => {
-    const backend = { recognize: vi.fn(async (_i: RecognizeInput) => 'text') }
+    let captured: RecognizeInput | undefined
+    const backend = { recognize: vi.fn(async (input: RecognizeInput) => { captured = input; return 'text' }) }
     const service = new ImageUnderstandingService(
       ctxWithAttachments(async () => stored),
-      { backend, maxTextChars: 100, timeoutMs: 1000, normalizeToPng: true } as never,
+      { backend, maxTextChars: 100, timeoutMs: 1000, normalizeToPng: true },
     )
     await service.describe(ref())
-    const input = backend.recognize.mock.calls[0]![0] as RecognizeInput
-    expect(input.mediaType).toBe('image/png')
+    expect(captured).toBeDefined()
+    expect(captured!.mediaType).toBe('image/png')
   })
 
   it('maps an attachment read failure to the stable ATTACHMENT_READ_ERROR code', async () => {
@@ -90,12 +91,12 @@ describe('ImageUnderstandingService', () => {
 
   it('classifies a timeout as TIMEOUT and wraps a transport failure as BACKEND_ERROR', async () => {
     const timeout = new ImageUnderstandingService(ctxWithAttachments(async () => stored), options({
-      backend: { recognize: async () => { throw new DOMException('t', 'TimeoutError') } } as never,
+      backend: { recognize: async () => { throw new DOMException('t', 'TimeoutError') } },
     }))
     await expect(timeout.describe(ref())).rejects.toMatchObject({ code: 'TIMEOUT' })
 
     const transport = new ImageUnderstandingService(ctxWithAttachments(async () => stored), options({
-      backend: { recognize: async () => { throw new Error('boom') } } as never,
+      backend: { recognize: async () => { throw new Error('boom') } },
     }))
     await expect(transport.describe(ref())).rejects.toMatchObject({ code: 'BACKEND_ERROR' })
   })
@@ -104,14 +105,14 @@ describe('ImageUnderstandingService', () => {
     const abort = new Error('aborted')
     abort.name = 'AbortError'
     const service = new ImageUnderstandingService(ctxWithAttachments(async () => stored), options({
-      backend: { recognize: async () => { throw abort } } as never,
+      backend: { recognize: async () => { throw abort } },
     }))
     await expect(service.describe(ref())).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('propagates an ImageRecognitionError unchanged', async () => {
     const service = new ImageUnderstandingService(ctxWithAttachments(async () => stored), options({
-      backend: { recognize: async () => { throw new ImageRecognitionError('TIMEOUT', 'x') } } as never,
+      backend: { recognize: async () => { throw new ImageRecognitionError('TIMEOUT', 'x') } },
     }))
     await expect(service.describe(ref())).rejects.toMatchObject({ code: 'TIMEOUT' })
   })
@@ -124,7 +125,7 @@ describe('ImageUnderstandingService', () => {
   it('replaces its resolved options after a settings change', async () => {
     const service = new ImageUnderstandingService(ctxWithAttachments(async () => stored), options())
     const backend = { recognize: vi.fn(async () => 'other') }
-    service.setOptions({ backend: backend as never, maxTextChars: 50, timeoutMs: 500, normalizeToPng: false })
+    service.setOptions({ backend, maxTextChars: 50, timeoutMs: 500, normalizeToPng: false })
     const text = await service.describe(ref())
     expect(text).toBe('other')
     expect(backend.recognize).toHaveBeenCalledTimes(1)

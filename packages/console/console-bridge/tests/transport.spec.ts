@@ -21,7 +21,7 @@ const mqttCtl = vi.hoisted(() => ({
   endCalls: 0,
   emit(event: string, ...args: unknown[]) {
     const c = mqttCtl.client
-    if (c) (c.handlers[event] ?? []).forEach((cb: (...a: unknown[]) => void) => cb(...args))
+    if (c) (c.handlers[event] ?? []).forEach((cb: (...a: unknown[]) => void) => { cb(...args) })
   },
 }))
 
@@ -60,7 +60,7 @@ const flush = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0)
 
 const logger = { debug() {}, info() {}, warn: vi.fn(), error() {} }
 const mqttConfig = (over: Partial<ConsoleBridgeConfig> = {}): ConsoleBridgeConfig =>
-  ({ transport: 'mqtt', ...over } as ConsoleBridgeConfig)
+  ({ transport: 'mqtt', ...over })
 
 describe('createTransport', () => {
   it('returns an HttpTransport for transport "http"', async () => {
@@ -99,7 +99,7 @@ describe('HttpTransport', () => {
       'http://host/v1/agent/a/up/result',
       expect.objectContaining({
         method: 'POST',
-        headers: expect.objectContaining({ authorization: 'Bearer tok' }),
+        headers: expect.objectContaining({ authorization: 'Bearer tok' }) as unknown as Record<string, string>,
       }),
     )
   })
@@ -316,7 +316,7 @@ describe('MqttTransport', () => {
     await p
     mqttCtl.unsubThrow = true
     const stop = await t.subscribe('v1/a/down/cmd', () => undefined)
-    expect(() => stop()).not.toThrow()
+    expect(() => { stop() }).not.toThrow()
   })
 
   it('dispose before connect is a no-op', async () => {

@@ -70,14 +70,14 @@ describe('cellPhase', () => {
 
 describe('GridCell', () => {
   it('renders a grid square with aria and selection state', () => {
-    render(<GridCell summary={session('s', { title: 'Title' })} tone="running" aria={en.sessionStatusRunning} active selected onClick={() => {}} />)
-    const cell = screen.getByRole('button', { name: `Title (${en.sessionStatusRunning})` })
+    render(<GridCell summary={session('s', { title: 'Title' })} tone="running" aria={en['sessionStatus.running']} active selected onClick={() => {}} />)
+    const cell = screen.getByRole('button', { name: `Title (${en['sessionStatus.running']})` })
     expect(cell.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('fires the right-click context menu handler with coordinates', () => {
     const onContextMenu = vi.fn()
-    render(<GridCell summary={session('s')} tone="available" aria={en.sessionStatusAvailable} active={false} selected={false} onClick={() => {}} onContextMenu={onContextMenu} />)
+    render(<GridCell summary={session('s')} tone="available" aria={en['sessionStatus.available']} active={false} selected={false} onClick={() => {}} onContextMenu={onContextMenu} />)
     fireEvent.contextMenu(screen.getByRole('button'), { clientX: 10, clientY: 20 })
     expect(onContextMenu).toHaveBeenCalledWith(10, 20)
   })

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
+import type { CpuInfo } from 'node:os'
 
 const fakeOs = vi.hoisted(() => ({
   loadavg: vi.fn(() => [0, 0, 0] as number[]),
-  cpus: vi.fn(() => new Array(4).fill({})),
+  cpus: vi.fn((): CpuInfo[] => new Array<CpuInfo>(4).fill({} as CpuInfo)),
   totalmem: vi.fn(() => 16e9),
   freemem: vi.fn(() => 4e9),
 }))
@@ -28,19 +29,19 @@ describe('@deepseek-ai/dsh-host-metrics', () => {
   describe('sampleCpu', () => {
     it('normalizes load average by core count when load is reported', () => {
       fakeOs.loadavg.mockReturnValue([1.5, 0, 0])
-      fakeOs.cpus.mockReturnValue(new Array(4).fill({}))
+      fakeOs.cpus.mockReturnValue(new Array<CpuInfo>(4).fill({} as CpuInfo))
       expect(sampleCpu({ user: 0, system: 0 }, 0, { user: 1e6, system: 5e5 }, 1000)).toBe(37.5)
     })
 
     it('falls back to the process cpu delta when load is zero', () => {
       fakeOs.loadavg.mockReturnValue([0, 0, 0])
-      fakeOs.cpus.mockReturnValue(new Array(4).fill({}))
+      fakeOs.cpus.mockReturnValue(new Array<CpuInfo>(4).fill({} as CpuInfo))
       expect(sampleCpu({ user: 0, system: 0 }, 0, { user: 1e6, system: 5e5 }, 1000)).toBe(100)
     })
 
     it('treats an undefined load-average element as zero', () => {
       fakeOs.loadavg.mockReturnValue([undefined as unknown as number, 0, 0])
-      fakeOs.cpus.mockReturnValue(new Array(4).fill({}))
+      fakeOs.cpus.mockReturnValue(new Array<CpuInfo>(4).fill({} as CpuInfo))
       expect(sampleCpu({ user: 0, system: 0 }, 0, { user: 1e6, system: 5e5 }, 1000)).toBe(100)
     })
 
@@ -52,7 +53,7 @@ describe('@deepseek-ai/dsh-host-metrics', () => {
 
     it('returns zero when the elapsed window is non-positive', () => {
       fakeOs.loadavg.mockReturnValue([0, 0, 0])
-      fakeOs.cpus.mockReturnValue(new Array(4).fill({}))
+      fakeOs.cpus.mockReturnValue(new Array<CpuInfo>(4).fill({} as CpuInfo))
       expect(sampleCpu({ user: 0, system: 0 }, 1000, { user: 0, system: 0 }, 1000)).toBe(0)
     })
   })

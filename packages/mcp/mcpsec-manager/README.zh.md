@@ -1,6 +1,6 @@
 ---
 description: "MCP 安全管理器：对 MCP 服务器的权限范围与逐工具规则、读写执行门、逐调用用量评分与告警，以及 npm 包搜索——经由回环 Connection RPC 通道。"
-kind: "package-reference"
+kind: "package-bundle"
 ---
 
 # @deepseek-ai/dsh-mcpsec-manager

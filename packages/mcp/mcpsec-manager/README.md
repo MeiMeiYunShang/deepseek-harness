@@ -1,6 +1,6 @@
 ---
 description: "MCP security manager: permission scope and per-tool rules on MCP servers, a read-only/write execution gate, per-call usage scoring with alerts, and npm package search — over a loopback Connection RPC channel."
-kind: "package-reference"
+kind: "package-bundle"
 ---
 
 # @deepseek-ai/dsh-mcpsec-manager

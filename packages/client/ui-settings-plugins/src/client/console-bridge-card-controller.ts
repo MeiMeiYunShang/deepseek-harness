@@ -132,6 +132,7 @@ export class ConsoleBridgeCardController {
   }
 
   private readScope(): ConsoleBridgeSettings {
+    // oxlint-disable-next-line no-unnecessary-condition
     return (this.scope.getSnapshot().value as ConsoleBridgeSettings) ?? {}
   }
 

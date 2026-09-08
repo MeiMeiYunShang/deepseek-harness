@@ -118,14 +118,14 @@ describe('OllamaBackend', () => {
 describe('WindowsOcrBackend', () => {
   it('fails loud on a non-Windows host', async () => {
     const original = process.platform
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     await expect(new WindowsOcrBackend().recognize({ data: PNG, mediaType: 'image/png' }, new AbortController().signal))
       .rejects.toMatchObject({ code: 'BACKEND_ERROR' })
     void original
   })
 
   it('returns the OCR stdout on a successful child', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const child = captureChild()
     const promise = new WindowsOcrBackend().recognize({ data: PNG, mediaType: 'image/png' }, new AbortController().signal)
     await spawned()
@@ -135,7 +135,7 @@ describe('WindowsOcrBackend', () => {
   })
 
   it('throws on a non-zero exit', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const child = captureChild()
     const promise = new WindowsOcrBackend().recognize({ data: PNG, mediaType: 'image/png' }, new AbortController().signal)
     await spawned()
@@ -146,7 +146,7 @@ describe('WindowsOcrBackend', () => {
   })
 
   it('throws on empty stdout', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const child = captureChild()
     const promise = new WindowsOcrBackend().recognize({ data: PNG, mediaType: 'image/png' }, new AbortController().signal)
     await spawned()
@@ -155,7 +155,7 @@ describe('WindowsOcrBackend', () => {
   })
 
   it('rejects on a child spawn error', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const child = captureChild()
     const promise = new WindowsOcrBackend().recognize({ data: PNG, mediaType: 'image/png' }, new AbortController().signal)
     await spawned()
@@ -164,7 +164,7 @@ describe('WindowsOcrBackend', () => {
   })
 
   it('rejects with a timeout when the caller aborts', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const controller = new AbortController()
     captureChild()
     const promise = new WindowsOcrBackend().recognize({ data: PNG, mediaType: 'image/png' }, controller.signal)
@@ -205,14 +205,14 @@ function captureChild(): {
 describe('resolveConfig', () => {
   it('defaults to Windows OCR on Windows and Ollama elsewhere', () => {
     const ctx = new Context()
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     expect(resolveConfig({}, ctx).normalizeToPng).toBe(true)
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     expect(resolveConfig({}, ctx).normalizeToPng).toBe(false)
   })
 
   it('fails loud when windows is selected on a non-Windows host', () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux' as NodeJS.Platform)
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     expect(() => resolveConfig({ backend: 'windows' }, new Context())).toThrow(/requires a Windows host/)
   })
 
@@ -239,7 +239,7 @@ describe('resolveConfig', () => {
     const text = await options.backend.recognize({ data: PNG, mediaType: 'image/png' }, new AbortController().signal)
     expect(text).toBe('x')
     expect(globalThis.fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
-      headers: expect.objectContaining({ authorization: 'Bearer secret' }),
+      headers: expect.objectContaining({ authorization: 'Bearer secret' }) as Record<string, string>,
     }))
   })
 
@@ -252,7 +252,7 @@ describe('resolveConfig', () => {
     const text = await options.backend.recognize({ data: PNG, mediaType: 'image/png' }, new AbortController().signal)
     expect(text).toBe('y')
     expect(globalThis.fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
-      headers: expect.objectContaining({ authorization: 'Bearer env-key' }),
+      headers: expect.objectContaining({ authorization: 'Bearer env-key' }) as Record<string, string>,
     }))
     delete process.env.ZHIPU_API_KEY
   })
@@ -266,7 +266,7 @@ describe('resolveConfig', () => {
     const text = await options.backend.recognize({ data: PNG, mediaType: 'image/png' }, new AbortController().signal)
     expect(text).toBe('z')
     expect(globalThis.fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
-      headers: expect.objectContaining({ authorization: 'Bearer env-key' }),
+      headers: expect.objectContaining({ authorization: 'Bearer env-key' }) as Record<string, string>,
     }))
     delete process.env.ZHIPU_API_KEY
   })

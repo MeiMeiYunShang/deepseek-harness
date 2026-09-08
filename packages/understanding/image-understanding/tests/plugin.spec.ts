@@ -98,7 +98,7 @@ describe('agent/pre-step image understanding', () => {
       resolveModelInfo: async () => ({ inputModalities: ['image'] }),
       messages: [imageMessage()],
     })
-    expect(result).toMatchObject({ kind: 'enter', messages: [expect.objectContaining({ id: expect.anything() })] })
+    expect(result).toMatchObject({ kind: 'enter', messages: [expect.objectContaining({ id: expect.anything() as unknown })] })
     expect(append).not.toHaveBeenCalled()
   })
 
@@ -113,7 +113,7 @@ describe('agent/pre-step image understanding', () => {
     })
     expect(result).toMatchObject({ kind: 'enter' })
     const messages = (result as { messages: UserMessage[] }).messages
-    expect(messages[0]!.content[1]!).toMatchObject({ type: 'text', text: expect.stringContaining('recognized text') })
+    expect(messages[0]!.content[1]!).toMatchObject({ type: 'text', text: expect.stringContaining('recognized text') as string })
   })
 
   it('restores the message and logs a failure event when recognition fails', async () => {
@@ -170,7 +170,7 @@ describe('agent/pre-step image understanding', () => {
       agentOptions: {},
     })
     const messages = (result as { messages: UserMessage[] }).messages
-    expect(messages[0]!.content[1]!).toMatchObject({ type: 'text', text: expect.stringContaining('ok') })
+    expect(messages[0]!.content[1]!).toMatchObject({ type: 'text', text: expect.stringContaining('ok') as string })
   })
 
   it('translates every image block of a multi-image message', async () => {

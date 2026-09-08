@@ -1,0 +1,32 @@
+/**
+ * Package-owned invariant companion for `@deepseek-ai/dsh-tool-knowledge`.
+ * @module @deepseek-ai/dsh-tool-knowledge/invariant
+ */
+
+/* jscpd:ignore-start */
+import type { Context } from '@deepseek-ai/cordis'
+import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
+
+const PACKAGE_NAME = '@deepseek-ai/dsh-tool-knowledge'
+
+/** Cordis companion plugin name. */
+export const name = 'tool-knowledge-invariant'
+/** Service required before the companion can reserve package ownership. */
+export const inject = ['invariants']
+
+/**
+ * No runtime invariant: this package owns no independent event sequence or
+ * mutable data relation beyond the store contract it consumes (entry title and
+ * content non-emptiness enforced by `@deepseek-ai/dsh-knowledge`) and tool/
+ * prompt registration, which the loader and system-prompt assembly verify.
+ */
+const install: InvariantInstaller = () => {}
+
+/**
+ * Register this package's invariant companion.
+ * @param ctx - Cordis context carrying the invariant service.
+ * @returns the installed registration's disposer after setup succeeds.
+ */
+export const apply = (ctx: Context): Promise<() => void> =>
+  Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install))
+/* jscpd:ignore-end */

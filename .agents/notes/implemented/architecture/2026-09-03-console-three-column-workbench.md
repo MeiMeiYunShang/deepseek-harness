@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-03-console-three-column-workbench.zh.md)
+
 ## Problem
 
 The migrated ui-console was a two-column monitoring card with a stock boxed `Modal`. The maintainer console (per the migration source) is a true fullscreen workbench: a three-column grid, a per-session status grid with a stats/grid toggle, scoped timeline with an instruction composer, session verbs (rename / fork / archive / create / preset), a knowledge view, and Smart Q&A. The stock primitive `Modal` is a centered card (max 380px), so it cannot host the 100vw x 100vh panel.
@@ -14,6 +16,11 @@ The migrated ui-console was a two-column monitoring card with a stock boxed `Mod
 - Wire session verbs through a `ConsoleServices` face built in `index.ts` over `ctx.sessions` (`open`/`fork`/`rename` via the session behavior face/`prompt`), `ctx.workspaces` (`archiveSession`, `create`), and `ctx.remote.agentPresets` (`list`/`select`), unwrapping `RemoteResult` at the service boundary.
 - Session status, task stats, current selection, and the grid come from the standard `useSessions`/`useSessionPendingInteraction`/`useWorkspaces` hooks passed through the slot composition model; the host-metrics and timeline feeds stay on forwarded remote events into the apply-owned store.
 - The knowledge base has no backend seam, so `KnowledgeCard` renders an empty/placeholder state and exports a row type for a future source.
+
+## Alternatives considered
+
+- **Keep the boxed primitive `Modal`** — the migration source was a two-column monitoring card, and the primitive `Modal` is a centered card capped at 380px wide, so it cannot host the 100vw × 100vh maintainer workbench.
+- **Extend the primitive `Modal` to a fullscreen variant** — would couple console-specific chrome (three-column grid, session verbs, scoped timeline) into a shared primitive used elsewhere; the workbench owns its own shell instead and keeps the primitive for the nested dialogs.
 
 ## Consequences
 

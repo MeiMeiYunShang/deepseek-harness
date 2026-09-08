@@ -17,7 +17,7 @@ describe('console-bridge invariant companion', () => {
     const dispose = await apply(ctx)
     expect(register).toHaveBeenCalledWith('@deepseek-ai/dsh-console-bridge', expect.any(Function))
     expect(typeof captured).toBe('function')
-    expect(() => captured!()).not.toThrow()
+    expect(() => { captured!() }).not.toThrow()
     expect(typeof dispose).toBe('function')
   })
 })

@@ -35,7 +35,7 @@ describe('RenameModal', () => {
     render(<RenameModal t={t} open title="" onClose={() => {}} onRename={rename} />)
     const input = screen.getByLabelText(en.renameInputAria) as HTMLInputElement
     // empty draft disables the confirm button.
-    expect((screen.getByRole('button', { name: en.renameConfirm }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: en.renameConfirm }) as unknown as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(input, { target: { value: 'ok' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() =>{  expect(rename).toHaveBeenCalledWith('ok') })
@@ -106,7 +106,7 @@ describe('NewSessionModal', () => {
       onSubmit={submit}
       onAddWorkspace={vi.fn(async () => null)}
     />)
-    expect((screen.getByRole('button', { name: en.send }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: en.send }) as unknown as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('adds a workspace through the directory chooser and wires the none-preset chip', async () => {
@@ -155,7 +155,7 @@ describe('NewSessionModal', () => {
     // disabled, so surface the guard directly is a no-op for the disabled case;
     // invoke the reference path by selecting then clearing is not possible, so
     // the reachable guard branch is exercised by the disabled state).
-    expect((screen.getByRole('button', { name: en.send }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: en.send }) as unknown as HTMLButtonElement).disabled).toBe(true)
     expect(submit).not.toHaveBeenCalled()
   })
 

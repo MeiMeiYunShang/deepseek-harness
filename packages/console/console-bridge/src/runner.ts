@@ -109,10 +109,12 @@ export async function runDshTask(
   let exitCode: number
   let status: TaskOutcome['status']
   let summary: string
+  // oxlint-disable-next-line no-unnecessary-condition
   if (timedOut) {
     exitCode = 124
     status = 'FAILED'
     summary = texts.join('').trim() || '[timeout] task exceeded execTimeoutS'
+    // oxlint-disable-next-line no-unnecessary-condition
   } else if (errored) {
     exitCode = 1
     status = 'FAILED'

@@ -1132,6 +1132,9 @@ export class LlmRuntime extends TypertRemoteService {
 function chatSystemText(content: LlmChatRequest['messages'][number]['content']): string {
   let text = ''
   for (const block of content) {
+    // System-role content is currently text-only; keep the discriminant guard so
+    // a future multi-modal system block does not silently drop non-text blocks.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition
     if (block.type === 'text') text += block.text
   }
   return text

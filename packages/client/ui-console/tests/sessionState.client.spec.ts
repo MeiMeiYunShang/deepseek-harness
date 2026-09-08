@@ -25,11 +25,11 @@ describe('sessionState', () => {
   })
 
   it('labels every phase with a dictionary key', () => {
-    expect(sessionPhaseLabel('running')).toBe('sessionStatusRunning')
-    expect(sessionPhaseLabel('planning')).toBe('sessionStatusPlanning')
-    expect(sessionPhaseLabel('pending')).toBe('sessionStatusPending')
-    expect(sessionPhaseLabel('waiting')).toBe('sessionStatusWaiting')
-    expect(sessionPhaseLabel('archived')).toBe('sessionStatusArchived')
-    expect(sessionPhaseLabel('available')).toBe('sessionStatusAvailable')
+    expect(sessionPhaseLabel('running')).toBe('sessionStatus.running')
+    expect(sessionPhaseLabel('planning')).toBe('sessionStatus.planning')
+    expect(sessionPhaseLabel('pending')).toBe('sessionStatus.pending')
+    expect(sessionPhaseLabel('waiting')).toBe('sessionStatus.waiting')
+    expect(sessionPhaseLabel('archived')).toBe('sessionStatus.archived')
+    expect(sessionPhaseLabel('available')).toBe('sessionStatus.available')
   })
 })

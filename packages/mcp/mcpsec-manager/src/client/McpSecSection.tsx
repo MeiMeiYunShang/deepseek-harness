@@ -78,7 +78,7 @@ function ServerCard({ server, busy, onToggle, onRemove, onChangeScope, onSaveRul
           {server.transport === 'stdio' ? (server.command || '') : (server.url || '')}
         </span>
         <span className={css.muted}>{t('toolsCount')}: {server.tools.length}</span>
-        <span className={css.muted}>env {server.envCount} · headers {server.headersCount}</span>
+        <span className={css.muted}>{t('envHeadersCount', { envCount: server.envCount, headersCount: server.headersCount })}</span>
         <span className={css.actions}>
           <button type="button" className={css.btn} disabled={busy} onClick={onToggle}>
             {server.disabled ? t('enabled') : t('disabled')}
@@ -169,7 +169,7 @@ function SearchForm({ onPick, onCustom, t, npmSearch }: {
         <div className={css.result} key={pkg.name}>
           <div className={css.cardRow}>
             <span className={css.serverName}>{pkg.name}</span>
-            {pkg.version ? <span className={css.tag}>{`v${pkg.version}`}</span> : null}
+            {pkg.version ? <span className={css.tag}>{t('versionPrefix')}{pkg.version}</span> : null}
             <span className={css.muted}>
               {pkg.publisher}{pkg.date ? ` · ${pkg.date.slice(0, 10)}` : ''}
             </span>
@@ -226,7 +226,7 @@ function AddForm({ preset, onDone, add, t }: {
         <div className={css.result}>
           <div className={css.cardRow}>
             <span className={css.serverName}>{preset.name}</span>
-            {preset.version ? <span className={css.tag}>{`v${preset.version}`}</span> : null}
+            {preset.version ? <span className={css.tag}>{t('versionPrefix')}{preset.version}</span> : null}
             {preset.publisher ? <span className={css.muted}>{t('publisher')}: {preset.publisher}</span> : null}
           </div>
           {preset.description ? <div className={css.muted}>{preset.description}</div> : null}
@@ -448,7 +448,7 @@ function EditForm({ server, onDone, edit, t }: {
     transport: server.transport,
     url: server.url || '',
     command: server.command || '',
-    args: (server.args || []).join('\n'),
+    args: (Array.isArray(server.args) ? server.args : []).join('\n'),
     cwd: server.cwd || '',
     env: '',
     headers: '',

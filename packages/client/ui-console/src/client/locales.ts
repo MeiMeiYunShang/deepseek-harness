@@ -7,9 +7,9 @@ export type ConsoleKey = 'console'
   | 'trigger'
   | 'layout'
   | 'layoutAria'
-  | 'layoutBalanced'
-  | 'layoutTimeline'
-  | 'layoutCompact'
+  | 'layout.balanced'
+  | 'layout.timeline'
+  | 'layout.compact'
   | 'collapse'
   | 'expand'
   | 'newSession'
@@ -86,12 +86,12 @@ export type ConsoleKey = 'console'
   | 'sessionGridCurrent'
   | 'sessionGridUpdated'
   | 'sessionGridCwd'
-  | 'sessionStatusRunning'
-  | 'sessionStatusPlanning'
-  | 'sessionStatusPending'
-  | 'sessionStatusWaiting'
-  | 'sessionStatusAvailable'
-  | 'sessionStatusArchived'
+  | 'sessionStatus.running'
+  | 'sessionStatus.planning'
+  | 'sessionStatus.pending'
+  | 'sessionStatus.waiting'
+  | 'sessionStatus.available'
+  | 'sessionStatus.archived'
   | 'na'
   | 'selectedSession'
   | 'noSession'
@@ -116,9 +116,9 @@ export const en: Record<ConsoleKey, string> = {
   trigger: 'Console',
   layout: 'Layout',
   layoutAria: 'Column layout',
-  layoutBalanced: 'Balanced',
-  layoutTimeline: 'Focus',
-  layoutCompact: 'Compact',
+  'layout.balanced': 'Balanced',
+  'layout.timeline': 'Focus',
+  'layout.compact': 'Compact',
   collapse: 'Collapse',
   expand: 'Expand',
   newSession: 'New session',
@@ -195,12 +195,12 @@ export const en: Record<ConsoleKey, string> = {
   sessionGridCurrent: 'Current',
   sessionGridUpdated: 'Updated',
   sessionGridCwd: 'cwd',
-  sessionStatusRunning: 'Running',
-  sessionStatusPlanning: 'Planning',
-  sessionStatusPending: 'Pending',
-  sessionStatusWaiting: 'Waiting',
-  sessionStatusAvailable: 'Available',
-  sessionStatusArchived: 'Archived',
+  'sessionStatus.running': 'Running',
+  'sessionStatus.planning': 'Planning',
+  'sessionStatus.pending': 'Pending',
+  'sessionStatus.waiting': 'Waiting',
+  'sessionStatus.available': 'Available',
+  'sessionStatus.archived': 'Archived',
   na: 'N/A',
   selectedSession: 'selected',
   noSession: 'No session selected',
@@ -223,9 +223,9 @@ export const zh: Record<ConsoleKey, string> = {
   trigger: '控制台',
   layout: '布局',
   layoutAria: '列布局',
-  layoutBalanced: '均衡',
-  layoutTimeline: '聚焦',
-  layoutCompact: '紧凑',
+  'layout.balanced': '均衡',
+  'layout.timeline': '聚焦',
+  'layout.compact': '紧凑',
   collapse: '折叠',
   expand: '展开',
   newSession: '新建会话',
@@ -302,12 +302,12 @@ export const zh: Record<ConsoleKey, string> = {
   sessionGridCurrent: '当前',
   sessionGridUpdated: '更新于',
   sessionGridCwd: 'cwd',
-  sessionStatusRunning: '运行中',
-  sessionStatusPlanning: '规划中',
-  sessionStatusPending: '等待输入',
-  sessionStatusWaiting: '等待中',
-  sessionStatusAvailable: '可用',
-  sessionStatusArchived: '已归档',
+  'sessionStatus.running': '运行中',
+  'sessionStatus.planning': '规划中',
+  'sessionStatus.pending': '等待输入',
+  'sessionStatus.waiting': '等待中',
+  'sessionStatus.available': '可用',
+  'sessionStatus.archived': '已归档',
   na: 'N/A',
   selectedSession: '已选',
   noSession: '未选择会话',

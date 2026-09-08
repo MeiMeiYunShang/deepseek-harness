@@ -206,7 +206,7 @@ describe('Composer', () => {
     fireEvent.change(input, { target: { value: 'hello' } })
     fireEvent.click(screen.getByRole('button', { name: en.send }))
     await waitFor(() => { expect(send).toHaveBeenCalledWith('hello') })
-    await waitFor(() => { expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('') })
+    await waitFor(() => { expect((screen.getByRole('textbox') as unknown as HTMLInputElement).value).toBe('') })
   })
 
   it('shows an alert on a failed send', async () => {

@@ -43,7 +43,7 @@ function makeFixture(ctxGet?: (key: string) => unknown): Fixture {
             session,
             followup() { fixture.onFollowup() },
             whenIdle: () => idlePromise,
-            cancel: () => idleResolve(),
+            cancel: () => { idleResolve() },
           },
           dispose: async () => undefined,
         }

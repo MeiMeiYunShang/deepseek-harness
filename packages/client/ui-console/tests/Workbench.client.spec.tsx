@@ -181,7 +181,7 @@ describe('Workbench', () => {
     if (cell !== undefined) fireEvent.contextMenu(cell, { clientX: 10, clientY: 20 })
     await waitFor(() => { expect(screen.getByRole('menu')).toBeTruthy() })
     fireEvent.click(screen.getByRole('menuitem', { name: /rename/i }))
-    await waitFor(() => { expect((screen.getByLabelText(en.renameInputAria) as HTMLInputElement).value).toBe('s1') })
+    await waitFor(() => { expect((screen.getByLabelText(en.renameInputAria) as unknown as HTMLInputElement).value).toBe('s1') })
   })
 
   it('creates a session with only a workspace (no preset, no instruction)', async () => {
@@ -206,11 +206,11 @@ describe('Workbench', () => {
 
   it('switches the column layout preset through the header switcher', () => {
     const { store } = renderWorkbench()
-    fireEvent.click(screen.getByRole('button', { name: en.layoutTimeline }))
+    fireEvent.click(screen.getByRole('button', { name: en['layout.timeline'] }))
     expect(store.setLayout).toHaveBeenCalledWith('timeline')
-    fireEvent.click(screen.getByRole('button', { name: en.layoutCompact }))
+    fireEvent.click(screen.getByRole('button', { name: en['layout.compact'] }))
     expect(store.setLayout).toHaveBeenCalledWith('compact')
-    fireEvent.click(screen.getByRole('button', { name: en.layoutBalanced }))
+    fireEvent.click(screen.getByRole('button', { name: en['layout.balanced'] }))
     expect(store.setLayout).toHaveBeenCalledWith('balanced')
   })
 

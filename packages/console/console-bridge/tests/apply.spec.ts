@@ -229,7 +229,7 @@ describe('settingsBase via apply', () => {
       },
       applies: 'restart',
     })
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
   })
 
   it('seeds only transport and the autoStart-derived enabled when minimal', async () => {
@@ -237,7 +237,7 @@ describe('settingsBase via apply', () => {
     const bundle = makeBundle({ enabled: false, transport: 'mqtt' }, config)
     apply(bundle.ctx, config)
     expect(bundle.registerOpts()).toEqual({ base: { transport: 'mqtt', enabled: false }, applies: 'restart' })
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
   })
 
   it('uses autoStart when enabled is unset', async () => {
@@ -245,7 +245,7 @@ describe('settingsBase via apply', () => {
     const bundle = makeBundle({ enabled: false, transport: 'mqtt' }, config)
     apply(bundle.ctx, config)
     expect(bundle.registerOpts()).toEqual({ base: { transport: 'mqtt', enabled: true }, applies: 'restart' })
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
   })
 })
 
@@ -274,7 +274,7 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
     await flush()
 
     ctl.disposeError = new Error('dispose boom')
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
     expect(bundle.logger.error).not.toHaveBeenCalled()
   })
@@ -289,7 +289,7 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
     await ctl.subscribeHandler!(downCmd('real task'))
     await flush()
     expect(bundle.logger.warn).toHaveBeenCalledWith(expect.stringContaining('result publish failed'))
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 
@@ -303,7 +303,7 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
     await vi.advanceTimersByTimeAsync(1500)
     await flush()
     expect(bundle.logger.warn).toHaveBeenCalledWith(expect.stringContaining('heartbeat publish failed'))
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 
@@ -314,7 +314,7 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
       const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
       apply(bundle.ctx, config)
       await flush()
-      await bundle.getEffect()?.()
+      bundle.getEffect()?.()
       await flush()
     }
   })
@@ -332,7 +332,7 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
     expect(ctl.current).not.toBeNull()
     await ctl.subscribeHandler!(downCmd('late start'))
     await flush()
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 })
@@ -349,7 +349,7 @@ describe('apply stop and restart transitions', () => {
     bundle.triggerWatch()
     await flush()
     expect(transport.dispose).toHaveBeenCalled()
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 
@@ -367,7 +367,7 @@ describe('apply stop and restart transitions', () => {
     expect(ctl.current).not.toBe(first)
     await ctl.subscribeHandler!(downCmd('re-id'))
     await flush()
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 
@@ -382,7 +382,7 @@ describe('apply stop and restart transitions', () => {
     bundle.holder.doc = { enabled: false, agentId: '', transport: 'http' }
     bundle.triggerWatch()
     await flush()
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 })
@@ -396,7 +396,7 @@ describe('apply start failure', () => {
     await flush()
     expect(bundle.logger.error).toHaveBeenCalledWith(expect.stringContaining('start failed'))
     expect(typeof bundle.getEffect()).toBe('function')
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 })
@@ -409,7 +409,7 @@ describe('apply remote probe', () => {
     await flush()
     expect(remoteCtl.getConfig).toBeTypeOf('function')
     expect(remoteCtl.getConfig!()).toMatchObject({ transport: 'http' })
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 })
@@ -442,7 +442,7 @@ describe('apply watch with no identity change', () => {
     bundle.triggerWatch()
     await flush()
     expect(ctl.current).toBe(transport)
-    await bundle.getEffect()?.()
+    bundle.getEffect()?.()
     await flush()
   })
 })

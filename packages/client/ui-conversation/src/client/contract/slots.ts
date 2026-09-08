@@ -123,6 +123,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.hero.brand.mark': { kind: 'single'; scope: 'root'; owner: HeroBrandMarkOwnerProps }
     /** Agent-preset control staged for a New Session. */
     'conversation.hero.agentPreset': { kind: 'single'; scope: 'root'; owner: HeroAgentPresetOwnerProps }
+    /** Knowledge picker staged for a New Session. */
+    'conversation.hero.knowledge': { kind: 'single'; scope: 'root'; owner: HeroKnowledgeOwnerProps }
     /** Full-width entries above the composer card. */
     'conversation.input.dock': { kind: 'list'; scope: 'session'; owner: InputZone }
     /** Floating entries rendered inside the resident composer card. */
@@ -174,6 +176,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Owner share of the Hero agent-preset control. */
 export interface HeroAgentPresetOwnerProps {
   /** Marker field: the occupant owns its roster and staged selection. */
+  children?: never
+}
+
+/** Owner share of the Hero knowledge picker. */
+export interface HeroKnowledgeOwnerProps {
+  /** Marker field: the occupant owns its catalog and staged selection. */
   children?: never
 }
 
@@ -327,6 +335,7 @@ export type ConversationSlotProps =
     | 'conversation.hero.brand.mark'
     | 'conversation.hero.workspace'
     | 'conversation.hero.agentPreset'
+    | 'conversation.hero.knowledge'
   >
   & InjectFace<ConversationInjected>
   & PropsLocale<'conversation'>

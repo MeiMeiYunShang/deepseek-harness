@@ -317,6 +317,23 @@ export interface SessionEventMap {
    * so tolerating concurrent writers needs a signal beyond the log.
    */
   'session/end-seed': Record<string, never>
+  /**
+   * Image recognition failed for one admitted prompt carrying image blocks.
+   * The owning plugin appended this notification, restored the original
+   * message to the inbox (`next-turn`), and entered no step, so the message
+   * stays pending for the user to edit, remove images from, or resend. The
+   * event is UI-facing only: derived history never contains it.
+   */
+  'user/image-understanding-failed': {
+    /** Message id of the restored prompt; the same id stays pending in the inbox. */
+    messageId: string
+    /** 1-based indexes of the image blocks inside the message content that failed. */
+    failedIndexes: readonly number[]
+    /** Stable machine-routing failure classification. */
+    reason: 'BACKEND_ERROR' | 'TIMEOUT' | 'ATTACHMENT_READ_ERROR'
+    /** User-facing explanation the UI surfaces verbatim. */
+    explanation: string
+  }
 }
 
 /** The appendable event-type keys of {@link SessionEventMap}, plugin-merged extensions included. */

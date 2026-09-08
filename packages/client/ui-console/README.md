@@ -22,9 +22,27 @@ Each card has a fold toggle in its title row that collapses the body to the titl
 
 Session status, cumulative task statistics, and the current selection come from the standard `ctx.sessions` feed and the `sessionStats` projection; pending interactions surface through the grid phase colors from `ctx.uiSession.pendingInteractions`; host resource metrics and the activity timeline come from the forwarded `host/metrics` and `api-session/*` events; and session verbs (open, rename, fork, archive, create, preset select, send instruction) ride the `ctx.sessions`, `ctx.workspaces`, and `ctx.remote.agentPresets` faces. A "new session" modal collects a workspace, an optional agent preset, and a first instruction.
 
+## Table of Contents
+
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
+
+-----
+
+<a id="known-limitations-and-deferred-work"></a>
 ## Known Limitations and Deferred Work
 
 - **Smart Q&A requires a configured model** — the panel reads the model override from the `console-bridge` settings namespace (`smartQaModel`, `provider/model`). With no override it stays disabled; there is no client-side model catalog remote to fall back to.
 - **The timeline is a coarse mirror** — it renders forwarded `api-session/activity` and `api-session/status` events as labels, not the full session event stream. Session-scoped event-window detail is intentionally left to the conversation surface.
 - **The knowledge base has no backend seam** — the card renders an empty/placeholder state and a row type is exported so a future source can feed it.
 - **Pending interactions are a monitoring hint** — the console colors the session grid square by a pending question or plan review but does not answer them inline; answering belongs to the conversation composer.
+
+<a id="dev-note"></a>
+## Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+None.
+
+</details>

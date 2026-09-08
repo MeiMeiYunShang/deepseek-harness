@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
 import type { AgentRegistry } from '@deepseek-ai/dsh-agent'
 import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
+
 import {
   type ConsoleBridgeConfig,
   type DownCmdEnvelope,
@@ -146,8 +147,8 @@ export function normalizeExecTimeoutS(raw: unknown): number {
  */
 export function apply(ctx: Context, config: ConsoleBridgeConfig): void {
   const logger = ctx.logger
-  const agents = ctx.agents as AgentRegistry
-  const settings = ctx.settings as SettingsProvider
+  const agents: AgentRegistry = ctx.agents
+  const settings: SettingsProvider = ctx.settings
   // Register the connection settings page; cordis config forms the base layer
   // the UI overrides. Address/identity changes require a restart.
   const scope = settings.register('console-bridge', ConsoleBridgeSettingsSchema, {

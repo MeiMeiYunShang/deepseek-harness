@@ -54,12 +54,13 @@ class MqttTransport implements ConsoleTransport {
     // that never answers at all is cut off by the MQTT connect timeout, which
     // mqtt.js reports through `error` as well.
     await new Promise<void>((resolve, reject) => {
-      this.mqtt.on('connect', () => resolve())
-      this.mqtt.on('error', (error: Error) => reject(error))
+      this.mqtt.on('connect', () => { resolve() })
+      this.mqtt.on('error', (error: Error) => { reject(error) })
       // mqtt.js emits `close` on the live client (TypedEventEmitter's typed
       // overload omits it), so register it through the untyped emitter.
-      ;(this.mqtt as unknown as NodeJS.EventEmitter).on('close', () =>
-        reject(new Error('mqtt connection closed before CONNACK')))
+      ;(this.mqtt as unknown as NodeJS.EventEmitter).on('close', () => {
+        reject(new Error('mqtt connection closed before CONNACK'))
+      })
     })
   }
 
@@ -101,7 +102,7 @@ class MqttTransport implements ConsoleTransport {
 
   async dispose(): Promise<void> {
     if (this.client === undefined) return
-    await new Promise<void>(resolve => this.mqtt.end(true, () => resolve()))
+    await new Promise<void>((resolve) => { this.mqtt.end(true, () => { resolve() }) })
   }
 }
 
@@ -143,7 +144,7 @@ class HttpTransport implements ConsoleTransport {
     if (!res.ok) throw new Error(`console-bridge: uplink POST ${url} failed (${res.status})`)
   }
 
-  async subscribe(
+  subscribe(
     topic: string,
     handler: (payload: DownCmdEnvelope) => void | Promise<void>,
   ): Promise<() => void> {
@@ -170,13 +171,14 @@ class HttpTransport implements ConsoleTransport {
         await delay(this.config.pollIntervalMs ?? 2000)
       }
     })()
-    return () => {
+    return Promise.resolve(() => {
       this.stopped = true
-    }
+    })
   }
 
-  async dispose(): Promise<void> {
+  dispose(): Promise<void> {
     this.stopped = true
+    return Promise.resolve()
   }
 }
 

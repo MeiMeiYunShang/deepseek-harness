@@ -1004,6 +1004,25 @@ async prepareCall(config: LlmCallConfig, signal?: AbortSignal): Promise<Prepared
  * @returns the chunk stream, possibly wrapped by `llm/stream` listeners.
  */
 stream(options: GenerateOptions): AsyncIterable<StreamChunk>
+
+/**
+ * Stream one one-shot completion over the wire. The request carries the
+ * provider-neutral routing fields and an ordered message list; each message
+ * is mapped into the immutable {@link Message} vocabulary
+ * (`createUserMessage` for a user role, `createAssistantMessage` for an
+ * assistant role whose provenance names the request's provider/model), and a
+ * `system`-role message becomes {@link GenerateOptions.system} (the request's
+ * own `system` field wins). The assembled request then goes through
+ * {@link LlmRuntime.stream}, so adapter resolution, the `llm/stream`
+ * waterfall, call-config validation, and replay handling all still apply.
+ * Chunks are the reduced {@link LlmChatChunk} subset (text deltas, usage,
+ * and the terminal finish), so the caller renders them without importing the
+ * merge-extensible ContentBlock vocabulary.
+ * @param request - provider/model route, message list, and optional controls.
+ * @param signal - caller cancellation supplied by the Remote carrier.
+ * @returns the reduced chunk stream.
+ */
+@Remote({ mode: 'stream' }) async * chat(request: LlmChatRequest, signal: AbortSignal): AsyncIterable<LlmChatChunk>
 ```
 
 Source: [`packages/llm/llm/src/index.ts`](../../packages/llm/llm/src/index.ts)

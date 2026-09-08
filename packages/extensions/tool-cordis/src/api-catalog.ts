@@ -1095,6 +1095,131 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'knowledge',
+    summary: 'In-memory knowledge store.',
+    description: 'In-memory knowledge store. Providers attach a persistence backend by listening to `knowledge/change` and hydrating entries on boot. The store itself owns the runtime registry, id minting, and change notification.',
+    methods: [
+      {
+        signature: 'listEntries(filter?: KnowledgeEntryFilter): KnowledgeEntry[]',
+        description: 'List knowledge entries matching the optional filter. Results are sorted by creation time descending (newest first). The filter\'s `query` matches case-insensitively against title, content, and tags.',
+        parameters: [{ name: 'filter', description: 'optional filter criteria.' }],
+        returns: 'matching entries in creation-time descending order.',
+      },
+      {
+        signature: 'getEntry(id: KnowledgeEntryId): KnowledgeEntry | undefined',
+        description: 'Look up a single knowledge entry by id.',
+        parameters: [{ name: 'id', description: 'the entry id.' }],
+        returns: 'the entry, or undefined when not found.',
+      },
+      {
+        signature: 'saveEntry(input: KnowledgeEntryInput): KnowledgeEntry',
+        description: 'Create a new knowledge entry. The store assigns the id, createdAt, and updatedAt timestamps. If a `groupId` is supplied, the group must exist and the entry id is appended to its `entryIds`.',
+        parameters: [{ name: 'input', description: 'the entry content and metadata.' }],
+        returns: 'the newly created entry.',
+      },
+      {
+        signature: 'updateEntry(id: KnowledgeEntryId, patch: Partial<Pick<KnowledgeEntryInput, \'title\' | \'content\' | \'category\' | \'tags\' | \'groupId\'>>): KnowledgeEntry | undefined',
+        description: 'Update an existing knowledge entry. Only supplied fields are changed; the `updatedAt` timestamp is refreshed. Returns the updated entry or undefined when the id is not found.',
+        parameters: [{ name: 'id', description: 'the entry to update.' }, { name: 'patch', description: 'partial fields to merge.' }],
+        returns: 'the updated entry, or undefined when not found.',
+      },
+      {
+        signature: 'deleteEntry(id: KnowledgeEntryId): boolean',
+        description: 'Delete a knowledge entry. Removes it from any group it belongs to.',
+        parameters: [{ name: 'id', description: 'the entry to delete.' }],
+        returns: 'whether the entry existed and was removed.',
+      },
+      {
+        signature: 'listGroups(): KnowledgeGroup[]',
+        description: 'List all knowledge groups.',
+        parameters: [],
+        returns: 'all groups in creation order.',
+      },
+      {
+        signature: 'getGroup(id: KnowledgeGroupId): KnowledgeGroup | undefined',
+        description: 'Look up a single group by id.',
+        parameters: [{ name: 'id', description: 'the group id.' }],
+        returns: 'the group, or undefined when not found.',
+      },
+      {
+        signature: 'createGroup(input: KnowledgeGroupInput): KnowledgeGroup',
+        description: 'Create a new knowledge group.',
+        parameters: [{ name: 'input', description: 'the group name and description.' }],
+        returns: 'the newly created group.',
+      },
+      {
+        signature: 'deleteGroup(id: KnowledgeGroupId): boolean',
+        description: 'Delete a knowledge group. Entries belonging to the group have their `groupId` cleared.',
+        parameters: [{ name: 'id', description: 'the group to delete.' }],
+        returns: 'whether the group existed and was removed.',
+      },
+      {
+        signature: 'assignToGroup(entryId: KnowledgeEntryId, groupId: KnowledgeGroupId): boolean',
+        description: 'Assign an entry to a group. If the entry was in another group, it is removed from that group first.',
+        parameters: [{ name: 'entryId', description: 'the entry to assign.' }, { name: 'groupId', description: 'the target group.' }],
+        returns: 'whether the assignment succeeded (both entry and group must exist).',
+      },
+      {
+        signature: 'hydrate(entries: readonly KnowledgeEntry[], groups: readonly KnowledgeGroup[]): void',
+        description: 'Replace the entire in-memory store with externally loaded data. Used by providers during boot to hydrate from disk. Notifies change once.',
+        parameters: [{ name: 'entries', description: 'the full entry set.' }, { name: 'groups', description: 'the full group set.' }],
+      },
+    ],
+  },
+  {
+    key: 'knowledgeController',
+    summary: 'Host service backing the generated `ctx.remote.knowledge` namespace.',
+    description: 'Host service backing the generated `ctx.remote.knowledge` namespace. Every write validates its wire input at the boundary before touching the store, and every store refusal is classified as a `knowledge/*` RemoteError.',
+    methods: [
+      {
+        signature: '@Remote list(filter: KnowledgeListRequest): KnowledgeListValue',
+        description: 'List knowledge entries and groups for a browser catalog.',
+        parameters: [{ name: 'filter', description: 'entry filter criteria.' }],
+        returns: 'matching entries (newest first) and every group.',
+      },
+      {
+        signature: '@Remote get(id: KnowledgeEntryId): KnowledgeGetValue',
+        description: 'Look up one knowledge entry.',
+        parameters: [{ name: 'id', description: 'entry identity.' }],
+        returns: 'the requested entry.',
+        throws: ['RemoteError `knowledge/not-found` when the id is unknown.'],
+      },
+      {
+        signature: '@Remote create(input: KnowledgeCreateInput): KnowledgeCreateValue',
+        description: 'Create a knowledge entry.',
+        parameters: [{ name: 'input', description: 'entry content and metadata.' }],
+        returns: 'the created entry.',
+        throws: ['RemoteError `knowledge/invalid-input` or `knowledge/invalid-category`.'],
+      },
+      {
+        signature: '@Remote update(id: KnowledgeEntryId, patch: KnowledgeUpdatePatch): KnowledgeUpdateValue',
+        description: 'Update a knowledge entry.',
+        parameters: [{ name: 'id', description: 'entry identity.' }, { name: 'patch', description: 'fields to merge.' }],
+        returns: 'the updated entry.',
+        throws: ['RemoteError `knowledge/not-found` or `knowledge/invalid-category`.'],
+      },
+      {
+        signature: '@Remote delete(id: KnowledgeEntryId): KnowledgeDeleteValue',
+        description: 'Delete a knowledge entry.',
+        parameters: [{ name: 'id', description: 'entry identity.' }],
+        returns: 'deletion confirmation (idempotent for an unknown id).',
+      },
+      {
+        signature: '@Remote createGroup(input: KnowledgeGroupCreateInput): KnowledgeGroupCreateValue',
+        description: 'Create a knowledge group.',
+        parameters: [{ name: 'input', description: 'group name and description.' }],
+        returns: 'the created group.',
+        throws: ['RemoteError `knowledge/invalid-input` when the name is blank.'],
+      },
+      {
+        signature: '@Remote deleteGroup(id: KnowledgeGroupId): KnowledgeGroupDeleteValue',
+        description: 'Delete a knowledge group, clearing entry membership.',
+        parameters: [{ name: 'id', description: 'group identity.' }],
+        returns: 'deletion confirmation (idempotent for an unknown id).',
+      },
+    ],
+  },
+  {
     key: 'llm',
     summary: 'The abstract `llm` service: an adapter registry plus a streaming model-call API, interceptable via the `llm/stream` waterfall.',
     description: 'The abstract `llm` service: an adapter registry plus a streaming model-call API, interceptable via the `llm/stream` waterfall.',
@@ -1183,6 +1308,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Stream one model call as raw chunks (token-level deltas). Replay state is retained only when the same adapter instance owns its historical provider and the target provider. Final adapter selection remains fixed through asynchronous exact-model resolution and dispatch. Adapter selection, dispatch, and iteration failures become terminal `error` or `aborted` finish chunks; middleware, nested-call, cleanup, and consumer failures remain thrown.',
         parameters: [{ name: 'options', description: 'the full request; `options.provider` selects the adapter.' }],
         returns: 'the chunk stream, possibly wrapped by `llm/stream` listeners.',
+      },
+      {
+        signature: '@Remote({ mode: \'stream\' }) async * chat(request: LlmChatRequest, signal: AbortSignal): AsyncIterable<LlmChatChunk>',
+        description: 'Stream one one-shot completion over the wire. The request carries the provider-neutral routing fields and an ordered message list; each message is mapped into the immutable Message vocabulary (`createUserMessage` for a user role, `createAssistantMessage` for an assistant role whose provenance names the request\'s provider/model), and a `system`-role message becomes GenerateOptions.system (the request\'s own `system` field wins). The assembled request then goes through LlmRuntime.stream, so adapter resolution, the `llm/stream` waterfall, call-config validation, and replay handling all still apply. Chunks are the reduced LlmChatChunk subset (text deltas, usage, and the terminal finish), so the caller renders them without importing the merge-extensible ContentBlock vocabulary.',
+        parameters: [{ name: 'request', description: 'provider/model route, message list, and optional controls.' }, { name: 'signal', description: 'caller cancellation supplied by the Remote carrier.' }],
+        returns: 'the reduced chunk stream.',
       },
     ],
   },
@@ -3168,6 +3299,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'payload', description: '.change - fresh current projection or clear tombstone.' }],
   },
   {
+    name: 'host/metrics',
+    mode: 'emit',
+    signature: '\'host/metrics\': (payload: HostMetrics) => void',
+    summary: 'One sampled host resource snapshot, emitted on the configured interval.',
+    description: 'One sampled host resource snapshot, emitted on the configured interval.',
+    parameters: [{ name: 'payload', description: 'the sampled CPU, memory, and best-effort GPU utilization.' }],
+  },
+  {
+    name: 'knowledge/change',
+    mode: 'emit',
+    signature: '\'knowledge/change\'(): void',
+    summary: 'A knowledge entry or group was created, updated, or deleted.',
+    description: 'A knowledge entry or group was created, updated, or deleted. This is an unfiltered invalidation notification; consumers refetch the catalog for their own filter. Listener failures are contained and cannot veto the store mutation.',
+    parameters: [],
+  },
+  {
     name: 'llm/adapters-updated',
     mode: 'emit',
     signature: '\'llm/adapters-updated\'(): void',
@@ -4132,6 +4279,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface GrantRecord {\n    readonly kind: \'grant\';\n    readonly payload: unknown;\n}',
   },
   {
+    name: 'HostMetrics',
+    declaration: 'export interface HostMetrics {\n    cpu: number;\n    memory: number;\n    gpu: number | null;\n}',
+  },
+  {
     name: 'ImageAttachmentLimits',
     declaration: 'export interface ImageAttachmentLimits {\n    maxImageBytes: number;\n    maxImagesPerMessage: number;\n    maxMessageImageBytes: number;\n    maxImagePixels: number;\n    maxImageDimension: number;\n    mediaTypes: readonly ImageMediaType[];\n}',
   },
@@ -4268,6 +4419,90 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface KnobState {\n    preset: string | null;\n    sandbox: SandboxMode | null;\n    approval: ApprovalPolicy | null;\n}',
   },
   {
+    name: 'KnowledgeCategory',
+    declaration: 'export type KnowledgeCategory = \'architecture\' | \'debugging\' | \'performance\' | \'pattern\' | \'configuration\' | \'api\' | \'workflow\' | \'general\';',
+  },
+  {
+    name: 'KnowledgeCreateInput',
+    declaration: 'export interface KnowledgeCreateInput {\n    readonly title: string;\n    readonly content: string;\n    readonly category: KnowledgeCategory;\n    readonly tags?: readonly string[];\n    readonly groupId?: KnowledgeGroupId;\n    readonly sourceSessionId?: string;\n}',
+  },
+  {
+    name: 'KnowledgeCreateValue',
+    declaration: 'export interface KnowledgeCreateValue {\n    readonly entry: KnowledgeEntryView;\n}',
+  },
+  {
+    name: 'KnowledgeDeleteValue',
+    declaration: 'export interface KnowledgeDeleteValue {\n    readonly deleted: true;\n}',
+  },
+  {
+    name: 'KnowledgeEntry',
+    declaration: 'export interface KnowledgeEntry {\n    readonly id: KnowledgeEntryId;\n    readonly title: string;\n    readonly content: string;\n    readonly category: KnowledgeCategory;\n    readonly tags: readonly string[];\n    readonly groupId?: KnowledgeGroupId;\n    readonly sourceSessionId?: string;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'KnowledgeEntryFilter',
+    declaration: 'export interface KnowledgeEntryFilter {\n    readonly query?: string;\n    readonly category?: KnowledgeCategory;\n    readonly groupId?: KnowledgeGroupId;\n    readonly tags?: readonly string[];\n    readonly limit?: number;\n}',
+  },
+  {
+    name: 'KnowledgeEntryId',
+    declaration: 'export type KnowledgeEntryId = Branded<\'KnowledgeEntryId\'>;',
+  },
+  {
+    name: 'KnowledgeEntryInput',
+    declaration: 'export interface KnowledgeEntryInput {\n    readonly title: string;\n    readonly content: string;\n    readonly category: KnowledgeCategory;\n    readonly tags?: readonly string[];\n    readonly groupId?: KnowledgeGroupId;\n    readonly sourceSessionId?: string;\n}',
+  },
+  {
+    name: 'KnowledgeEntryView',
+    declaration: 'export interface KnowledgeEntryView {\n    readonly id: KnowledgeEntryId;\n    readonly title: string;\n    readonly content: string;\n    readonly category: KnowledgeCategory;\n    readonly tags: readonly string[];\n    readonly groupId?: KnowledgeGroupId;\n    readonly sourceSessionId?: string;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'KnowledgeGetValue',
+    declaration: 'export interface KnowledgeGetValue {\n    readonly entry: KnowledgeEntryView;\n}',
+  },
+  {
+    name: 'KnowledgeGroup',
+    declaration: 'export interface KnowledgeGroup {\n    readonly id: KnowledgeGroupId;\n    readonly name: string;\n    readonly description: string;\n    readonly entryIds: readonly KnowledgeEntryId[];\n}',
+  },
+  {
+    name: 'KnowledgeGroupCreateInput',
+    declaration: 'export interface KnowledgeGroupCreateInput {\n    readonly name: string;\n    readonly description: string;\n}',
+  },
+  {
+    name: 'KnowledgeGroupCreateValue',
+    declaration: 'export interface KnowledgeGroupCreateValue {\n    readonly group: KnowledgeGroupView;\n}',
+  },
+  {
+    name: 'KnowledgeGroupDeleteValue',
+    declaration: 'export interface KnowledgeGroupDeleteValue {\n    readonly deleted: true;\n}',
+  },
+  {
+    name: 'KnowledgeGroupId',
+    declaration: 'export type KnowledgeGroupId = Branded<\'KnowledgeGroupId\'>;',
+  },
+  {
+    name: 'KnowledgeGroupInput',
+    declaration: 'export interface KnowledgeGroupInput {\n    readonly name: string;\n    readonly description: string;\n}',
+  },
+  {
+    name: 'KnowledgeGroupView',
+    declaration: 'export interface KnowledgeGroupView {\n    readonly id: KnowledgeGroupId;\n    readonly name: string;\n    readonly description: string;\n    readonly entryIds: readonly KnowledgeEntryId[];\n}',
+  },
+  {
+    name: 'KnowledgeListRequest',
+    declaration: 'export interface KnowledgeListRequest {\n    readonly query?: string;\n    readonly category?: KnowledgeCategory;\n    readonly groupId?: KnowledgeGroupId;\n    readonly tags?: readonly string[];\n    readonly limit?: number;\n}',
+  },
+  {
+    name: 'KnowledgeListValue',
+    declaration: 'export interface KnowledgeListValue {\n    readonly entries: readonly KnowledgeEntryView[];\n    readonly groups: readonly KnowledgeGroupView[];\n}',
+  },
+  {
+    name: 'KnowledgeUpdatePatch',
+    declaration: 'export interface KnowledgeUpdatePatch {\n    readonly title?: string;\n    readonly content?: string;\n    readonly category?: KnowledgeCategory;\n    readonly tags?: readonly string[];\n    readonly groupId?: KnowledgeGroupId;\n}',
+  },
+  {
+    name: 'KnowledgeUpdateValue',
+    declaration: 'export interface KnowledgeUpdateValue {\n    readonly entry: KnowledgeEntryView;\n}',
+  },
+  {
     name: 'KvFacet',
     declaration: 'export interface KvFacet {\n    open(descriptor: KvUnitDescriptor): Promise<KvUnit>;\n}',
   },
@@ -4294,6 +4529,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LlmCallConfigAdapterDefaults',
     declaration: 'export interface LlmCallConfigAdapterDefaults {\n    reasoningEffort?: true;\n    maxTokens?: true;\n}',
+  },
+  {
+    name: 'LlmChatChunk',
+    declaration: 'export type LlmChatChunk = {\n    type: \'text-delta\';\n    index: number;\n    text: string;\n} | {\n    type: \'reasoning-delta\';\n    index: number;\n    text: string;\n} | {\n    type: \'usage\';\n    usage: TokenUsage;\n} | {\n    type: \'finish\';\n    reason: LlmChatFinish;\n};',
+  },
+  {
+    name: 'LlmChatFailure',
+    declaration: 'export interface LlmChatFailure {\n    message: string;\n    code: string;\n    status?: number;\n    providerRetryAfterMs?: number;\n    requestId?: string;\n}',
+  },
+  {
+    name: 'LlmChatFinish',
+    declaration: 'export type LlmChatFinish = {\n    kind: \'stop\';\n} | {\n    kind: \'tool-calls\';\n} | {\n    kind: \'max-tokens\';\n} | {\n    kind: \'aborted\';\n    failure: LlmChatFailure;\n} | {\n    kind: \'error\';\n    failure: LlmChatFailure;\n};',
+  },
+  {
+    name: 'LlmChatMessage',
+    declaration: 'export interface LlmChatMessage {\n    role: \'user\' | \'assistant\' | \'system\';\n    content: TextBlock[];\n}',
+  },
+  {
+    name: 'LlmChatRequest',
+    declaration: 'export interface LlmChatRequest {\n    provider: string;\n    model: string;\n    messages: LlmChatMessage[];\n    system?: string;\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n    reasoningEffort?: ReasoningEffortId;\n}',
   },
   {
     name: 'LlmConfigurableProvider',
@@ -4345,7 +4600,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LlmRuntime',
-    declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>;\n    async prepareCall(config: LlmCallConfig, signal?: AbortSignal): Promise<PreparedLlmCall>;\n    stream(options: GenerateOptions): AsyncIterable<StreamChunk>;\n}',
+    declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>;\n    async prepareCall(config: LlmCallConfig, signal?: AbortSignal): Promise<PreparedLlmCall>;\n    stream(options: GenerateOptions): AsyncIterable<StreamChunk>;\n    @Remote({ mode: \'st /* …truncated — full shape in source */',
   },
   {
     name: 'LspHover',
@@ -4865,7 +5120,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionEventMap',
-    declaration: 'export interface SessionEventMap {\n    \'turn/start\': {\n        turn: number;\n    };\n    \'turn/end\': {\n        turn: number;\n        reason: TurnEndReason;\n    };\n    \'step/start\': {\n        turn: number;\n        step: number;\n    };\n    \'step/end\': {\n        turn: number;\n        step: number;\n    };\n    \'user/message\': UserMessage;\n    \'assistant/chunk\': {\n        turn: number;\n        step: number;\n        chunk: StreamChunk;\n    };\n    \'assistant/message\': {\n        turn: number;\n        step: number;\n        message: AssistantMessage;\n        usage?: TokenUsage;\n        interrupted?: true;\n    };\n    \'tool/call\': {\n        turn: number;\n        step: number;\n        callId: ToolCallId;\n        name: string;\n        arguments: string;\n    };\n    \'tool/result\': {\n        turn: number;\n        step: number;\n        message: ToolResultMessage;\n        error?: {\n            name: string;\n            code: string;\n        };\n        meta?: JsonValue;\n    };\n    \'request/header\': {\n        header: EpochHeader;\n        reason: RequestHeaderReason;\n        startsSeries?: true;\n    };\n    \'request/context\': RequestContext;\n    \'session/end-seed\': Record<string, never>;\n}',
+    declaration: 'export interface SessionEventMap {\n    \'turn/start\': {\n        turn: number;\n    };\n    \'turn/end\': {\n        turn: number;\n        reason: TurnEndReason;\n    };\n    \'step/start\': {\n        turn: number;\n        step: number;\n    };\n    \'step/end\': {\n        turn: number;\n        step: number;\n    };\n    \'user/message\': UserMessage;\n    \'assistant/chunk\': {\n        turn: number;\n        step: number;\n        chunk: StreamChunk;\n    };\n    \'assistant/message\': {\n        turn: number;\n        step: number;\n        message: AssistantMessage;\n        usage?: TokenUsage;\n        interrupted?: true;\n    };\n    \'tool/call\': {\n        turn: number;\n        step: number;\n        callId: ToolCallId;\n        name: string;\n        arguments: string;\n    };\n    \'tool/result\': {\n        turn: number;\n        step: number;\n        message: ToolResultMessage;\n        error?: {\n            name: string;\n            code: string;\n        };\n        meta?: JsonValue;\n    };\n    \'request/header\': {\n        header: EpochHeader;\n        reason: RequestHeaderReason;\n        startsSeries?: true;\n    };\n    \'request/context\': RequestContext;\n    \'session/end-seed\': Record<string, never>;\n    \'user/image-understanding-failed\': {\n        messageId: string;\n        failedIndexes: readonly number[];\n        reason: \'BACKEND_ERROR\' | \'TIMEOUT\' | \'ATTACHMENT_READ_ERROR\';\n        explanation: string;\n    };\n}',
   },
   {
     name: 'SessionEventMetadataFilter',

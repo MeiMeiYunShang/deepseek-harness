@@ -90,5 +90,5 @@ export function apply(ctx: Context, config: Config): void {
     lastTime = nowTime
     ctx.emit('host/metrics', payload)
   }, config.intervalMs)
-  ctx.effect(() => () => clearInterval(timer), 'host-metrics: sampler')
+  ctx.effect(() => () => { clearInterval(timer) }, 'host-metrics: sampler')
 }

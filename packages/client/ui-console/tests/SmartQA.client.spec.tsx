@@ -41,7 +41,7 @@ describe('SmartQA', () => {
 
     expect(screen.queryByText('hi')).toBeTruthy()
     expect(screen.queryByText('hello world')).toBeTruthy()
-    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('')
+    expect((screen.getByRole('textbox') as unknown as HTMLInputElement).value).toBe('')
     expect(mock).toHaveBeenCalledTimes(1)
   })
 

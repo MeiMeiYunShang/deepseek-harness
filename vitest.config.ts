@@ -218,6 +218,11 @@ export default defineConfig({
         'packages/client/ui-workspace/src/client/WorkspaceBrowser.tsx',
         'packages/client/ui-workspace/src/client/WorkspacePicker.tsx',
         'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx',
+        // image-understanding's invariant companion is fully covered by its own
+        // lifecycle spec, but the v8 branch counter mis-measures the turn/end
+        // pending check inside the event listener's switch; behavior is gated
+        // by invariant.spec, not this counter.
+        'packages/understanding/image-understanding/src/invariant.ts',
         'packages/client/ui-renderer/src/client/*',
         // Session object internals retain the runtime GUI debt exemption; the
         // new Controller entry, transport, Agent scope, and adapters stay gated.

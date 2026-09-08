@@ -92,7 +92,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 ```
 
-来源：[`packages/core/session/src/types.ts:323`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:330`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:359`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:391`](../packages/core/session/src/types.ts)
+来源：[`packages/core/session/src/types.ts:340`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:347`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:376`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:408`](../packages/core/session/src/types.ts)
 
 ## 事件
 
@@ -475,6 +475,19 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 ```
 
 来源：[`packages/hooks/hook-protocol/src/types.ts:31`](../packages/hooks/hook-protocol/src/types.ts)
+
+### `knowledge/*`
+
+<a id="knowledgesummary-llm-request--log-only"></a>
+
+#### `knowledge/summary-llm-request` — log-only
+
+```ts persistence-catalog
+/** Log-only pre-dispatch record of one knowledge auto-summarize model request. */
+'knowledge/summary-llm-request': KnowledgeSummaryLlmRequestEventData
+```
+
+来源：[`packages/knowledge/tool-knowledge/src/index.ts:76`](../packages/knowledge/tool-knowledge/src/index.ts)
 
 ### `llm/*`
 
@@ -1035,6 +1048,32 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 来源：[`packages/core/session/src/types.ts:223`](../packages/core/session/src/types.ts)
 
 ### `user/*`
+
+<a id="userimage-understanding-failed--log-only"></a>
+
+#### `user/image-understanding-failed` — log-only
+
+```ts persistence-catalog
+/**
+ * Image recognition failed for one admitted prompt carrying image blocks.
+ * The owning plugin appended this notification, restored the original
+ * message to the inbox (`next-turn`), and entered no step, so the message
+ * stays pending for the user to edit, remove images from, or resend. The
+ * event is UI-facing only: derived history never contains it.
+ */
+'user/image-understanding-failed': {
+  /** Message id of the restored prompt; the same id stays pending in the inbox. */
+  messageId: string
+  /** 1-based indexes of the image blocks inside the message content that failed. */
+  failedIndexes: readonly number[]
+  /** Stable machine-routing failure classification. */
+  reason: 'BACKEND_ERROR' | 'TIMEOUT' | 'ATTACHMENT_READ_ERROR'
+  /** User-facing explanation the UI surfaces verbatim. */
+  explanation: string
+}
+```
+
+来源：[`packages/core/session/src/types.ts:327`](../packages/core/session/src/types.ts)
 
 <a id="usermessage--surface"></a>
 

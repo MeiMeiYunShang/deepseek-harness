@@ -94,6 +94,6 @@ describe('SmartQA flow guards', () => {
     fireEvent.change(input, { target: { value: 'hi' } })
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
     expect(mock).not.toHaveBeenCalled()
-    expect(input.value).toBe('hi')
+    expect((input).value).toBe('hi')
   })
 })

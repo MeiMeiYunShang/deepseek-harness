@@ -58,6 +58,9 @@ import Lsp from '@deepseek-ai/dsh-lsp'
 import * as ToolLsp from '@deepseek-ai/dsh-tool-lsp'
 import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
 import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
+import KnowledgeStore from '@deepseek-ai/dsh-knowledge'
+import * as KnowledgeFile from '@deepseek-ai/dsh-knowledge-file'
+import * as ToolKnowledge from '@deepseek-ai/dsh-tool-knowledge'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import type TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
@@ -423,6 +426,21 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-knowledge',
+    dir: 'tool-knowledge',
+    source: 'packages/knowledge/tool-knowledge/src/index.ts',
+    requires: ['ctx.tools', 'ctx.knowledge', 'ctx.systemPrompt', 'ctx.llm'],
+    writes: ['tool/call', 'tool/result', 'system-prompt knowledge section'],
+    async mount(ctx) {
+      await ctx.plugin(KnowledgeStore)
+      await ctx.plugin(KnowledgeFile, { root: resolve(root, '.tmp/tool-catalog/knowledge') })
+      await ctx.plugin(LlmRuntime)
+      await ctx.plugin(ToolKnowledge, { autoSummarize: false })
+    },
+    note:
+      'Searches and saves reusable knowledge entries; injects a summary section into the system prompt and can auto-summarize on session disposal or archive.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-skill',

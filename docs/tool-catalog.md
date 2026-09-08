@@ -31,6 +31,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-schedule` | `schedule_create`, `schedule_delete`, `schedule_list` | `ctx.tools`, `ctx.sessions`, `Session persistence`, `a future live root Agent` | `tool/call`, `schedule/change create or delete`, `tool/result` | - | Registered only inside live root Agent scopes created after the opt-in Schedule plugin loads. Version 1 accepts after_seconds, explicit absolute at, and bounded fixed-rate every_seconds, and discloses session-local delivery; management reads and mutations require the shared Session persistence barrier. |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`, `ctx.workflowEngine`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents every fresh round)` | `tool/call`, `tool/result`, `workflow and child session events during execution` | - | A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap. |
+| `@deepseek-ai/dsh-tool-knowledge` | `knowledge_search`, `save_knowledge` | `ctx.tools`, `ctx.knowledge`, `ctx.systemPrompt`, `ctx.llm` | `tool/call`, `tool/result`, `system-prompt knowledge section` | - | Searches and saves reusable knowledge entries; injects a summary section into the system prompt and can auto-summarize on session disposal or archive. |
 | `@deepseek-ai/dsh-tool-skill` | `skill` | `ctx.tools`, `ctx.agents`, `ctx.skills` | `tool/call`, `tool/result`, `user/message replacement catalogs via agent.inject()` | - | - |
 | `@deepseek-ai/dsh-tool-session-query` | `session_event_read`, `session_event_search`, `session_event_trace`, `session_search`, `session_trace` | `ctx.tools`, `ctx.systemPrompt`, `ctx.sessionQuery`, `a calling Agent for workspace authority` | `tool/call`, `tool/result` | - | The five read-only tools hide provider cursors and authorize every result from the immutable calling agent session. The package is opt-in; compositions that need enforced deadlines or bounded inline output also mount the generic timeout or spill policies. |
 | `@deepseek-ai/dsh-tool-subagent` | `list_subagent_models`, `subagent` | `ctx.tools`, `ctx.subagents`, `ctx.systemPrompt`, `ctx.llm for model discovery and selected-route validation` | `tool/call`, `tool/result`, `child session events through the chosen provider` | `subagent`, `subagent_fork` | The registered delegation name is the load-time `toolName` config (default `subagent`); the default schema above has model selection off, while the discovery schema is shown as the fixed companion available in an enabled Session. Web presets sample the Plugins preference for each new top-level Session and preserve that decision for its child Sessions; `subagent_fork` remains fixed-route. Each instance independently controls whether it reads model-selection settings and its background behavior through `modelSelectionSettings`, `backgroundMode`, and `enableRunInBackground`. |
@@ -1272,6 +1273,114 @@ Run a foreground fresh-agent Ralph loop toward one immutable objective. Use only
 Source: [`packages/workflow/tool-ralph/src/index.ts`](../packages/workflow/tool-ralph/src/index.ts)
 
 A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap.
+
+<a id="deepseek-aidsh-tool-knowledge"></a>
+
+## `@deepseek-ai/dsh-tool-knowledge`
+
+### `knowledge_search`
+
+Search the knowledge base for reusable experience, debugging tips, patterns, and configurations. Returns matching knowledge entries with title, content, category, and tags. Use this when a task might benefit from previously recorded experience.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query to match against knowledge entry titles, content, and tags."
+    },
+    "category": {
+      "type": "string",
+      "description": "Restrict results to a specific knowledge category.",
+      "enum": [
+        "architecture",
+        "debugging",
+        "performance",
+        "pattern",
+        "configuration",
+        "api",
+        "workflow",
+        "general"
+      ]
+    },
+    "groupId": {
+      "type": "string",
+      "description": "Restrict results to a specific knowledge group."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Match entries carrying any of these tags.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limit": {
+      "type": "number",
+      "description": "Maximum number of entries to return (default 10)."
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/knowledge/tool-knowledge/src/index.ts`](../packages/knowledge/tool-knowledge/src/index.ts)
+
+### `save_knowledge`
+
+Save a piece of reusable experience to the shared knowledge base. Use this when you discover a debugging technique, architectural pattern, performance tip, or other reusable knowledge during the session. The entry is immediately available for future sessions via knowledge_search.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Short descriptive title for the knowledge entry."
+    },
+    "content": {
+      "type": "string",
+      "description": "Full knowledge content — the reusable experience to remember."
+    },
+    "category": {
+      "type": "string",
+      "description": "Classification category for the knowledge entry.",
+      "enum": [
+        "architecture",
+        "debugging",
+        "performance",
+        "pattern",
+        "configuration",
+        "api",
+        "workflow",
+        "general"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Free-form tags for cross-cutting discovery.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "groupId": {
+      "type": "string",
+      "description": "Group to assign this entry to."
+    }
+  },
+  "required": [
+    "title",
+    "content",
+    "category"
+  ]
+}
+```
+
+Source: [`packages/knowledge/tool-knowledge/src/index.ts`](../packages/knowledge/tool-knowledge/src/index.ts)
+
+Searches and saves reusable knowledge entries; injects a summary section into the system prompt and can auto-summarize on session disposal or archive.
 
 <a id="deepseek-aidsh-tool-skill"></a>
 

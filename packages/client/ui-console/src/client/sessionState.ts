@@ -39,11 +39,11 @@ export function sessionPhase(
  * @returns the dictionary key to translate. */
 export function sessionPhaseLabel(phase: SessionPhase): ConsoleKey {
   switch (phase) {
-    case 'running': return 'sessionStatusRunning'
-    case 'planning': return 'sessionStatusPlanning'
-    case 'pending': return 'sessionStatusPending'
-    case 'waiting': return 'sessionStatusWaiting'
-    case 'archived': return 'sessionStatusArchived'
-    default: return 'sessionStatusAvailable'
+    case 'running': return 'sessionStatus.running'
+    case 'planning': return 'sessionStatus.planning'
+    case 'pending': return 'sessionStatus.pending'
+    case 'waiting': return 'sessionStatus.waiting'
+    case 'archived': return 'sessionStatus.archived'
+    default: return 'sessionStatus.available'
   }
 }

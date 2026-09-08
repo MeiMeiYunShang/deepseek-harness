@@ -15,7 +15,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
-import type { ConnectionRpcResult, ConnectionRpcFailure, ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
+import type { ConnectionRpcResult, ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import type { PreToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 
 /** Stable plugin id for loader rows. */
@@ -174,10 +174,16 @@ function toolRuleOf(toolRules: Record<string, string>, tool: string): string | u
   return undefined
 }
 
+function isMcpSecurity(v: unknown): v is McpSecurity {
+  return v != null && typeof v === 'object' && !Array.isArray(v)
+}
+
 /** Bound one backend's registry of MCP entries to a per-server policy view. */
 function policyOf(entry: Entry | undefined): Policy | undefined {
   if (entry === undefined) return undefined
-  const sec: McpSecurity = (entry.options.config && (entry.options.config as { mcpSecurity?: McpSecurity }).mcpSecurity) || {}
+  const cfg = entry.options.config as unknown as Record<string, unknown> | undefined
+  const rawSec = cfg?.mcpSecurity
+  const sec: McpSecurity = isMcpSecurity(rawSec) ? rawSec : {}
   const scope = sec.scope === 'read-only' || sec.scope === 'blocked' ? sec.scope : 'read-write'
   const toolRules = sec.toolRules && typeof sec.toolRules === 'object' && !Array.isArray(sec.toolRules)
     ? sec.toolRules : {}
@@ -192,15 +198,15 @@ function nameOf(entry: Entry): string {
 
 function isStringRecord(v: unknown): boolean {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
-  for (const key of Object.keys(v as Record<string, unknown>)) if (typeof (v as Record<string, unknown>)[key] !== 'string') return false
-  return true
+  return Object.entries(v).every(([, value]) => typeof value === 'string')
 }
 
 function normalizeToolRules(rules: unknown): Record<string, string> {
   const out: Record<string, string> = {}
   if (!rules || typeof rules !== 'object' || Array.isArray(rules)) return out
-  for (const key of Object.keys(rules as Record<string, unknown>)) {
-    const v = (rules as Record<string, unknown>)[key]
+  const record = rules as unknown as Record<string, unknown>
+  for (const key of Object.keys(record)) {
+    const v = record[key]
     if (v === 'allow' || v === 'deny' || v === 'read' || v === 'write') out[key] = v
   }
   return out
@@ -213,13 +219,19 @@ function sanitizeUrl(url: unknown): string | undefined {
 }
 
 function countKeys(v: unknown): number {
-  return v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v as Record<string, unknown>).length : 0
+  return v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).length : 0
 }
 
 function fiberPhaseOf(entry: Entry): string | null {
   if (!entry.fiber) return null
   const states: Record<number, string> = { 0: 'pending', 1: 'loading', 2: 'active', 3: 'failed', 4: 'disposed', 5: 'unloading' }
   return states[entry.fiber.state] ?? null
+}
+
+function errorMessage(e: unknown): string | undefined {
+  if (e == null || typeof e !== 'object') return undefined
+  const msg = (e as Record<string, unknown>).message
+  return typeof msg === 'string' ? msg : undefined
 }
 
 function messageOf(e: unknown): string {
@@ -241,7 +253,7 @@ function okValue<T>(value: T): ConnectionRpcResult<T> {
 }
 
 function fail(error: string, details: object = {}): ConnectionRpcResult<unknown> {
-  return { ok: false, error: { code: 'internal', message: error, details } as ConnectionRpcFailure }
+  return { ok: false, error: { code: 'internal', message: error, details } }
 }
 
 /** Plugin body: register the gate, the stats observer, and the RPC channel. */
@@ -253,9 +265,10 @@ export function apply(ctx: Context): void {
   const entries = (): Entry[] => [...ctx.loader.entries()].filter(entry => !entry.options.group)
 
   function entryByServer(serverName: string): Entry | undefined {
-    return entries().find(entry =>
-      entry.options.name === MCP_PACKAGE
-      && (entry.options.config as Record<string, unknown>)?.serverName === serverName)
+    return entries().find((entry) => {
+      const cfg = entry.options.config as unknown as Record<string, unknown> | undefined
+      return entry.options.name === MCP_PACKAGE && cfg?.serverName === serverName
+    })
   }
 
   function resolveMcpEntry(id: string): Entry | undefined {
@@ -291,8 +304,9 @@ export function apply(ctx: Context): void {
     const dur = start === undefined ? 0 : Date.now() - start
     const failed = result.isError
     let auth = false
-    if (failed && result.error && typeof result.error.message === 'string') {
-      auth = AUTH_ERR_RE.test(result.error.message)
+    const message = failed ? errorMessage(result.error) : undefined
+    if (message !== undefined) {
+      auth = AUTH_ERR_RE.test(message)
     }
     const text = JSON.stringify(exec.arguments)
     const kb = Math.ceil(text.length / 1024)
@@ -304,7 +318,7 @@ export function apply(ctx: Context): void {
   // 4) npm search — direct HTTP against the npm registry search API.
   async function npmSearch(args: unknown): Promise<ConnectionRpcResult<unknown>> {
     const a = (args && typeof args === 'object') ? args as Record<string, unknown> : {}
-    const raw = String(typeof a.query === 'string' ? a.query : '').trim()
+    const raw = (typeof a.query === 'string' ? a.query : '').trim()
     const limit = Math.min(Math.max(Number(a.limit) || 20, 1), 50)
     const text = raw ? `mcp-server ${raw}` : 'mcp-server'
     const url = `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(text)}&size=${limit}`
@@ -323,7 +337,7 @@ export function apply(ctx: Context): void {
       const packages = (Array.isArray(data.objects) ? data.objects : [])
         .map((entry: unknown) => {
           const rec = entry as Record<string, unknown> | null
-          const p = (rec && rec.package) as Record<string, unknown> | undefined ?? {} as Record<string, unknown>
+          const p: Record<string, unknown> = (rec && rec.package) as Record<string, unknown> | undefined ?? {}
           const links = (p.links || {}) as Record<string, unknown>
           const publisher = (p.publisher || {}) as Record<string, unknown>
           return {
@@ -446,7 +460,7 @@ export function apply(ctx: Context): void {
   async function addServer(args: unknown): Promise<ConnectionRpcResult<unknown>> {
     try {
       const a = (args && typeof args === 'object') ? args as Record<string, unknown> : {}
-      const serverName = String(typeof a.serverName === 'string' ? a.serverName : '')
+      const serverName = (typeof a.serverName === 'string' ? a.serverName : '')
       if (!/^[A-Za-z0-9_-]{1,32}$/.test(serverName)) return fail('invalid serverName', { serverName: 'serverName must match [A-Za-z0-9_-]{1,32}' })
       if (entryByServer(serverName)) return fail('serverName is already in use', { serverName })
       const transport = a.transport === 'stdio' ? 'stdio' : 'streamable-http'
@@ -482,7 +496,7 @@ export function apply(ctx: Context): void {
   async function removeServer(args: unknown): Promise<ConnectionRpcResult<unknown>> {
     try {
       const a = (args && typeof args === 'object') ? args as Record<string, unknown> : {}
-      const id = String(typeof a.id === 'string' ? a.id : '')
+      const id = (typeof a.id === 'string' ? a.id : '')
       const entry = resolveMcpEntry(id)
       if (!entry) return fail(`no such MCP server entry: ${id}`)
       await ctx.loader.remove(entry.id)
@@ -495,7 +509,7 @@ export function apply(ctx: Context): void {
   async function setEnabled(args: unknown): Promise<ConnectionRpcResult<unknown>> {
     try {
       const a = (args && typeof args === 'object') ? args as Record<string, unknown> : {}
-      const entry = resolveMcpEntry(String(typeof a.id === 'string' ? a.id : ''))
+      const entry = resolveMcpEntry((typeof a.id === 'string' ? a.id : ''))
       if (!entry) return fail('no such MCP server entry')
       await ctx.loader.update(entry.id, { disabled: !(a.enabled === true) })
       return okValue({ id: entry.id, enabled: a.enabled === true })
@@ -507,7 +521,7 @@ export function apply(ctx: Context): void {
   async function setScope(args: unknown): Promise<ConnectionRpcResult<unknown>> {
     try {
       const a = (args && typeof args === 'object') ? args as Record<string, unknown> : {}
-      const entry = resolveMcpEntry(String(typeof a.id === 'string' ? a.id : ''))
+      const entry = resolveMcpEntry((typeof a.id === 'string' ? a.id : ''))
       if (!entry) return fail('no such MCP server entry')
       const cfg = (entry.options.config && typeof entry.options.config === 'object') ? { ...(entry.options.config as Record<string, unknown>) } : {}
       const sec = (cfg.mcpSecurity && typeof cfg.mcpSecurity === 'object') ? { ...(cfg.mcpSecurity as McpSecurity) } : {}
@@ -531,7 +545,7 @@ export function apply(ctx: Context): void {
   async function editServer(args: unknown): Promise<ConnectionRpcResult<unknown>> {
     try {
       const a = (args && typeof args === 'object') ? args as Record<string, unknown> : {}
-      const id = String(typeof a.id === 'string' ? a.id : '')
+      const id = (typeof a.id === 'string' ? a.id : '')
       const entry = resolveMcpEntry(id)
       if (!entry) return fail(`no such MCP server entry: ${id}`)
       const oldCfg = (entry.options.config && typeof entry.options.config === 'object') ? { ...(entry.options.config as Record<string, unknown>) } : {}
@@ -571,7 +585,7 @@ export function apply(ctx: Context): void {
       if (a.scope !== undefined || a.toolRules !== undefined) {
         const sec: McpSecurity = (cfg.mcpSecurity && typeof cfg.mcpSecurity === 'object' && !Array.isArray(cfg.mcpSecurity))
           ? { ...(cfg.mcpSecurity as McpSecurity) } : { scope: 'read-write', toolRules: {} }
-        if (a.scope !== undefined) sec.scope = a.scope === 'read-only' || a.scope === 'blocked' ? a.scope as string : 'read-write'
+        if (a.scope !== undefined) sec.scope = a.scope === 'read-only' || a.scope === 'blocked' ? a.scope : 'read-write'
         if (a.toolRules !== undefined) sec.toolRules = normalizeToolRules(a.toolRules)
         cfg.mcpSecurity = sec
       }

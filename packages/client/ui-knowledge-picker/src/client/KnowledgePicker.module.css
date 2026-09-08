@@ -1,0 +1,142 @@
+/* Knowledge picker: hero chip, composer toggler, and the shared selection dialog. */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+  color: var(--dsw-alias-label-primary);
+}
+
+.chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.chip[data-active='true'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.chipIcon {
+  display: inline-flex;
+  color: inherit;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 320px;
+}
+
+.dialogHeading {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 15px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.entryList {
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  overflow: auto;
+  gap: 2px;
+}
+
+.entryRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.entryRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.entryCheckbox {
+  flex: none;
+  accent-color: var(--dsw-alias-state-accent-primary, currentColor);
+}
+
+.entryTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.entryCategory {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+}
+
+.empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-caption);
+  font-size: 13px;
+}
+
+.dialogFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialogFooterActions {
+  display: flex;
+  gap: 8px;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+  color: var(--dsw-alias-label-primary);
+}
+
+.selectedCount {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}

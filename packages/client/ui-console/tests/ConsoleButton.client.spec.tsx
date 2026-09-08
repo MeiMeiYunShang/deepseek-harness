@@ -204,7 +204,7 @@ describe('ConsoleButton', () => {
     await waitFor(() =>{  expect(screen.getByRole('menu')).toBeTruthy() })
     fireEvent.click(screen.getByRole('menuitem', { name: /rename/i }))
     await waitFor(() =>{  expect(screen.getByRole('heading', { name: en.renameTitle })).toBeTruthy() })
-    expect((screen.getByLabelText(en.renameInputAria) as HTMLInputElement).value).toBe('s1')
+    expect((screen.getByLabelText(en.renameInputAria) as unknown as HTMLInputElement).value).toBe('s1')
   })
 
   it('renders zero and minute-level durations and a live gpu gauge', () => {

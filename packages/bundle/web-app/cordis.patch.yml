@@ -100,6 +100,14 @@
     - id: workspace-controller
       name: '@deepseek-ai/dsh-api-workspace-controller'
 
+    # Knowledge store CRUD over Typert Remote for the browser catalog.
+    - id: knowledge-controller
+      name: '@deepseek-ai/dsh-api-knowledge-controller'
+
+    # Image-to-text translation for text-only models on the web surface.
+    - id: image-understanding
+      name: '@deepseek-ai/dsh-image-understanding'
+
     - id: cordis-host-runner
       name: '@deepseek-ai/dsh-cordis-host-runner'
 
@@ -203,6 +211,17 @@
 
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
+
+    - id: ui-knowledge-picker
+      name: '@deepseek-ai/dsh-client-ui-knowledge-picker'
+
+    - id: ui-settings-knowledge
+      name: '@deepseek-ai/dsh-client-ui-settings-knowledge'
+
+    # MCP security settings page and its frame-wide risk-alert toast over the
+    # /mcpsec loopback RPC channel (host half is the mcpsec-manager row in base).
+    - id: mcpsec-manager
+      name: '@deepseek-ai/dsh-mcpsec-manager'
 
     - id: ui-conversation
       name: '@deepseek-ai/dsh-client-ui-conversation'

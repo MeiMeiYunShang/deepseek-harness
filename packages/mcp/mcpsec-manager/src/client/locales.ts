@@ -72,6 +72,9 @@ export const zh = {
   cancel: '取消',
   formError: '请检查表单错误',
   editTitle: '编辑服务器配置',
+  envHeadersCount: '环境变量 {envCount} · 请求头 {headersCount}',
+  versionPrefix: 'v',
+  unknownError: '未知错误',
 } satisfies Record<string, string>
 
 /** The mcpsec namespace key union. */
@@ -146,4 +149,7 @@ export const en = {
   cancel: 'Cancel',
   formError: 'Please fix the form',
   editTitle: 'Edit server config',
+  envHeadersCount: 'env {envCount} · headers {headersCount}',
+  versionPrefix: 'v',
+  unknownError: 'unknown error',
 } satisfies Record<McpSecLocaleKey, string>

@@ -1228,7 +1228,7 @@ describe('ConsoleBridgeCardController', () => {
     const controller = new ConsoleBridgeCardController(host.scope, testConnection)
 
     expect(await controller.runTest()).toEqual({ ok: true, message: 'reachable (200)' })
-    const request = testConnection.mock.calls[0]![0] as ConsoleBridgeTestRequest
+    const request = testConnection.mock.calls[0]![0]
     expect(request).toMatchObject({ agentId: 'a', transport: 'http', brokerUrl: 'mqtt://x', token: 't' })
   })
 

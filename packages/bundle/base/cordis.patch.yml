@@ -299,6 +299,22 @@
     - id: tool-skill
       name: '@deepseek-ai/dsh-tool-skill'
 
+    - id: knowledge
+      name: '@deepseek-ai/dsh-knowledge'
+
+    - id: knowledge-file
+      name: '@deepseek-ai/dsh-knowledge-file'
+      config:
+        root: !!js dshHomePath('knowledge')
+
+    - id: tool-knowledge
+      name: '@deepseek-ai/dsh-tool-knowledge'
+      config:
+        autoSummarize: true
+        maxSummaryEntries: 5
+        promptBudgetTokens: 500
+        defaultGroupIds: []
+
     - id: commands
       name: '@deepseek-ai/dsh-commands'
 

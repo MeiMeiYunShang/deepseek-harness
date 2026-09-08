@@ -31,6 +31,8 @@ export type {
 declare module '@deepseek-ai/cordis' {
   interface Context {
     attachments: AttachmentStore
+    /** Optional image-to-text seam for text-only models, when a plugin provides it. */
+    imageToText?: ImageToText
   }
 }
 
@@ -140,6 +142,35 @@ export abstract class AttachmentStore extends Service {
     ))
   }
 
+}
+
+/**
+ * Optional image-to-text seam: translate one durable image into bounded text so
+ * a text-only model can still act on an admitted prompt. A plugin provides the
+ * implementation (the Service Definition); consumers call {@link describe}.
+ */
+export abstract class ImageToText extends Service {
+  constructor(ctx: Context) {
+    super(ctx, 'imageToText')
+  }
+
+  /**
+   * Whether this seam accepts image input at all. Text-only compositions omit
+   * the service; a mounted service that returns `false` is equivalent.
+   */
+  acceptsInput(): boolean {
+    return true
+  }
+
+  /**
+   * Recognize one durable image and return its bounded text description.
+   * @param ref - durable normalized attachment reference from the session log.
+   * @param signal - optional cancellation; implementations must settle promptly after it aborts.
+   * @param prompt - per-call recognition instruction; the configured default when absent or blank.
+   * @returns the recognized text, bounded to the implementation's output limit.
+   * @throws a stable-code error the caller can surface when the backend cannot recognize the image.
+   */
+  abstract describe(ref: ImageAttachmentRef, signal?: AbortSignal, prompt?: string): Promise<string>
 }
 
 export default AttachmentStore

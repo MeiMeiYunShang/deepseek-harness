@@ -28,9 +28,9 @@ import css from './console.module.css'
 
 /** The selectable column layout presets and their dictionary labels. */
 const LAYOUT_OPTIONS: readonly { preset: LayoutPreset; label: ConsoleKey }[] = [
-  { preset: 'balanced', label: 'layoutBalanced' },
-  { preset: 'timeline', label: 'layoutTimeline' },
-  { preset: 'compact', label: 'layoutCompact' },
+  { preset: 'balanced', label: 'layout.balanced' },
+  { preset: 'timeline', label: 'layout.timeline' },
+  { preset: 'compact', label: 'layout.compact' },
 ]
 
 /** One workspace option for the new-session form. */

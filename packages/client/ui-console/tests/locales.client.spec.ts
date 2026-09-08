@@ -6,7 +6,7 @@ describe('console locales', () => {
     expect(NS).toBe('console')
     expect(Object.keys(en)).toHaveLength(Object.keys(zh).length)
     for (const key of Object.keys(en) as Array<keyof typeof en>) {
-      expect(typeof zh[key], `zh[${String(key)}]`).toBe('string')
+      expect(typeof zh[key], `zh[${key}]`).toBe('string')
       expect(en[key].length).toBeGreaterThan(0)
     }
   })

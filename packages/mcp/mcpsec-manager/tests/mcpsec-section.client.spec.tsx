@@ -95,8 +95,8 @@ describe('the MCP security section', () => {
 
   it('surfaces a rejected mutation as a failure banner', async () => {
     const { calls } = renderSection(seedCatalog)
-    calls.remove.mockRejectedValueOnce('plain rejection' as never)
-    fireEvent.click(screen.getAllByText(en.remove)[0] as HTMLElement)
+    calls.remove.mockRejectedValueOnce('plain rejection')
+    fireEvent.click(screen.getAllByText(en.remove)[0]!)
     fireEvent.click(screen.getByText(en.confirmRemove))
     await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('plain rejection') })
   })
@@ -133,7 +133,7 @@ describe('the MCP security section', () => {
 
   it('removes a server only after confirmation', async () => {
     const { calls } = renderSection(seedCatalog)
-    fireEvent.click(screen.getAllByText(en.remove)[0] as HTMLElement)
+    fireEvent.click(screen.getAllByText(en.remove)[0]!)
     expect(screen.getByText(en.confirmRemove)).toBeDefined()
     expect(calls.remove).not.toHaveBeenCalled()
     fireEvent.click(screen.getByText(en.confirmRemove))
@@ -234,7 +234,7 @@ describe('the MCP security section', () => {
     renderSection()
     fireEvent.click(screen.getByText(en.addServer))
     fireEvent.click(screen.getByText(en.customTab))
-    fireEvent.click(screen.getAllByText(en.cancel)[0] as HTMLElement)
+    fireEvent.click(screen.getAllByText(en.cancel)[0]!)
     expect(screen.queryByText(en.customTab)).toBeNull()
   })
 
@@ -334,8 +334,8 @@ describe('the MCP security section', () => {
     fireEvent.click(screen.getByText(en.editTitle))
     const transport = screen.getAllByLabelText(en.transport)[0] as HTMLSelectElement
     fireEvent.change(transport, { target: { value: 'streamable-http' } })
-    fireEvent.change(screen.getAllByLabelText(en.url)[0] as HTMLElement, { target: { value: 'https://z.dev' } })
-    fireEvent.change(screen.getAllByLabelText(en.headers)[0] as HTMLElement, { target: { value: 'H: 1' } })
+    fireEvent.change(screen.getAllByLabelText(en.url)[0]!, { target: { value: 'https://z.dev' } })
+    fireEvent.change(screen.getAllByLabelText(en.headers)[0]!, { target: { value: 'H: 1' } })
     fireEvent.click(screen.getByText(en.save))
     await waitFor(() => {
       expect(calls.edit).toHaveBeenCalledWith('e1', expect.objectContaining({ transport: 'streamable-http', url: 'https://z.dev', headers: { H: '1' } }))
@@ -370,7 +370,7 @@ describe('the MCP security section', () => {
 
   it('falls back to formError when a mutation rejects with a falsy string', async () => {
     const { calls } = renderSection()
-    calls.add.mockRejectedValueOnce('' as never)
+    calls.add.mockRejectedValueOnce('')
     fireEvent.click(screen.getByText(en.addServer))
     fireEvent.click(screen.getByText(en.customTab))
     fireEvent.change(screen.getByLabelText(en.serverName), { target: { value: 'good' } })
@@ -402,14 +402,14 @@ describe('the MCP security section', () => {
     fireEvent.click(screen.getByText(en.editTitle))
     const transport = screen.getAllByLabelText(en.transport)[0] as HTMLSelectElement
     fireEvent.change(transport, { target: { value: 'stdio' } })
-    fireEvent.change(screen.getAllByLabelText(en.command)[0] as HTMLElement, { target: { value: 'node' } })
-    fireEvent.change(screen.getAllByLabelText(en.args)[0] as HTMLElement, { target: { value: 'x\ny' } })
-    fireEvent.change(screen.getAllByLabelText(en.env)[0] as HTMLElement, { target: { value: 'A=1' } })
-    fireEvent.change(screen.getAllByLabelText(en.cwd)[0] as HTMLElement, { target: { value: '/t' } })
-    fireEvent.click(screen.getAllByLabelText(en.failOnStartup)[0] as HTMLElement)
-    fireEvent.change(screen.getAllByLabelText(en.timeout)[0] as HTMLElement, { target: { value: '42' } })
-    fireEvent.change(screen.getAllByLabelText(en.scope)[0] as HTMLElement, { target: { value: 'blocked' } })
-    fireEvent.change(screen.getAllByLabelText(en.toolRules)[0] as HTMLElement, { target: { value: 'a=deny' } })
+    fireEvent.change(screen.getAllByLabelText(en.command)[0]!, { target: { value: 'node' } })
+    fireEvent.change(screen.getAllByLabelText(en.args)[0]!, { target: { value: 'x\ny' } })
+    fireEvent.change(screen.getAllByLabelText(en.env)[0]!, { target: { value: 'A=1' } })
+    fireEvent.change(screen.getAllByLabelText(en.cwd)[0]!, { target: { value: '/t' } })
+    fireEvent.click(screen.getAllByLabelText(en.failOnStartup)[0]!)
+    fireEvent.change(screen.getAllByLabelText(en.timeout)[0]!, { target: { value: '42' } })
+    fireEvent.change(screen.getAllByLabelText(en.scope)[0]!, { target: { value: 'blocked' } })
+    fireEvent.change(screen.getAllByLabelText(en.toolRules)[0]!, { target: { value: 'a=deny' } })
     fireEvent.click(screen.getByText(en.save))
     await waitFor(() => {
       expect(calls.edit).toHaveBeenCalledWith('min', expect.objectContaining({
@@ -439,14 +439,14 @@ describe('the MCP security section', () => {
   it('surfaces a rejected mutation as an Error message', async () => {
     const { calls } = renderSection(seedCatalog)
     calls.remove.mockRejectedValueOnce(new Error('boom'))
-    fireEvent.click(screen.getAllByText(en.remove)[0] as HTMLElement)
+    fireEvent.click(screen.getAllByText(en.remove)[0]!)
     fireEvent.click(screen.getByText(en.confirmRemove))
     await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('boom') })
   })
 
   it('edit falls back to formError on a falsy rejection', async () => {
     const { calls } = renderSection(seedCatalog)
-    calls.edit.mockRejectedValueOnce('' as never)
+    calls.edit.mockRejectedValueOnce('')
     fireEvent.click(screen.getByText(en.editTitle))
     fireEvent.click(screen.getByText(en.save))
     await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(en.formError) })

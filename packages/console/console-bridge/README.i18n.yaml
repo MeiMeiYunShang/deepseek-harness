@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/console/console-bridge/README.md
-README.md: 162f354a139ec186bcd27bff889ecb68e0f17273
-README.zh.md: fb0432dd0f855a47fdb75b652bb6b27f6c14c323
+README.md: ff35c0041954d8b89c1300925f035ea6ce080161
+README.zh.md: c3c886925699a4d0c6e39555fc5e29a519d701b5

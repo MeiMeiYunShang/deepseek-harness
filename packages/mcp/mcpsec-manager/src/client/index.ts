@@ -48,6 +48,7 @@ export const inject = ['slots', 'locale', 'connection']
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'mcpsec-manager: dictionaries')
+  const t = ctx.locale.bind(NS)
 
   const connection = ctx.get('connection') as ConnectionHandle
   const store = createMcpSecStore()
@@ -65,7 +66,7 @@ export function apply(ctx: ClientContext): void {
       if (!result.ok) return result.error.message
     }
     /* v8 ignore next -- the caller only passes results with at least one !ok, so the loop always returns */
-    return 'unknown error'
+    return t('unknownError')
   }
 
   async function refresh(): Promise<void> {
@@ -141,8 +142,6 @@ export function apply(ctx: ClientContext): void {
       },
     }
   }
-
-  const t = ctx.locale.bind(NS)
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
