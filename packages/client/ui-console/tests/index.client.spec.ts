@@ -1,8 +1,8 @@
-/** What the browser half registers and subscribes, and that it leaves with the fiber. */
+﻿/** What the browser half registers and subscribes, and that it leaves with the fiber. */
 
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { TestRemote, TestSessions, TestWorkspaces } from '@deepseek-ai/dsh-client-test-runtime'
@@ -126,7 +126,7 @@ describe('ui-console apply', () => {
   it('drives the session and workspace verbs through the service faces', async () => {
     const { ctx, slots, sessions, workspaces, agentPresets } = await bench()
     declareSidebar(slots)
-    const rename = vi.fn(async (title: string) => ({ ok: true, value: { title, seq: 1 } } as const))
+    const rename = vi.fn(async (title: string) => ({ ok: true, value: { title, seq: 1 as SessionSeq } } as const))
     const prompt = vi.fn(async () => ({ ok: true, value: { accepted: true } } as const))
     const s1 = 's1' as SessionId
     const snew = 'snew' as SessionId

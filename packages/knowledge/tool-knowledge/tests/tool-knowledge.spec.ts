@@ -113,7 +113,7 @@ describe('dsh-tool-knowledge', () => {
     const append = vi.fn()
     const session = {
       id: SessionId('sum-1'),
-      events: [
+      snapshotEvents: () => [
         { type: 'request/header', data: { header: { config: { provider: 'deepseek', model: 'chat' } } } },
         { type: 'user/message', data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'A '.repeat(60) }] } },
         { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'B '.repeat(60) }] } } },

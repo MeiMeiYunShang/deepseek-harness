@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Consumer-side knowledge tools, system-prompt injection, and auto-summarization.
  *
  * Registers two model-facing tools (`knowledge_search` and `save_knowledge`),
@@ -382,7 +382,7 @@ async function summarizeSession(
   maxSummaryEntries: number,
   summarizeModel: string,
 ): Promise<void> {
-  const conversationText = extractConversationText(session.events)
+  const conversationText = extractConversationText(session.snapshotEvents())
   if (conversationText.trim().length < 100) {
     ctx.logger.debug(`knowledge: skipping auto-summarize for session "${session.id}" — conversation too short (${conversationText.trim().length} chars)`)
     return
@@ -462,7 +462,7 @@ function resolveSessionModel(
     return { model: summarizeModel }
   }
   // Walk events backwards to find the last request/header.
-  for (const event of [...session.events].reverse()) {
+  for (const event of [...session.snapshotEvents()].reverse()) {
     if (event.type === 'request/header') {
       return {
         provider: event.data.header.config.provider,
