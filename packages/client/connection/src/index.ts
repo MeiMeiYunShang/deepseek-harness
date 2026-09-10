@@ -136,6 +136,10 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
       },
     }
     webCtx.effect(() => webCtx.webServer.register(route), 'client-connection: /api route')
+    webCtx.effect(
+      () => connection.bindWebServer(webCtx.webServer),
+      'client-connection: dedicated RPC channels',
+    )
   })
   ctx.inject(['attachments'], (attachmentCtx) => {
     assertImageBodyCapacity(attachmentCtx, maxRequestBodyBytes)

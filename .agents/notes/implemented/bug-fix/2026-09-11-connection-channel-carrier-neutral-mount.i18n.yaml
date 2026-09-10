@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-11-connection-channel-carrier-neutral-mount.md
+2026-09-11-connection-channel-carrier-neutral-mount.md: c39d5824c8d6efd0aaf3bad1b3f93a17d3a60d04
+2026-09-11-connection-channel-carrier-neutral-mount.zh.md: e620546637c5462f9ddd225171f1b359a0b09472
