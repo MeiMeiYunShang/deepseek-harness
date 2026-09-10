@@ -9,7 +9,23 @@ kind: "package-reference"
 
 ## 概述
 
-`@deepseek-ai/dsh-client-ui-console` 是 dsh web GUI 的浏览器控制台工作台。它贡献一个侧栏底部操作，打开真正的全屏弹窗（自定义的 `role="dialog"` 面板，而非盒式原始 `Modal`），以三列排布：
+`@deepseek-ai/dsh-client-ui-console` 是 dsh web GUI 的浏览器控制台工作台。它贡献一个侧栏底部操作，打开全屏三列监控弹窗：会话状态、任务统计、主机资源指标、带指令输入框的作用域活动时间线、占位知识库与智能问答。会话状态与动词来自 `ctx.sessions`、`ctx.workspaces` 与 `sessionStats` 投影；主机指标与时间线条目来自转发的 `host/metrics` 与 `api-session/*` 事件。用它即可在不离开 web GUI 的情况下观察并操控会话。
+
+## 目录
+
+- [理解实现](#understand-the-implementation)
+- [已知限制与延后工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
+
+-----
+
+<a id="understand-the-implementation"></a>
+## 理解实现
+
+<details>
+<summary>实现内部 —— 点击展开</summary>
+
+弹窗是自定义的 `role="dialog"` 面板，而非盒式原始 `Modal`，以三列排布：
 
 - **会话状态** —— 统计/网格视图切换。统计视图计数总数、运行中、等待输入、已完成与已归档；网格视图为每个会话铺一块状态色方块（绿色运行中、琥珀等待、红色规划/等待输入、品牌蓝可用、灰色已归档），带当前/选中描边与右键菜单（重命名、Fork、归档）。
 - **任务统计** —— 作用域行（整个列表或选中会话）加来自 `sessionStats` 投影的运行中、轮数、步骤数、LLM 耗时与工具耗时计数。
@@ -20,12 +36,9 @@ kind: "package-reference"
 
 每张卡在标题行都有折叠开关，把卡片主体收起到仅剩标题栏；顶部的列布局切换（均衡 / 聚焦 / 紧凑）在宽屏下改变网格列比例。在低分辨率屏幕上网格按响应式重排（三列 → 二加一 → 单列堆叠），不受所选预设影响。
 
-会话状态、累计任务统计与当前选择来自标准的 `ctx.sessions` 数据流与 `sessionStats` 投影；待处理交互通过 `ctx.uiSession.pendingInteractions` 的网格相位着色呈现；主机资源指标与活动时间线来自转发的 `host/metrics` 与 `api-session/*` 事件；会话动词（打开、重命名、Fork、归档、新建、预设选择、发送指令）经由 `ctx.sessions`、`ctx.workspaces` 与 `ctx.remote.agentPresets` 面。一个「新建会话」弹窗收集工作区、可选的代理预设与首条指令。
+待处理交互通过 `ctx.uiSession.pendingInteractions` 的网格相位着色呈现；会话动词（打开、重命名、Fork、归档、新建、预设选择、发送指令）经由 `ctx.sessions`、`ctx.workspaces` 与 `ctx.remote.agentPresets` 面。一个「新建会话」弹窗收集工作区、可选的代理预设与首条指令。
 
-## 目录
-
-- [已知限制与延后工作](#known-limitations-and-deferred-work)
-- [开发备注](#dev-note)
+</details>
 
 -----
 

@@ -38,6 +38,8 @@ flowchart LR
   cfg --> plugin_dsh_base_plugin_package_inventory_deepseek
   plugin_dsh_base_agent_default_model["agent-default-model<br/>@deepseek-ai/dsh-agent-default-model"]
   cfg --> plugin_dsh_base_agent_default_model
+  plugin_dsh_base_console_bridge["console-bridge<br/>@deepseek-ai/dsh-console-bridge"]
+  cfg --> plugin_dsh_base_console_bridge
   plugin_dsh_base_jobs["jobs<br/>@deepseek-ai/dsh-jobs-local"]
   cfg --> plugin_dsh_base_jobs
   plugin_dsh_base_llm_retry["llm-retry<br/>@deepseek-ai/dsh-llm-retry"]
@@ -104,6 +106,12 @@ flowchart LR
   cfg --> plugin_dsh_base_skill_badge
   plugin_dsh_base_tool_skill["tool-skill<br/>@deepseek-ai/dsh-tool-skill"]
   cfg --> plugin_dsh_base_tool_skill
+  plugin_dsh_base_knowledge["knowledge<br/>@deepseek-ai/dsh-knowledge"]
+  cfg --> plugin_dsh_base_knowledge
+  plugin_dsh_base_knowledge_file["knowledge-file<br/>@deepseek-ai/dsh-knowledge-file"]
+  cfg --> plugin_dsh_base_knowledge_file
+  plugin_dsh_base_tool_knowledge["tool-knowledge<br/>@deepseek-ai/dsh-tool-knowledge"]
+  cfg --> plugin_dsh_base_tool_knowledge
   plugin_dsh_base_commands["commands<br/>@deepseek-ai/dsh-commands"]
   cfg --> plugin_dsh_base_commands
   plugin_dsh_base_command_feedback["command-feedback<br/>@deepseek-ai/dsh-command-feedback"]
@@ -195,6 +203,7 @@ flowchart LR
 | `agent` | `@deepseek-ai/dsh-agent` |
 | `plugin-package-inventory-deepseek` | `@deepseek-ai/dsh-plugin-package-inventory-deepseek` |
 | `agent-default-model` | `@deepseek-ai/dsh-agent-default-model` |
+| `console-bridge` | `@deepseek-ai/dsh-console-bridge` |
 | `jobs` | `@deepseek-ai/dsh-jobs-local` |
 | `llm-retry` | `@deepseek-ai/dsh-llm-retry` |
 | `settings` | `@deepseek-ai/dsh-settings-file` |
@@ -228,6 +237,9 @@ flowchart LR
 | `skill-filesystem` | `@deepseek-ai/dsh-skill-filesystem` |
 | `skill-badge` | `@deepseek-ai/dsh-skill-badge` |
 | `tool-skill` | `@deepseek-ai/dsh-tool-skill` |
+| `knowledge` | `@deepseek-ai/dsh-knowledge` |
+| `knowledge-file` | `@deepseek-ai/dsh-knowledge-file` |
+| `tool-knowledge` | `@deepseek-ai/dsh-tool-knowledge` |
 | `commands` | `@deepseek-ai/dsh-commands` |
 | `command-feedback` | `@deepseek-ai/dsh-command-feedback` |
 | `goal` | `@deepseek-ai/dsh-goal` |

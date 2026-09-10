@@ -11,7 +11,7 @@ kind: "package-reference"
 
 `dsh-client-ui-knowledge-picker` 让用户在会话开始前暂存已知知识条目：空白会话 Hero 上的 chip 与编辑器工具栏中的同一个 picker 打开同一个多选对话框。目录是宿主知识库的只读投影，经由 `knowledge` Remote 拉取；选择保存在客户端，计划在下次会话提示词时随行。
 
-Hero chip 与编辑器 toggler 是注册进两个槽的同一个组件，因此选择本质上是同一个状态：`conversation.hero.knowledge` 单槽与 `conversation.input.left` 列表槽通过注入的 `hooks` 通道共享同一个 store 实例。编辑器条目带有槽标签（`composerToggler`）。
+同一个组件注册进两个槽，因此选择是同一个状态：`conversation.hero.knowledge` 槽与 `conversation.input.left` 列表槽通过注入的 `hooks` 通道共享同一个 store 实例。
 
 ## 目录
 

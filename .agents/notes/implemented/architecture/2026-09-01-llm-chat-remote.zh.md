@@ -12,7 +12,7 @@ Status: implemented
 
 `LlmRuntime` 新增一个 `@Remote({ mode: 'stream' })` 方法，命名为 `chat`：
 
-```ts
+```ts ignore-check
 @Remote({ mode: 'stream' })
 async * chat(request: LlmChatRequest, signal: AbortSignal): AsyncIterable<LlmChatChunk>
 ```

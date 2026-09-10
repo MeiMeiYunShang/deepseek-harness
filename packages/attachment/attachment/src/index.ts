@@ -276,6 +276,7 @@ export abstract class ImageToText extends Service {
   /**
    * Whether this seam accepts image input at all. Text-only compositions omit
    * the service; a mounted service that returns `false` is equivalent.
+   * @returns true when this provider accepts image input.
    */
   acceptsInput(): boolean {
     return true

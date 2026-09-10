@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-01-llm-chat-remote.md
-2026-09-01-llm-chat-remote.md: bfb9e1abab5eae77d51b972d6395db38633c575a
-2026-09-01-llm-chat-remote.zh.md: 5a1cba9981f4c122d62adb516e1d3769db1a378b
+2026-09-01-llm-chat-remote.md: ab0c2779d57dff173d17b8ec6d470f7d0a08019b
+2026-09-01-llm-chat-remote.zh.md: c7679b625b9bb597ba44dfc1ac4cfd5a2c0f4afd

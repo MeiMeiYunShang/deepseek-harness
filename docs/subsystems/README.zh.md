@@ -59,5 +59,7 @@
 | [conversation.md](conversation.zh.md) | target-neutral Session event 组装：Context identity、Location data、replay 路径、view builder 与 target 自有 render node |
 | [session-projection.md](session-projection.zh.md) | 投影 seam：`SessionProjectionMap`、纯函数 `ProjectionDefinition` 单元、`ProjectionSnapshot` 的一致切面、变更馈送 |
 | [session-telemetry.md](session-telemetry.zh.md) | 对外会话上报能力 seam：`SessionTelemetryRecord`/`SessionTelemetrySeverity`、`SessionTelemetrySink` 约定和 `session-telemetry/record` 脱敏 waterfall |
+| [host-metrics.md](host-metrics.zh.md) | 周期主机资源采样器：作为转发的 `host/metrics` 事件为 Web 控制台发出 CPU/内存样本 |
+| [knowledge.md](knowledge.zh.md) | 知识库：条目、分组、文件后端提供方与 Remote 控制器 |
 
 > 这些页面上的类型声明及其 JSDoc 与源码等价，并由 `pnpm run verify-type-equiv` 检查漂移（见 [development.md](../development.zh.md#documenting-types-verbatim-ts-type-equiv)）。普通块保留完整声明；`public-api` 块保留去除实现体的公开 class 声明。Cordis 服务与事件使用每页生成的 **Cordis API** 小节。

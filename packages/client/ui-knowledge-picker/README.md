@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 `dsh-client-ui-knowledge-picker` lets a user stage known knowledge entries before a session starts: a chip on the blank-session Hero and the same picker as a composer-tool-row toggler open one multi-select dialog. The catalog is a read-only projection of the Host knowledge store fetched through the `knowledge` Remote; the selection is client-side and intended to travel with the next session prompt.
 
-The Hero chip and the composer toggler are one component registered into two slots, so the selection is literally one state: the `conversation.hero.knowledge` single slot and the `conversation.input.left` list slot share a single store instance exposed through the injected `hooks` compartment. The composer entry carries a slot label (`composerToggler`).
+One component registers into two slots, so the selection is a single state: the `conversation.hero.knowledge` slot and the `conversation.input.left` list slot share one store instance exposed through the injected `hooks` compartment.
 
 ## Table of Contents
 

@@ -69,7 +69,7 @@
   justify-content: space-between;
   height: 54px;
   padding: 0 14px 0 20px;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-2);
 }
 
@@ -142,13 +142,13 @@
   display: inline-flex;
   gap: 0;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
 }
 
 .layoutButton {
   border: none;
-  border-right: 1px solid var(--dsw-alias-border-l2);
+  border-right: 0.5px solid var(--dsw-alias-border-l2);
   background: transparent;
   padding: 4px 8px;
   font: inherit;
@@ -185,7 +185,7 @@
   min-height: 0;
   overflow: hidden;
   background: var(--dsw-alias-bg-layer-1);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   padding: 16px;
 }
@@ -251,13 +251,13 @@
 .sessionViewToggle {
   display: inline-flex;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
 }
 
 .modeButton {
   border: none;
-  border-right: 1px solid var(--dsw-alias-border-l2);
+  border-right: 0.5px solid var(--dsw-alias-border-l2);
   background: transparent;
   padding: 4px 8px;
   font: inherit;
@@ -491,7 +491,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 9px;
   background: transparent;
   padding: 2px 8px;
@@ -653,7 +653,7 @@
 }
 
 .readonlyMirror {
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   padding: 8px;
   background: var(--dsw-alias-bg-layer-2);
@@ -684,7 +684,7 @@
 
 .optionButton {
   text-align: left;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: transparent;
   padding: 4px 8px;
@@ -712,7 +712,7 @@
   box-sizing: border-box;
   width: 100%;
   margin-bottom: 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   padding: 4px 8px;
   font: inherit;
@@ -741,7 +741,7 @@
 }
 
 .secondaryButton {
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: transparent;
   padding: 4px 8px;
@@ -777,7 +777,7 @@
   flex-direction: column;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
   margin-top: 8px;
 }
 
@@ -790,7 +790,7 @@
   flex: 1;
   height: 32px;
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   padding: 0 8px;
   font: inherit;
@@ -824,7 +824,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-2);
   padding: 8px 10px;
@@ -856,7 +856,7 @@
   min-height: 0;
   overflow: hidden;
   background: var(--dsw-alias-bg-layer-1);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   padding: 16px;
 }
@@ -909,7 +909,7 @@
 
 .input {
   flex: 1;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   padding: 6px 8px;
   font: inherit;
@@ -950,7 +950,7 @@
   box-sizing: border-box;
   width: 100%;
   height: 32px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   padding: 0 8px;
   font: inherit;
@@ -970,7 +970,7 @@
 }
 
 .chip {
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 9px;
   background: transparent;
   padding: 3px 10px;

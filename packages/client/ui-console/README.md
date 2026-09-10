@@ -9,7 +9,23 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@deepseek-ai/dsh-client-ui-console` is the browser console workbench of the dsh web GUI. It contributes one sidebar footer action that opens a true fullscreen modal (a custom `role="dialog"` panel, not the boxed primitive `Modal`) laid out as three columns:
+`@deepseek-ai/dsh-client-ui-console` is the browser console workbench of the dsh web GUI. It contributes one sidebar footer action that opens a fullscreen three-column monitoring modal: session status, task statistics, host resource metrics, a scoped activity timeline with an instruction composer, a placeholder knowledge base, and Smart Q&A. Session state and verbs come from `ctx.sessions`, `ctx.workspaces`, and the `sessionStats` projection; host metrics and timeline entries arrive over forwarded `host/metrics` and `api-session/*` events. Use it to watch and steer sessions without leaving the web GUI.
+
+## Table of Contents
+
+- [Understand the implementation](#understand-the-implementation)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
+
+-----
+
+<a id="understand-the-implementation"></a>
+## Understand the implementation
+
+<details>
+<summary>Implementation internals — click to expand</summary>
+
+The modal is a custom `role="dialog"` panel, not the boxed primitive `Modal`, laid out as three columns:
 
 - **Session status** — a stats/grid toggle. The stats view counts total, running, awaiting-input, completed, and archived sessions; the grid view tiles one status-colored square per session (green running, amber waiting, red planning/pending, brand-blue available, grey archived) with current/selection outlines and a right-click context menu for rename, fork, and archive.
 - **Task statistics** — a scope line (the whole list or the selected session) plus running, turns, steps, LLM time, and tool-time counts from the `sessionStats` projection.
@@ -20,12 +36,9 @@ English | [中文](README.zh.md)
 
 Each card has a fold toggle in its title row that collapses the body to the title bar, and a column-layout switcher in the header (Balanced / Focus / Compact) changes the grid's column proportions on wide viewports. On low-resolution screens the grid reflows responsively (three columns → two-plus-one → a single stacked column) regardless of the selected preset.
 
-Session status, cumulative task statistics, and the current selection come from the standard `ctx.sessions` feed and the `sessionStats` projection; pending interactions surface through the grid phase colors from `ctx.uiSession.pendingInteractions`; host resource metrics and the activity timeline come from the forwarded `host/metrics` and `api-session/*` events; and session verbs (open, rename, fork, archive, create, preset select, send instruction) ride the `ctx.sessions`, `ctx.workspaces`, and `ctx.remote.agentPresets` faces. A "new session" modal collects a workspace, an optional agent preset, and a first instruction.
+Pending interactions surface through the grid phase colors from `ctx.uiSession.pendingInteractions`; session verbs (open, rename, fork, archive, create, preset select, send instruction) ride the `ctx.sessions`, `ctx.workspaces`, and `ctx.remote.agentPresets` faces. A "new session" modal collects a workspace, an optional agent preset, and a first instruction.
 
-## Table of Contents
-
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+</details>
 
 -----
 

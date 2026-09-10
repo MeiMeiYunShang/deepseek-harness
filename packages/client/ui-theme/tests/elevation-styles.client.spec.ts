@@ -139,12 +139,14 @@ function wideFilledDividers(css: string): string[] {
 
 describe('neutral solid borders are hairlines', () => {
   /**
-   * Spinner ring tracks, keyed `<basename> <selector>`: the border is the
-   * drawn graphic (a rotating ring), not an outline, so it keeps its width.
+   * Drawn graphics, keyed `<basename> <selector>`: the border is the graphic
+   * itself (a spinner ring or a hollow timeline dot), not an outline, so it
+   * keeps its width.
    */
   const RING_TRACKS = new Set([
     'boot-page.module.css .spinner',
     'TrajectoryTable.module.css .historyLoadingSpinner',
+    'console.module.css .dotHollow',
   ])
 
   it('rejects a wide neutral border and a wide filled divider', () => {

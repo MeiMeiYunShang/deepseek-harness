@@ -12,7 +12,7 @@ The console workbench's Smart Q&A panel needs a one-shot streaming completion on
 
 `LlmRuntime` gains one `@Remote({ mode: 'stream' })` method named `chat`:
 
-```ts
+```ts ignore-check
 @Remote({ mode: 'stream' })
 async * chat(request: LlmChatRequest, signal: AbortSignal): AsyncIterable<LlmChatChunk>
 ```

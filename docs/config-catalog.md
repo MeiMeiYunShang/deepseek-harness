@@ -502,6 +502,59 @@ export interface ToolResultPruneConfig {
 
 Source: [`packages/compaction/compaction-tool-result-pruner/src/types.ts:5`](../packages/compaction/compaction-tool-result-pruner/src/types.ts)
 
+<a id="deepseek-aidsh-console-bridge"></a>
+
+## `@deepseek-ai/dsh-console-bridge`
+
+Requires: `agents` · `settings`
+
+```ts config-catalog
+/** Plugin configuration for the console bridge. */
+export interface ConsoleBridgeConfig {
+  /** This DSH terminal's agent id reported to the console (e.g. `local-dsh-native-01`). */
+  agentId?: string
+  /**
+   * Uplink/downlink transport. `mqtt` follows the contract exactly (topics
+   * `v1/agent/{id}/down/cmd`, `.../up/cmd/ack`, `.../up/result`). `http` polls a
+   * console REST surface when no MQTT broker is available.
+   */
+  transport: 'mqtt' | 'http'
+  /** MQTT broker URL (e.g. `mqtt://127.0.0.1:1883`); required when `transport: 'mqtt'`. */
+  brokerUrl?: string
+  /** Console base URL for the `http` transport (e.g. `http://controlplane:8080`). */
+  consoleBaseUrl?: string
+  /** Console auth token; sent as `Authorization: Bearer <token>` on HTTP uplink/downlink. */
+  token?: string
+  /** MQTT broker username; used only with the `mqtt` transport. */
+  mqttUsername?: string
+  /** MQTT broker password; used only with the `mqtt` transport. */
+  mqttPassword?: string
+  /** Provider route for created agents. */
+  provider?: string
+  /** Model name for created agents. */
+  model?: string
+  /** Working directory for created sessions. */
+  cwd?: string
+  /** Default task timeout in seconds (1..600); a `down/cmd` may override per command. */
+  execTimeoutS?: number
+  /** HTTP polling interval in milliseconds for the `http` transport. */
+  pollIntervalMs?: number
+  /** Heartbeat period in milliseconds (1000..60000; default 5000) publishing `up/status`. */
+  statusIntervalMs?: number
+  /** Subscribe to console commands on boot. */
+  autoStart?: boolean
+  /**
+   * User-facing bridge switch surfaced in the Web settings UI. The cordis
+   * `autoStart` value seeds the default; a user toggle in the settings document
+   * overrides it. The host reads the effective value to decide whether to
+   * subscribe on boot.
+   */
+  enabled?: boolean
+}
+```
+
+Source: [`packages/console/console-bridge/src/types.ts:2`](../packages/console/console-bridge/src/types.ts)
+
 <a id="deepseek-aidsh-cordis-host-runner"></a>
 
 ## `@deepseek-ai/dsh-cordis-host-runner`
@@ -919,6 +972,20 @@ export interface Config {
 
 Source: [`packages/host/frontend-static/src/index.ts:30`](../packages/host/frontend-static/src/index.ts)
 
+<a id="deepseek-aidsh-host-metrics"></a>
+
+## `@deepseek-ai/dsh-host-metrics`
+
+```ts config-catalog
+/** Plugin config: the sampling cadence. */
+export interface Config {
+  /** Milliseconds between samples. */
+  intervalMs: number
+}
+```
+
+Source: [`packages/host/host-metrics/src/index.ts:27`](../packages/host/host-metrics/src/index.ts)
+
 <a id="deepseek-aidsh-host-open-in-app"></a>
 
 ## `@deepseek-ai/dsh-host-open-in-app`
@@ -972,6 +1039,59 @@ export interface Config {
 
 Source: [`packages/host/webserver/src/index.ts:59`](../packages/host/webserver/src/index.ts)
 
+<a id="deepseek-aidsh-image-understanding"></a>
+
+## `@deepseek-ai/dsh-image-understanding`
+
+Requires: `llm` · `attachments`
+
+```ts config-catalog
+/** Plugin configuration, validated by the same-named schemastery schema. */
+export interface Config {
+  /**
+   * Recognition backend. Omission resolves by platform: Windows hosts default
+   * to the keyless system OCR engine, other hosts to local Ollama. An explicit
+   * `windows` selection on a non-Windows host fails at load (fail loud).
+   */
+  backend?: BackendKind
+  /** Maximum characters of one recognized image's text (default 8000). */
+  maxTextChars?: number
+  /** Per-image backend timeout in milliseconds (default 30000). */
+  timeoutMs?: number
+  /** Zhipu free-vision-API settings. */
+  zhipu?: ZhipuOptions
+  /** Ollama settings. */
+  ollama?: OllamaOptions
+}
+
+/** Recognition backend selector. */
+export type BackendKind = 'zhipu' | 'ollama' | 'windows'
+
+/** Zhipu free-vision-API backend configuration. */
+export interface ZhipuOptions {
+  /** Environment-variable name holding the API key. */
+  apiKeyEnv?: string
+  /** OpenAI-compatible chat-completions endpoint. */
+  baseURL?: string
+  /** Vision model id. */
+  model?: string
+  /** Recognition instruction sent with the image. */
+  prompt?: string
+}
+
+/** Local Ollama backend configuration. */
+export interface OllamaOptions {
+  /** Ollama server origin. */
+  baseURL?: string
+  /** Multimodal model id. */
+  model?: string
+  /** Recognition instruction sent with the image. */
+  prompt?: string
+}
+```
+
+Source: [`packages/understanding/image-understanding/src/index.ts:72`](../packages/understanding/image-understanding/src/index.ts)
+
 <a id="deepseek-aidsh-invariants"></a>
 
 ## `@deepseek-ai/dsh-invariants`
@@ -1006,6 +1126,22 @@ export interface Config {
 ```
 
 Source: [`packages/jobs/jobs-local/src/index.ts:31`](../packages/jobs/jobs-local/src/index.ts)
+
+<a id="deepseek-aidsh-knowledge-file"></a>
+
+## `@deepseek-ai/dsh-knowledge-file`
+
+Requires: `knowledge`
+
+```ts config-catalog
+/** Deployment configuration for the file persistence provider. */
+export interface Config {
+  /** Absolute path to the knowledge storage root directory. */
+  root: string
+}
+```
+
+Source: [`packages/knowledge/knowledge-file/src/index.ts:29`](../packages/knowledge/knowledge-file/src/index.ts)
 
 <a id="deepseek-aidsh-llm-deepseek"></a>
 
@@ -2605,7 +2741,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:242`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:243`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2848,6 +2984,30 @@ export type CompletionDelivery = 'quiet' | 'wakeup'
 ```
 
 Source: [`packages/jobs/tool-jobs/src/index.ts:31`](../packages/jobs/tool-jobs/src/index.ts)
+
+<a id="deepseek-aidsh-tool-knowledge"></a>
+
+## `@deepseek-ai/dsh-tool-knowledge`
+
+Requires: `tools` · `knowledge` · `systemPrompt` · `llm`
+
+```ts config-catalog
+/** Model-facing knowledge tool configuration. */
+export interface Config {
+  /** Whether to enable auto-summarization on session disposal or archive. */
+  autoSummarize?: boolean
+  /** Maximum number of knowledge entries to extract per session summary. */
+  maxSummaryEntries?: number
+  /** Token budget for the system-prompt knowledge section. */
+  promptBudgetTokens?: number
+  /** Group ids whose entries are injected into the system prompt. */
+  defaultGroupIds?: string[]
+  /** Model to use for summarization (empty = extract from session header). */
+  summarizeModel?: string
+}
+```
+
+Source: [`packages/knowledge/tool-knowledge/src/index.ts:36`](../packages/knowledge/tool-knowledge/src/index.ts)
 
 <a id="deepseek-aidsh-tool-lsp"></a>
 
@@ -3426,6 +3586,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 
 - `@deepseek-ai/dsh-acp-app` — requires `cmdlineArgs` ([`packages/bundle/acp-app/src/index.ts`](../packages/bundle/acp-app/src/index.ts))
 - `@deepseek-ai/dsh-agent` ([`packages/core/agent/src/index.ts`](../packages/core/agent/src/index.ts))
+- `@deepseek-ai/dsh-api-knowledge-controller` ([`packages/api/knowledge-controller/src/index.ts`](../packages/api/knowledge-controller/src/index.ts))
 - `@deepseek-ai/dsh-api-remotes` — requires `typertGateway` ([`packages/api/remotes/src/index.ts`](../packages/api/remotes/src/index.ts))
 - `@deepseek-ai/dsh-api-workspace-controller` — requires `typert` · `workspaceRegistry` ([`packages/api/workspace-controller/src/index.ts`](../packages/api/workspace-controller/src/index.ts))
 - `@deepseek-ai/dsh-authorization` — requires `credentials` ([`packages/credentials/authorization/src/index.ts`](../packages/credentials/authorization/src/index.ts))
@@ -3439,6 +3600,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-brand-official` ([`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-chat` ([`packages/client/ui-chat/src/index.ts`](../packages/client/ui-chat/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-commands` ([`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-console` ([`packages/client/ui-console/src/index.ts`](../packages/client/ui-console/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-conversation` ([`packages/client/ui-conversation/src/index.ts`](../packages/client/ui-conversation/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-cordis` ([`packages/extensions/ui-cordis/src/index.ts`](../packages/extensions/ui-cordis/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-deliverables` — requires `systemPrompt` ([`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts))
@@ -3447,6 +3609,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-jobs` ([`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-knowledge-picker` ([`packages/client/ui-knowledge-picker/src/index.ts`](../packages/client/ui-knowledge-picker/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-message-feedback` ([`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-model-selection` ([`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts))
@@ -3459,6 +3622,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-session` ([`packages/client/ui-session/src/index.ts`](../packages/client/ui-session/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings` ([`packages/client/ui-settings/src/index.ts`](../packages/client/ui-settings/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-general` ([`packages/client/ui-settings-general/src/index.ts`](../packages/client/ui-settings-general/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-settings-knowledge` ([`packages/client/ui-settings-knowledge/src/index.ts`](../packages/client/ui-settings-knowledge/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-models` ([`packages/client/ui-settings-models/src/index.ts`](../packages/client/ui-settings-models/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-plugin-inventory` ([`packages/client/ui-settings-plugin-inventory/src/index.ts`](../packages/client/ui-settings-plugin-inventory/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-settings-plugins` ([`packages/client/ui-settings-plugins/src/index.ts`](../packages/client/ui-settings-plugins/src/index.ts))
@@ -3487,8 +3651,10 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-host-directory-picker-auto` — requires `webServer` · `loader` ([`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker-native` ([`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts))
 - `@deepseek-ai/dsh-host-plugin-inventory` — requires `loader` ([`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts))
+- `@deepseek-ai/dsh-knowledge` ([`packages/knowledge/knowledge/src/index.ts`](../packages/knowledge/knowledge/src/index.ts))
 - `@deepseek-ai/dsh-llm` ([`packages/llm/llm/src/index.ts`](../packages/llm/llm/src/index.ts))
 - `@deepseek-ai/dsh-lsp` ([`packages/lsp/lsp/src/index.ts`](../packages/lsp/lsp/src/index.ts))
+- `@deepseek-ai/dsh-mcpsec-manager` — requires `connection` · `loader` · `tools` ([`packages/mcp/mcpsec-manager/src/index.ts`](../packages/mcp/mcpsec-manager/src/index.ts))
 - `@deepseek-ai/dsh-schedule` — requires `agents` · `sessions` · `tools` · `sessionPersistence` ([`packages/schedule/schedule/src/index.ts`](../packages/schedule/schedule/src/index.ts))
 - `@deepseek-ai/dsh-session` ([`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts))
 - `@deepseek-ai/dsh-session-checkpoint-policy` — requires `llm` · `sessionPersistence` · `sessions` · `tools` ([`packages/session/session-checkpoint-policy/src/index.ts`](../packages/session/session-checkpoint-policy/src/index.ts))

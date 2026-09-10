@@ -214,6 +214,22 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Carries the picking seam onto the wire: capability gating, cancellation, and the seam-coded failures a browser directory flow discriminates on.',
   },
   {
+    key: 'knowledge',
+    pkg: 'knowledge',
+    title: 'Durable knowledge store',
+    mode: 'seam',
+    implementations: ['knowledge-file'],
+    consumers: ['tool-knowledge', 'api-knowledge-controller'],
+    note: 'The Definition owns the in-memory CRUD registry, branded ids, category validation, and the `knowledge/change` notification; a provider hydrates and persists the registry.',
+  },
+  {
+    key: 'knowledgeController',
+    pkg: 'api-knowledge-controller',
+    title: 'Host knowledge-surface Remote controller',
+    mode: 'core',
+    note: 'Projects the knowledge store onto the generated Remote namespace: every write is validated at the boundary and every refusal is classified here, not on the seam Definition.',
+  },
+  {
     key: 'invariants',
     pkg: 'invariants',
     title: 'Package-owned invariant registry',

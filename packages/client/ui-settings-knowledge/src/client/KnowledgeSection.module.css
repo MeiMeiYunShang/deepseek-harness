@@ -35,7 +35,7 @@
   flex: 1 1 200px;
   min-width: 160px;
   padding: 6px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-caption);
@@ -53,7 +53,7 @@
 .select,
 .input {
   padding: 6px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-primary);
@@ -81,7 +81,7 @@ textarea.input {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-secondary);
@@ -121,7 +121,7 @@ textarea.input {
 }
 
 .entry {
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -200,7 +200,7 @@ textarea.input {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 10px;
   padding: 10px;
 }
@@ -281,7 +281,7 @@ textarea.input {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 10px;
 }
 
@@ -300,7 +300,7 @@ textarea.input {
   flex-direction: column;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 10px;
   background: var(--dsw-alias-bg-base);
 }

@@ -31,12 +31,20 @@ export const EMPTY_FORM: ServerForm = {
 /** The three selectable permission scopes. */
 export const SCOPES: readonly string[] = ['read-write', 'read-only', 'blocked']
 
-/** Validate a serverName against the host half's rule. */
+/**
+ * Validate a serverName against the host half's rule.
+ * @param name - candidate server name.
+ * @returns true when the name matches the host's accepted pattern.
+ */
 export function validName(name: string): boolean {
   return /^[A-Za-z0-9_-]{1,32}$/.test(name)
 }
 
-/** Parse key=value / Key: value lines into a record. */
+/**
+ * Parse key=value / Key: value lines into a record.
+ * @param text - multi-line key/value text.
+ * @returns parsed key/value pairs; blank and separator-less lines are skipped.
+ */
 export function parsePairs(text: string): Record<string, string> {
   const out: Record<string, string> = {}
   for (const line of (text || '').split(/\r?\n/)) {
@@ -56,7 +64,11 @@ export function parsePairs(text: string): Record<string, string> {
   return out
 }
 
-/** Parse `toolName=allow|deny|read|write` lines into a record. */
+/**
+ * Parse `toolName=allow|deny|read|write` lines into a record.
+ * @param text - multi-line tool-rule text.
+ * @returns parsed tool rules; lines with an unknown action are dropped.
+ */
 export function parseToolRules(text: string): Record<string, string> {
   const out: Record<string, string> = {}
   for (const line of (text || '').split(/\r?\n/)) {
@@ -71,12 +83,20 @@ export function parseToolRules(text: string): Record<string, string> {
   return out
 }
 
-/** Join a tool-rules record back into its text-editor form. */
+/**
+ * Join a tool-rules record back into its text-editor form.
+ * @param rules - parsed tool rules.
+ * @returns one `toolName=action` line per rule.
+ */
 export function rulesToText(rules: Record<string, string>): string {
   return Object.keys(rules).map(key => `${key}=${rules[key]}`).join('\n')
 }
 
-/** Suggest a serverName from an npm package name. */
+/**
+ * Suggest a serverName from an npm package name.
+ * @param pkgName - npm package name, optionally scoped.
+ * @returns a sanitized, lowercased server name of at most 32 characters.
+ */
 export function suggestServerName(pkgName: string): string {
   const base = (pkgName || '')
     .replace(/^@[^/]+\//, '')
@@ -86,7 +106,11 @@ export function suggestServerName(pkgName: string): string {
   return (base || 'mcp').slice(0, 32)
 }
 
-/** Assert a form's required fields and return the `/mcpsec` add/edit payload. */
+/**
+ * Assert a form's required fields and return the `/mcpsec` add/edit payload.
+ * @param form - current form field values.
+ * @returns the transport-specific payload fields for the host command.
+ */
 export function formPayload(form: ServerForm): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     serverName: form.serverName.trim(),
@@ -111,7 +135,11 @@ export function formPayload(form: ServerForm): Record<string, unknown> {
   return payload
 }
 
-/** Prefill a form from a picked npm package. */
+/**
+ * Prefill a form from a picked npm package.
+ * @param pkg - selected npm package.
+ * @returns form state seeded with a suggested name and `npx` stdio command.
+ */
 export function presetForm(pkg: NpmPackage): ServerForm {
   return {
     serverName: suggestServerName(pkg.name),

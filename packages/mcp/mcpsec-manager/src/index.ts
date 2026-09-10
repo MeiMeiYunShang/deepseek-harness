@@ -110,7 +110,11 @@ interface AlertEntry {
   reasons: string[]
 }
 
-/** Parse `mcp__server__tool` into its server and tool names. */
+/**
+ * Parse `mcp__server__tool` into its server and tool names.
+ * @param toolName - model-facing tool name.
+ * @returns the parsed names, or null when the name is not an MCP tool id.
+ */
 export function parseMcpName(toolName: unknown): McpName | null {
   if (typeof toolName !== 'string') return null
   const m = /^mcp__([A-Za-z0-9_-]{1,32})__(.+)$/.exec(toolName)
@@ -123,7 +127,11 @@ const READ_TOKENS = /(^|[._-])(get|list|read|search|query|find|view|describe|sho
 // oxlint-disable-next-line @stylistic/max-len
 const WRITE_TOKENS = /(^|[._-])(write|set|update|delete|remove|create|add|post|put|patch|send|push|commit|upload|edit|modify|insert|drop|truncate|rename|move|copy|save|store|publish|deploy|run|execute|exec|kill|terminate|format|clear|reset|import|append|assign|enable|disable|start|stop|restart|reboot|install|uninstall|configure|generate|transform|mutate|upsert|merge|overwrite|sync|backup|restore|convert|compile|build|test|invoke|call)([._-]|$)/i
 
-/** Classify one tool name: read, write, or unknown (fail closed as write). */
+/**
+ * Classify one tool name: read, write, or unknown (fail closed as write).
+ * @param tool - tool name segment to classify.
+ * @returns `read`, `write`, or `unknown`.
+ */
 export function classifyTool(tool: unknown): string {
   if (typeof tool !== 'string') return 'unknown'
   if (WRITE_TOKENS.test(tool)) return 'write'
@@ -136,7 +144,11 @@ const AUTH_ERR_RE = /(401|403|unauthorized|forbidden|invalid (api[-_ ]?)?key|per
 // oxlint-disable-next-line @stylistic/max-len
 const CRED_RE = /("(authorization|api[-_]?key|apikey|x-api-key|secret|password|passwd|token|cookie)"\s*[:=])|(bearer\s+[a-z0-9._~-]{8,})|(\b(sk|ghp|glpat|xox[baprs]-)[a-z0-9_-]{16,}\b)/i
 
-/** Whether an args payload looks like it carries a credential. */
+/**
+ * Whether an args payload looks like it carries a credential.
+ * @param args - tool-call arguments to inspect.
+ * @returns true when the serialized args match the credential heuristic.
+ */
 export function hasCredential(args: unknown): boolean {
   try {
     const text = JSON.stringify(args)
@@ -146,7 +158,12 @@ export function hasCredential(args: unknown): boolean {
   }
 }
 
-/** Build the deny reason for one MCP tool call under a policy, or undefined to allow. */
+/**
+ * Build the deny reason for one MCP tool call under a policy, or undefined to allow.
+ * @param policy - resolved server policy, or undefined when the server is unpoliced.
+ * @param tool - tool name segment being called.
+ * @returns the deny reason, or undefined when the call is allowed.
+ */
 export function gateReason(policy: Policy | undefined, tool: string): string | undefined {
   if (policy === undefined) return undefined
   const rule = toolRuleOf(policy.toolRules, tool)
