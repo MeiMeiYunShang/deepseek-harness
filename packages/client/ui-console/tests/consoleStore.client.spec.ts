@@ -18,7 +18,7 @@ describe('createConsoleStore', () => {
     })
   })
 
-  it('tracks the workbench open state the live event window follows', () => {
+  it('tracks the workbench open state the sidebar trigger drives', () => {
     const store = createConsoleStore().create()
     expect(store.getSnapshot().open).toBe(false)
 

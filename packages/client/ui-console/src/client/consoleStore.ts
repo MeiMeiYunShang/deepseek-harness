@@ -47,13 +47,13 @@ export interface ConsoleStoreWrite {
   setTimelineScope: (sessionId: string | undefined) => void
   setLayout: (layout: LayoutPreset) => void
   toggleCollapsed: (card: ConsoleCardKey) => void
-  /** Open or close the workbench; the plugin's live event window follows it. */
+  /** Open or close the workbench. */
   setOpen: (open: boolean) => void
 }
 
 /** Console store state: the live activity/timeline the apply closure feeds. */
 export interface ConsoleStoreState {
-  /** Whether the workbench is showing; only an open console collects live events. */
+  /** Whether the workbench is showing. */
   open: boolean
   timeline: TimelineEntry[]
   seq: number

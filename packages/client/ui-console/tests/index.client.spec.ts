@@ -10,6 +10,7 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
 import type { ConsoleServices } from '../src/client/services.ts'
+import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
 
 /** Stabilizer that lets TestSessions/TestWorkspaces write outside React act. */
 const stabilize = async (fn: () => void): Promise<void> => {
@@ -106,20 +107,35 @@ describe('ui-console apply', () => {
     expect(slots.entries('sidebar.footer.action')).toHaveLength(0)
   })
 
-  it('subscribes the store to forwarded session and host-metrics events', async () => {
+  it('subscribes at apply time so forwarded events reach the store while the console is closed', async () => {
     const { ctx, slots, remote } = await bench()
     declareSidebar(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
 
-    // Forwarding must reach apply's subscribers without leaking a throw.
+    const face = (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
+      hooks: { console: { getSnapshot: () => ConsoleStoreState } }
+    })()
+    expect(face.hooks.console.getSnapshot().open).toBe(false)
+
+    // Forwarding must reach apply's subscribers without leaking a throw, and
+    // must reach them whether or not the workbench is showing.
     remote.emit('api-session/activity', ['s1', 1000])
     remote.emit('api-session/status', ['s1', true])
     remote.emit('host/metrics', [{ cpu: 10, memory: 20, gpu: null }])
-    await Promise.resolve()
 
+    const snapshot = face.hooks.console.getSnapshot()
+    expect(snapshot.timeline).toMatchObject([
+      { sessionId: 's1', time: 1000, kind: 'activity' },
+      { sessionId: 's1', kind: 'status' },
+    ])
+    expect(snapshot.systemStatus).toEqual({ cpu: 10, memory: 20, gpu: null })
+
+    // The subscriptions are effects of this fiber, so they leave with it.
     await fiber.dispose()
     expect(slots.entries('sidebar.footer.action')).toHaveLength(0)
+    remote.emit('api-session/activity', ['s2', 2000])
+    expect(face.hooks.console.getSnapshot().timeline).toHaveLength(2)
   })
 
   it('wires the remote-backed verbs over their namespaces', async () => {

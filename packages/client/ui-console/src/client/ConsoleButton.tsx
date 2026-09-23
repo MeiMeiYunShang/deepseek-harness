@@ -1,8 +1,7 @@
 /**
  * Console workbench button: a sidebar-footer trigger that opens the true
- * fullscreen workbench modal. The open state lives in the console store, so
- * the plugin's live event window can follow it; every data source and verb
- * arrives through the composed props shares.
+ * fullscreen workbench modal. The open state lives in the console store;
+ * every data source and verb arrives through the composed props shares.
  */
 
 import { IconCodeOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'

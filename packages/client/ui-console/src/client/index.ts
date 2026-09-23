@@ -62,32 +62,19 @@ export function apply(ctx: ClientContext): void {
     setOpen: store.actions.setOpen,
   }
 
-  // The timeline is a monitoring mirror and the status panel follows the host
-  // sampler, so both cost work per event. Nothing needs either while the
-  // console is closed, so the window opens with it and closes with it: session
-  // activity can fire many times a minute, and every push would otherwise wake
-  // the store's subscribers for a panel nobody is looking at.
-  const live: (() => void)[] = []
-  const syncLive = (): void => {
-    if (store.store.getSnapshot().open === (live.length > 0)) return
-    if (live.length === 0) {
-      live.push(
-        ctx.remote.$on('api-session/activity', (sessionId: string, updatedAt: number) => {
-          store.actions.pushTimeline({ sessionId, time: updatedAt, kind: 'activity' })
-        }),
-        ctx.remote.$on('api-session/status', (sessionId: string, _running: boolean) => {
-          store.actions.pushTimeline({ sessionId, time: Date.now(), kind: 'status' })
-        }),
-        ctx.remote.$on('host/metrics', (metrics: { cpu: number; memory: number; gpu: number | null }) => {
-          store.actions.updateSystemStatus({ cpu: metrics.cpu, memory: metrics.memory, gpu: metrics.gpu })
-        }),
-      )
-      return
-    }
-    for (const dispose of live.splice(0)) dispose()
-  }
-  ctx.effect(() => store.store.subscribe(syncLive), 'ui-console: live event window')
-  ctx.effect(() => () => { for (const dispose of live.splice(0)) dispose() }, 'ui-console: live teardown')
+  // The timeline is a monitoring mirror: forward the coarse session activity
+  // and running-state changes into a bounded store window, and follow the host
+  // sampler into the status panel. All three stay subscribed for the life of
+  // the page, so the window holds what happened before the workbench opened.
+  ctx.effect(() => ctx.remote.$on('api-session/activity', (sessionId: string, updatedAt: number) => {
+    store.actions.pushTimeline({ sessionId, time: updatedAt, kind: 'activity' })
+  }), 'ui-console: session activity')
+  ctx.effect(() => ctx.remote.$on('api-session/status', (sessionId: string, _running: boolean) => {
+    store.actions.pushTimeline({ sessionId, time: Date.now(), kind: 'status' })
+  }), 'ui-console: session status')
+  ctx.effect(() => ctx.remote.$on('host/metrics', (metrics: { cpu: number; memory: number; gpu: number | null }) => {
+    store.actions.updateSystemStatus({ cpu: metrics.cpu, memory: metrics.memory, gpu: metrics.gpu })
+  }), 'ui-console: host metrics')
 
   // Resolve the Smart Q&A default model once at load from the console-bridge
   // setting (`provider/model`); an unset or malformed override leaves it null,
