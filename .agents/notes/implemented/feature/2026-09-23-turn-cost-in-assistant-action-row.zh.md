@@ -58,4 +58,4 @@ Status: implemented
 
 - `packages/session/session-stats/tests/projection.spec.ts` 折叠合成事件，断言中途换模型、同一轮的两个步骤、某一轮跨低谷边界、会话桶的划分关系，以及没有路由 header 的步骤等情形下的逐轮桶。
 - `packages/client/ui-primitives/tests/pricing.client.spec.ts` 原样覆盖迁移过来的算术。
-- `packages/client/ui-chat/tests/turn-cost-figure.client.spec.tsx` 以构造 props 渲染该数字，覆盖金额、不足一个单位、未定价、价格不唯一、别的轮次与无桶等情形；`price-table-policy.client.spec.ts` 覆盖采纳、重复发布与清空；`chat-view.client.spec.tsx` 断言费用渲染在尾部行的用量与用时数字之后。
+- `packages/client/ui-chat/tests/turn-cost-figure.client.spec.tsx` 以构造 props 渲染该数字，覆盖金额、不足一个单位、未定价、价格不唯一、别的轮次与无桶等情形；`packages/client/ui-primitives/tests/price-table.client.spec.ts` 覆盖采纳、重复发布与清空；`chat-view.client.spec.tsx` 断言费用渲染在尾部行的用量与用时数字之后。

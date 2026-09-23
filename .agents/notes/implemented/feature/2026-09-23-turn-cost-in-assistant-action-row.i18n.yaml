@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-23-turn-cost-in-assistant-action-row.md
-2026-09-23-turn-cost-in-assistant-action-row.md: 8a2b926e1924ae9f9f2a3ce94b889101fbf5175c
-2026-09-23-turn-cost-in-assistant-action-row.zh.md: 87bb0816ec3125c78a822162e2cf07ef8d9fe9f2
+2026-09-23-turn-cost-in-assistant-action-row.md: 77381fd06908952e3cd48d9084ac0cabbac099f1
+2026-09-23-turn-cost-in-assistant-action-row.zh.md: 7c1f4ccd14a6619488b7aeb4bacb9086e97d8699
