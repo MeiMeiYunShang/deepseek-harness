@@ -53,7 +53,7 @@ kind: "package-library"
 | `MarkdownText`、`CodeBlock` | 不可信 GFM 与 TeX 数学，以及高亮代码。 |
 | `TerminalBlock`、`ReadBlock`、`DiffBlock`、`SearchBlock`、`WebBlock` | 与各类工具结果意图对应的 agent 输出卡片。 |
 | `icons/*`、`FishLogo`、`BrandWordmark`、`ReferenceIcon`、`LinkIcon`、`DocumentFileIcon` | 字形与品牌标识，全部随 `currentColor`。 |
-| `formatAmount`、`priceOf`、`costOf`、`totalCost` | 所有客户端费用数字背后的运营者价格表算术。 |
+| `PriceTablePolicy`、`formatAmount`、`priceOf`、`costOf`、`totalCost` | 所有客户端费用数字背后的运营者价格表：已采纳的价格表，以及据此计算的算术。 |
 
 有三组容易混淆：
 
@@ -66,6 +66,8 @@ kind: "package-library"
 ### 费用算术
 
 `totalCost` 是控制台整会话数字与聊天轮次数字共用的唯一计费规则归属：每个包各存一份拷贝会让两个费用面就同一批 token 给出不同结果。它按价格行 `(baseUrl, provider, model)` 查找，并对每个时段用该时段自己的四项提供方计数计费——缓存读取按缓存命中价、未缓存输入与缓存写入按缓存未命中价、输出按输出价。上报的桶不带接口地址，因此只有恰好一行命中其 `provider`/`model` 时才计价：没有命中行报为未定价，多行命中报为价格不唯一，因为缺价不等于免费，而两个接口的单价也不可能同时计费。`formatAmount` 只负责数字；货币文案留在各包的 locale 词典里。
+
+出于同样的理由，`PriceTablePolicy` 是价格表采纳的唯一归属。它绑定 `CONSOLE_PRICING_NAMESPACE`，并在 Host 每接受一个设置 section 时重新发布运营者的 `models` 字段：section 重复同一张表时保留原引用，section 未记录价格表时清空。`settingsScope.bind` 在设置镜像敲定之前就返回，因此一次性读取会让每个数字无论运营者记录了什么都在页面存活期间显示为未定价。
 
 ### 控件与图标
 
@@ -101,6 +103,7 @@ kind: "package-library"
 | [`src/SearchBlock.tsx`](src/SearchBlock.tsx) / [`src/WebBlock.tsx`](src/WebBlock.tsx) | 搜索与网页检索卡片 |
 | [`src/icons/`](src/icons/) | `ic_ds_*` 字形组件与品牌标记 |
 | [`src/pricing.ts`](src/pricing.ts) | 所有费用面共用的运营者价格表计费算术 |
+| [`src/price-table.ts`](src/price-table.ts) | 从 `console-pricing` settings namespace 采纳的运营者价格表 |
 | [`src/useAnchoredPosition.ts`](src/useAnchoredPosition.ts) / [`src/useAnchoredMaxHeight.ts`](src/useAnchoredMaxHeight.ts) | 浮动面板与浮层几何钩子 |
 
 ### 流式 markdown

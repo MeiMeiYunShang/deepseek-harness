@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
-import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
-import { PriceTablePolicy } from '../src/client/price-table.ts'
+import type { ModelPrice } from '../src/pricing.ts'
+import { PriceTablePolicy } from '../src/price-table.ts'
 
 const FLASH: ModelPrice = {
   baseUrl: 'https://api.deepseek.com',
@@ -13,12 +13,12 @@ const FLASH: ModelPrice = {
 }
 
 describe('PriceTablePolicy', () => {
-  it('starts empty, because the namespace answers after bind', () => {
+  it('starts empty, because the namespace arrives after the plugin mounts', () => {
     const policy = new PriceTablePolicy(stubSettingsScope<{ models?: ModelPrice[] }>().scope)
     expect(policy.prices.getSnapshot()).toEqual([])
   })
 
-  it('adopts the table a section accepted after construction carries', () => {
+  it('adopts the table an accepted section carries and republishes later edits', () => {
     const host = stubSettingsScope<{ models?: ModelPrice[] }>()
     const policy = new PriceTablePolicy(host.scope)
     expect(host.listenerCount()).toBe(1)
@@ -31,7 +31,7 @@ describe('PriceTablePolicy', () => {
     expect(policy.prices.getSnapshot()).toEqual(raised)
   })
 
-  it('adopts a section standing at construction', () => {
+  it('adopts an accepted section standing at construction', () => {
     const host = stubSettingsScope<{ models?: ModelPrice[] }>()
     host.publish({ status: 'ready', value: { models: [FLASH] }, revision: 1 })
     expect(new PriceTablePolicy(host.scope).prices.getSnapshot()).toEqual([FLASH])

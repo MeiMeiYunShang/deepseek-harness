@@ -1,23 +1,29 @@
 /**
- * Operator price table for the Turn cost figure.
+ * Operator price table adopted from the `console-pricing` settings namespace,
+ * shared by the console Task-statistics cost figure and the Chat Turn cost
+ * figure.
  *
  * The table's owner is the `console-pricing` settings namespace, registered by
- * `dsh-console-bridge`; the field is spelled locally (like ui-console does),
- * because a client bundle reaches other packages through services, never
- * through their values. The namespace arrives asynchronously, so the table is
- * adopted on every accepted section rather than read once: the first snapshot
- * after `bind` carries no value, and a one-shot read would leave every Turn
- * unpriced for the life of the page.
+ * `dsh-console-bridge`; the namespace and its field are spelled locally, as
+ * every cross-package setting these readers use is, because a client bundle
+ * reaches another package through services, never through their values.
+ *
+ * `settingsScope.bind` starts the shared settings mirror's read and returns
+ * before it settles, so the first snapshot after `bind` carries no value
+ * (`ui-settings` publishes the section once `remote.settings.describe`
+ * answers). The table is adopted from every accepted section instead of read
+ * once: a one-shot read at bind time leaves every route unpriced for the life
+ * of the page, whatever the operator recorded.
  */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ModelPrice } from './pricing.ts'
 
 /** The `console-pricing` settings namespace holding the operator's table. */
 export const CONSOLE_PRICING_NAMESPACE = 'console-pricing'
 
-/** The pricing namespace's fields this plugin reads. */
+/** The pricing namespace's fields these readers read. */
 interface ConsolePricingSetting {
   /** The operator's recorded price table; absent until the first save. */
   models?: ModelPrice[]
@@ -26,7 +32,7 @@ interface ConsolePricingSetting {
 /** The table an operator who recorded none has. */
 const NO_PRICES: readonly ModelPrice[] = []
 
-/** Live operator price table consumed by the Chat Turn cost figure. */
+/** Live operator price table consumed by every client cost figure. */
 export class PriceTablePolicy {
   /** Reactive current table; empty until the Host serves a section. */
   readonly prices: SnapshotStore<readonly ModelPrice[]> = createSnapshotStore<readonly ModelPrice[]>(NO_PRICES)

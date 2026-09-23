@@ -53,7 +53,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | `MarkdownText`, `CodeBlock` | Untrusted GFM with TeX math, and highlighted code. |
 | `TerminalBlock`, `ReadBlock`, `DiffBlock`, `SearchBlock`, `WebBlock` | The agent-output card matching each tool-result intent. |
 | `icons/*`, `FishLogo`, `BrandWordmark`, `ReferenceIcon`, `LinkIcon`, `DocumentFileIcon` | Glyphs and brand marks, all riding `currentColor`. |
-| `formatAmount`, `priceOf`, `costOf`, `totalCost` | Operator price-table arithmetic behind every client cost figure. |
+| `PriceTablePolicy`, `formatAmount`, `priceOf`, `costOf`, `totalCost` | Operator price table behind every client cost figure: the adopted table, and the arithmetic charged against it. |
 
 Three pairs are easy to confuse:
 
@@ -66,6 +66,8 @@ Writing your own component in your own package is fine when the need is genuinel
 ### Cost arithmetic
 
 `totalCost` is the one home of the charge rules the console's whole-session figure and the chat Turn figure both apply, because a copy in each package would let the two money surfaces disagree about the same tokens. It charges each price band from that band's own four provider counts — cache reads at the row's cache-hit rate, uncached input and cache writes at its cache-miss rate, and output at its output rate — against a table keyed `(baseUrl, provider, model)`. A reported bucket carries no endpoint, so exactly one row for its `provider`/`model` prices it: no such row reports the route as unpriced and several rows report it as ambiguous, because a missing price is not a free model and two endpoints' rates cannot both be charged. `formatAmount` renders the digits only; currency text stays with each package's locale dictionary.
+
+`PriceTablePolicy` is the matching one home of the adoption, for the same reason. It binds `CONSOLE_PRICING_NAMESPACE` and republishes the operator's `models` field on every accepted settings section, keeping the previous table's reference when a section repeats it and clearing it when a section records none. `settingsScope.bind` returns before the settings mirror settles, so a one-shot read would leave every figure unpriced for the life of the page whatever the operator recorded.
 
 ### Controls and icons
 
@@ -101,6 +103,7 @@ The package is one separation: presentational React atoms with zero Cordis and z
 | [`src/SearchBlock.tsx`](src/SearchBlock.tsx) / [`src/WebBlock.tsx`](src/WebBlock.tsx) | Search and web-retrieval cards |
 | [`src/icons/`](src/icons/) | `ic_ds_*` glyph components and brand marks |
 | [`src/pricing.ts`](src/pricing.ts) | Operator price-table cost arithmetic shared by every money surface |
+| [`src/price-table.ts`](src/price-table.ts) | Operator price table adopted from the `console-pricing` settings namespace |
 | [`src/useAnchoredPosition.ts`](src/useAnchoredPosition.ts) / [`src/useAnchoredMaxHeight.ts`](src/useAnchoredMaxHeight.ts) | Floating-panel and overlay geometry hooks |
 
 ### Streaming markdown
