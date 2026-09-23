@@ -5,7 +5,7 @@
  * rename / new-session modals plus the session context menu.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { IconCloseOutline16, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
@@ -13,6 +13,7 @@ import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/cli
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { contextMenuItems, contextAnchorRect } from './ContextMenu.tsx'
 import type { ConsoleCardKey, ConsoleStoreState, ConsoleStoreWrite, LayoutPreset } from './consoleStore.ts'
+import type { ModelPrice } from './pricing.ts'
 import { NS, type ConsoleKey } from './locales.ts'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
@@ -66,6 +67,8 @@ export interface WorkbenchProps {
   chat: ChatFetcher
   /** Default Smart Q&A model. */
   defaultModel: { provider: string; model: string } | null
+  /** The operator's model price table, for the task-statistics cost figure. */
+  prices: readonly ModelPrice[]
 }
 
 /** One open context-menu invocation. */
@@ -78,7 +81,7 @@ interface OpenContextMenu {
 
 /** The fullscreen workbench panel. */
 export function Workbench({
-  t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces, useConsole, store, services, chat, defaultModel,
+  t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces, useConsole, store, services, chat, defaultModel, prices,
 }: WorkbenchProps) {
   const timeline = useConsole(value => value.timeline)
   const timelineMode = useConsole(value => value.timelineMode)
@@ -96,6 +99,17 @@ export function Workbench({
   const [renameTarget, setRenameTarget] = useState<string | null>(null)
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [presets, setPresets] = useState<{ readonly id: string; readonly name: string | undefined }[]>([])
+
+  // Escape closes the workbench, unless a nested dialog owns the key first —
+  // the rename and new-session modals carry their own handler.
+  useEffect(() => {
+    if (renameTarget !== null || newSessionOpen) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [onClose, renameTarget, newSessionOpen])
 
   async function openNewSession(): Promise<void> {
     setNewSessionOpen(true)
@@ -159,7 +173,7 @@ export function Workbench({
               collapsed={isCollapsed('session')}
               onToggleCollapse={toggleCard('session')}
             />
-            <TaskStatsCard t={t} byId={byId} scope={selected} titleOf={titleOf} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} />
+            <TaskStatsCard t={t} byId={byId} scope={selected} titleOf={titleOf} prices={prices} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} />
             <SystemStatusCard t={t} status={systemStatus} collapsed={isCollapsed('system')} onToggleCollapse={toggleCard('system')} />
           </div>
           <div className={css.column}>
@@ -172,13 +186,13 @@ export function Workbench({
               setTimelineMode={store.setTimelineMode}
               clearScope={() => { store.setTimelineScope(undefined) }}
               sendInstruction={text => sendToSession(services, selected, text)}
-              collapsed={isCollapsed('timeline')}
-              onToggleCollapse={toggleCard('timeline')}
             />
           </div>
           <div className={css.column}>
             <KnowledgeCard t={t} collapsed={isCollapsed('knowledge')} onToggleCollapse={toggleCard('knowledge')} />
-            <div className={css.smartQACard}>
+            {/* The collapsed modifier releases the flex share, so a folded card
+                shrinks to its title bar instead of holding empty height. */}
+            <div className={clsx(css.smartQACard, isCollapsed('qa') && css.smartQACardCollapsed)}>
               <CardHeader t={t} title={t('smartQA')} collapsed={isCollapsed('qa')} onToggleCollapse={toggleCard('qa')} />
               {!isCollapsed('qa') && <SmartQA t={t} chat={chat} model={defaultModel} />}
             </div>

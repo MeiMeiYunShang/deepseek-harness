@@ -43,7 +43,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | `StateDot` | Status mark: `done`, `warning`, `ongoing`, `error`, or `idle`. `aria-hidden`, so the render site owns the name. |
 | `ConnectionIndicator` | Inline connection-recovery control across outage, retry, and recovered states. |
 | `DisclosureRow` | 24px compact disclosure that lays title and content side by side. |
-| `Modal` | Centered dialog over a page mask. |
+| `Modal` | Centered dialog over a page mask; `size` picks the 380px `compact` form card or the 800px `panel` surface that content dialogs share with the settings shell. |
 | `RiskConfirmation` | Sensitive action gated behind an explicit checkbox. |
 | `OnboardingSurface` | First-run stage that holds the application root inert. |
 | `Tooltip` | Hover text on a cloned anchor, placed right, bottom, or top. |

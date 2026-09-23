@@ -31,6 +31,10 @@ export type ConsoleKey = 'console'
   | 'taskSteps'
   | 'taskLlmMs'
   | 'taskToolMs'
+  | 'taskCost'
+  | 'taskCostUnpriced'
+  | 'taskCostAmbiguous'
+  | 'taskCostUnit'
   | 'systemStatus'
   | 'cpu'
   | 'ram'
@@ -48,6 +52,7 @@ export type ConsoleKey = 'console'
   | 'timelineEmpty'
   | 'timelineExpand'
   | 'timelineCollapse'
+  | 'timelineMore'
   | 'sessionPrefix'
   | 'knowledge'
   | 'knowledgeEmpty'
@@ -140,6 +145,10 @@ export const en: Record<ConsoleKey, string> = {
   taskSteps: 'Steps',
   taskLlmMs: 'LLM time',
   taskToolMs: 'Tool time',
+  taskCost: 'Cost',
+  taskCostUnpriced: 'Unpriced',
+  taskCostAmbiguous: 'Ambiguous price',
+  taskCostUnit: '¥ per million tokens',
   systemStatus: 'System status',
   cpu: 'CPU',
   ram: 'Memory',
@@ -156,6 +165,7 @@ export const en: Record<ConsoleKey, string> = {
   timelineModeAria: 'Timeline mode',
   timelineEmpty: 'No session activity yet.',
   timelineExpand: 'Expand',
+  timelineMore: 'Show {count} earlier events',
   timelineCollapse: 'Collapse',
   sessionPrefix: 'Session',
   knowledge: 'Knowledge base',
@@ -247,6 +257,10 @@ export const zh: Record<ConsoleKey, string> = {
   taskSteps: '步骤数',
   taskLlmMs: 'LLM 耗时',
   taskToolMs: '工具耗时',
+  taskCost: '费用',
+  taskCostUnpriced: '未定价',
+  taskCostAmbiguous: '价格不唯一',
+  taskCostUnit: '¥ / 百万 token',
   systemStatus: '系统状态',
   cpu: 'CPU',
   ram: '内存',
@@ -263,6 +277,7 @@ export const zh: Record<ConsoleKey, string> = {
   timelineModeAria: '时间线模式',
   timelineEmpty: '暂无会话活动。',
   timelineExpand: '展开',
+  timelineMore: '显示更早的 {count} 条',
   timelineCollapse: '收起',
   sessionPrefix: '会话',
   knowledge: '知识库',

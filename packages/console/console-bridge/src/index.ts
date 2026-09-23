@@ -26,7 +26,7 @@ import { runDshTask } from './runner.ts'
 import ConsoleBridgeRemote from './remote.ts'
 
 export const name = 'console-bridge'
-/** The bridge creates and owns agents and registers a console-connection settings page. */
+/** The bridge creates and owns agents and registers the console's settings namespaces. */
 export const inject = ['agents', 'settings']
 
 /** User-editable console-connection settings, surfaced as a settings tab. */
@@ -44,6 +44,165 @@ export interface ConsoleBridgeSettings {
   mqttPassword?: string
   /** Whether the bridge subscribes to console commands after a settings restart. */
   enabled: boolean
+}
+
+/** One price band's rates, in currency units per million tokens. */
+export interface ConsolePricingBandPrice {
+  /** Price of one million cache-read (cache-hit) input tokens. */
+  cacheHit: number
+  /**
+   * Price of one million uncached input tokens, and of one million cache-write
+   * input tokens: a cache write is charged at the miss rate.
+   */
+  cacheMiss: number
+  /** Price of one million output tokens. */
+  output: number
+}
+
+/**
+ * One model route's price, in currency units per million tokens.
+ *
+ * A route is keyed by `(baseUrl, provider, model)`: the same model reached
+ * through two endpoints is two routes at two prices, and the accounting matches
+ * reported tokens on the route the provider actually served.
+ */
+export interface ConsolePricingRow {
+  /** Endpoint the route is reached through. */
+  baseUrl: string
+  /** Provider id of the route, exactly as the model catalog spells it. */
+  provider: string
+  /** Model id of the route, exactly as the model catalog spells it. */
+  model: string
+  /** Rates charged for the tokens served inside the peak band. */
+  peak: ConsolePricingBandPrice
+  /** Rates charged for the tokens served inside the off-peak window. */
+  offPeak: ConsolePricingBandPrice
+}
+
+/**
+ * The daily off-peak window: `[start, end)` as local wall-clock times in one
+ * IANA zone, wrapping past midnight when `end` is not later than `start`.
+ */
+export interface ConsolePricingOffPeak {
+  /** Window start, `HH:MM` local to `timezone`; the window includes this minute. */
+  start: string
+  /** Window end, `HH:MM` local to `timezone`; the window excludes this minute. */
+  end: string
+  /** IANA zone the two wall-clock times are local to. */
+  timezone: string
+}
+
+/** The operator's price table, as stored in the `console-pricing` settings namespace. */
+export interface ConsolePricingSettings {
+  /** The recorded price table; absent until an operator saves one. */
+  models?: ConsolePricingRow[]
+  /**
+   * The daily off-peak window, which is what splits each route's tokens into
+   * price bands. Absent means every hour is charged at the peak price.
+   */
+  offPeak?: ConsolePricingOffPeak
+}
+
+/**
+ * Schema for the `console-pricing` settings namespace: the price table the
+ * console cost view charges each `(baseUrl, provider, model)` route against. An
+ * absent `models` and an empty one both mean "no prices recorded" and are valid
+ * — a route with no row is reported as unpriced, which is not the same fact as
+ * a free model. An absent `offPeak` is likewise valid and means "peak only".
+ */
+export const ConsolePricingSettingsSchema = z.object({
+  models: z.array(z.object({
+    baseUrl: z.string().required(),
+    provider: z.string().required(),
+    model: z.string().required(),
+    peak: z.object({
+      cacheHit: z.number().min(0).required(),
+      cacheMiss: z.number().min(0).required(),
+      output: z.number().min(0).required(),
+    }),
+    offPeak: z.object({
+      cacheHit: z.number().min(0).required(),
+      cacheMiss: z.number().min(0).required(),
+      output: z.number().min(0).required(),
+    }),
+  })).required(false),
+  // An object schema resolves an absent value from its own `{}` default, which
+  // would then demand every field from a window the operator never declared.
+  // Absent has to stay absent — it means "peak only", not "an unreadable
+  // window" — and schemastery types `default` as the declared object type, so
+  // the one value that is not one takes the cast.
+  offPeak: z.object({
+    start: z.string().required(),
+    end: z.string().required(),
+    timezone: z.string().required(),
+  }).default(undefined as unknown as ConsolePricingOffPeak),
+})
+
+/** `HH:MM` on a 24-hour clock, 00:00 through 23:59. */
+const OFF_PEAK_TIME = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
+
+/**
+ * Whether `Intl` resolves a value as a time zone. The zone database is the
+ * runtime's, so this asks it rather than carrying a list of names that would
+ * drift from the zones the fold can actually resolve.
+ * @param timezone - the declared zone name.
+ * @returns whether the runtime accepts the name.
+ */
+function isResolvableTimeZone(timezone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+    return true
+  } catch {
+    // An unresolvable zone is the only failure here: the options object is a
+    // literal, so nothing else in this statement can throw.
+    return false
+  }
+}
+
+/** The two bands every price row carries, in the order the check reports them. */
+const PRICE_BANDS = ['peak', 'offPeak'] as const
+
+/** The three rates every band carries, in the order the check reports them. */
+const PRICE_RATES = ['cacheHit', 'cacheMiss', 'output'] as const
+
+/**
+ * Reject a price section no charge could be computed from.
+ *
+ * A schemastery range check compares a value against `min`/`max`, which a
+ * non-finite value slips past: `NaN` is neither less nor greater than any
+ * bound, and `Infinity` never exceeds its own. The settings service already
+ * refuses non-finite numbers on its write path, but an operator editing the
+ * settings document by hand can still store one, and an infinite or `NaN`
+ * charge would otherwise reach the cost view silently.
+ *
+ * The off-peak window is checked here for the same reason: its two times are
+ * wall-clock strings and its zone is resolved by the runtime, so neither is
+ * expressible in the schema, and a window the fold cannot read would silently
+ * charge every token at the peak price.
+ * @param value - the resolved `console-pricing` section.
+ * @throws {TypeError} when a row carries a non-finite rate, or the off-peak window is not a usable `HH:MM` time and IANA zone.
+ */
+export function validateConsolePricing(value: ConsolePricingSettings): void {
+  for (const [index, row] of (value.models ?? []).entries()) {
+    for (const band of PRICE_BANDS) {
+      for (const rate of PRICE_RATES) {
+        if (!Number.isFinite(row[band][rate])) {
+          throw new TypeError(`console-pricing: models[${index}].${band}.${rate} is not a finite number`)
+        }
+      }
+    }
+  }
+  const offPeak = value.offPeak
+  if (offPeak === undefined) return
+  if (!OFF_PEAK_TIME.test(offPeak.start)) {
+    throw new TypeError(`console-pricing: offPeak.start is not an HH:MM time: ${JSON.stringify(offPeak.start)}`)
+  }
+  if (!OFF_PEAK_TIME.test(offPeak.end)) {
+    throw new TypeError(`console-pricing: offPeak.end is not an HH:MM time: ${JSON.stringify(offPeak.end)}`)
+  }
+  if (!isResolvableTimeZone(offPeak.timezone)) {
+    throw new TypeError(`console-pricing: offPeak.timezone is not an IANA time zone: ${JSON.stringify(offPeak.timezone)}`)
+  }
 }
 
 /** Schema for the `console-bridge` settings namespace rendered in the config UI. */
@@ -154,6 +313,15 @@ export function apply(ctx: Context, config: ConsoleBridgeConfig): void {
   const scope = settings.register('console-bridge', ConsoleBridgeSettingsSchema, {
     base: settingsBase(config),
     applies: 'restart',
+  })
+  // The price table this console's cost view charges against. Nothing in the
+  // composition supplies prices — they are operator data rather than
+  // connection configuration — so the namespace is registered with its schema
+  // and the resolved value comes from the settings document alone. Registering
+  // is what makes the namespace appear in `settings.describe()`, and therefore
+  // what makes the console pricing card render at all.
+  settings.register('console-pricing', ConsolePricingSettingsSchema, {
+    validate: validateConsolePricing,
   })
   let effective = effectiveConfig(config, scope.get())
   // Expose a Web Remote so the settings card can probe the connection without

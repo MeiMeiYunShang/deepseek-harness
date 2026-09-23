@@ -18,6 +18,9 @@ import { WebSearchCard } from '../src/client/WebSearchCard.tsx'
 import type { WebSearchCardProps } from '../src/client/WebSearchCard.tsx'
 import { ConsoleBridgeCard } from '../src/client/ConsoleBridgeCard.tsx'
 import type { ConsoleBridgeCardProps } from '../src/client/ConsoleBridgeCard.tsx'
+import { ConsolePricingCard } from '../src/client/ConsolePricingCard.tsx'
+import type { ConsolePricingCardProps } from '../src/client/ConsolePricingCard.tsx'
+import type { ConsolePricingCardState } from '../src/client/console-pricing-card-controller.ts'
 import type { ConsoleBridgeCardState } from '../src/client/console-bridge-card-controller.ts'
 import type { AgentLoopCardState } from '../src/client/agent-loop-card-controller.ts'
 import type { BashCardState } from '../src/client/bash-card-controller.ts'
@@ -625,5 +628,140 @@ describe('ConsoleBridgeCard', () => {
 
     expect(await screen.findByText(`${en.consoleBridgeTestOk}: reachable (200)`)).toBeTruthy()
     expect(actions.testConnection).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ConsolePricingCard', () => {
+  /** One staged row, with the rates a route's own price would fill in. */
+  const staged = (overrides: Partial<ConsolePricingCardState['rows'][number]> = {}) => ({
+    baseUrl: 'https://api.deepseek.com',
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    peakCacheHit: '0.07', peakCacheMiss: '0.27', peakOutput: '1.1',
+    offPeakCacheHit: '0.04', offPeakCacheMiss: '0.14', offPeakOutput: '0.55',
+    ...overrides,
+  })
+
+  /** One cell's accessible name, as the card composes it. */
+  const cell = (index: number, ...copy: string[]): string => `${copy.join(' ')} ${index + 1}`
+
+  function renderConsolePricing(state: Partial<ConsolePricingCardState> = {}, expand = true) {
+    const store = createSnapshotStore<ConsolePricingCardState>({
+      ...settled,
+      rows: [],
+      problem: undefined,
+      ...state,
+    })
+    const actions = {
+      editCell: vi.fn(),
+      addRow: vi.fn(),
+      removeRow: vi.fn(),
+      save: vi.fn(),
+      discard: vi.fn(),
+    }
+    const props = {
+      ...actions,
+      t,
+      useConsolePricingCard: bindSnapshotSelector(store),
+    } as unknown as ConsolePricingCardProps
+    render(<ConsolePricingCard {...props} />)
+    if (expand) fireEvent.click(screen.getByRole('button', { name: `${en.expand}: ${en.consolePricingTitle}` }))
+    return actions
+  }
+
+  it('states the price unit and says so when no route has a price', () => {
+    const actions = renderConsolePricing()
+
+    expect(screen.getByText(en.consolePricingUnit)).toBeTruthy()
+    expect(screen.getByText(en.consolePricingEmpty)).toBeTruthy()
+    expect(screen.queryByLabelText(cell(0, en.consolePricingBaseUrl))).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: en.consolePricingAddRow }))
+    expect(actions.addRow).toHaveBeenCalledOnce()
+  })
+
+  it('stages a cell edit without writing', () => {
+    const actions = renderConsolePricing({ dirty: true, rows: [staged()] })
+    expect(screen.queryByText(en.consolePricingEmpty)).toBeNull()
+
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingPeak, en.consolePricingCacheHit)), { target: { value: '0.5' } })
+
+    expect(actions.editCell).toHaveBeenCalledWith(0, 'peakCacheHit', '0.5')
+    expect(actions.save).not.toHaveBeenCalled()
+  })
+
+  it('addresses each cell of each row on its own', () => {
+    const actions = renderConsolePricing({
+      dirty: true,
+      rows: [staged(), staged({ model: 'deepseek-reasoner' })],
+    })
+
+    // Every cell of the first row, in the order the card lays them out.
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingBaseUrl)), { target: { value: 'a' } })
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingProvider)), { target: { value: 'b' } })
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingModel)), { target: { value: 'c' } })
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingPeak, en.consolePricingCacheHit)), { target: { value: 'd' } })
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingPeak, en.consolePricingCacheMiss)), { target: { value: 'e' } })
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingPeak, en.consolePricingOutputPrice)), { target: { value: 'f' } })
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingOffPeak, en.consolePricingCacheHit)), { target: { value: 'g' } })
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingOffPeak, en.consolePricingCacheMiss)), { target: { value: 'h' } })
+    fireEvent.change(screen.getByLabelText(cell(0, en.consolePricingOffPeak, en.consolePricingOutputPrice)), { target: { value: 'i' } })
+    // The second row addresses its own cells, never the first row's.
+    fireEvent.change(screen.getByLabelText(cell(1, en.consolePricingBaseUrl)), { target: { value: 'https://proxy.example.com' } })
+    fireEvent.change(screen.getByLabelText(cell(1, en.consolePricingOffPeak, en.consolePricingOutputPrice)), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: `${en.consolePricingRemoveRow} 2` }))
+
+    expect(actions.editCell.mock.calls).toEqual([
+      [0, 'baseUrl', 'a'],
+      [0, 'provider', 'b'],
+      [0, 'model', 'c'],
+      [0, 'peakCacheHit', 'd'],
+      [0, 'peakCacheMiss', 'e'],
+      [0, 'peakOutput', 'f'],
+      [0, 'offPeakCacheHit', 'g'],
+      [0, 'offPeakCacheMiss', 'h'],
+      [0, 'offPeakOutput', 'i'],
+      [1, 'baseUrl', 'https://proxy.example.com'],
+      [1, 'offPeakOutput', '3'],
+    ])
+    expect(actions.removeRow).toHaveBeenCalledWith(1)
+  })
+
+  it('names the refusal on the row a save would reject', () => {
+    const rows = [staged(), staged({ model: 'deepseek-reasoner', peakCacheMiss: 'soon' })]
+    for (const [problem, copy] of [
+      [{ kind: 'baseUrl', row: 1 } as const, en.consolePricingInvalidBaseUrl],
+      [{ kind: 'provider', row: 1 } as const, en.consolePricingInvalidProvider],
+      [{ kind: 'model', row: 0 } as const, en.consolePricingInvalidModel],
+      [{ kind: 'price', row: 1 } as const, en.consolePricingInvalidPrice],
+      [{ kind: 'duplicate', row: 1 } as const, en.consolePricingInvalidDuplicate],
+    ] as const) {
+      cleanup()
+      renderConsolePricing({ dirty: true, invalid: true, rows, problem })
+
+      const alert = screen.getByRole('alert')
+      expect(alert.textContent).toBe(copy)
+      // The message sits on its own row, not on whichever one is first.
+      expect(alert.closest('div')).toBe(screen.getByLabelText(cell(problem.row, en.consolePricingBaseUrl)).closest('div'))
+    }
+  })
+
+  it('blocks its controls while the document is read-only, and while a save is in flight', () => {
+    renderConsolePricing({ writable: false, rows: [staged()] })
+    expect(screen.getByLabelText(cell(0, en.consolePricingBaseUrl))).toHaveProperty('disabled', true)
+    expect(screen.getByLabelText(cell(0, en.consolePricingPeak, en.consolePricingOutputPrice))).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: `${en.consolePricingRemoveRow} 1` })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: en.consolePricingAddRow })).toHaveProperty('disabled', true)
+
+    cleanup()
+    renderConsolePricing({ saving: true, rows: [staged()] })
+
+    expect(screen.getByLabelText(cell(0, en.consolePricingBaseUrl))).toHaveProperty('disabled', true)
+  })
+
+  it('renders nothing while its namespace is unavailable', () => {
+    renderConsolePricing({ available: false }, false)
+
+    expect(screen.queryByText(en.consolePricingTitle)).toBeNull()
   })
 })

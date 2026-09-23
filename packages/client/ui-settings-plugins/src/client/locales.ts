@@ -25,6 +25,13 @@ export type PluginsSettingsLocaleKey =
   | 'consoleBridgeBaseUrl' | 'consoleBridgeBaseUrlHint'
   | 'consoleBridgeToken' | 'consoleBridgeTokenHint'
   | 'consoleBridgeTest' | 'consoleBridgeTesting' | 'consoleBridgeTestOk' | 'consoleBridgeTestFail'
+  | 'consolePricingTitle' | 'consolePricingDescription' | 'consolePricingUnit' | 'consolePricingEmpty'
+  | 'consolePricingBaseUrl' | 'consolePricingProvider' | 'consolePricingModel'
+  | 'consolePricingPeak' | 'consolePricingOffPeak'
+  | 'consolePricingCacheHit' | 'consolePricingCacheMiss' | 'consolePricingOutputPrice'
+  | 'consolePricingAddRow' | 'consolePricingRemoveRow'
+  | 'consolePricingInvalidBaseUrl' | 'consolePricingInvalidProvider' | 'consolePricingInvalidModel'
+  | 'consolePricingInvalidPrice' | 'consolePricingInvalidDuplicate'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -100,6 +107,25 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   consoleBridgeTesting: 'Testing…',
   consoleBridgeTestOk: 'Reachable',
   consoleBridgeTestFail: 'Not reachable',
+  consolePricingTitle: 'Model pricing',
+  consolePricingDescription: 'What each endpoint, provider, and model route costs.',
+  consolePricingUnit: 'Prices are in currency units per million tokens.',
+  consolePricingEmpty: 'No route has a price yet.',
+  consolePricingBaseUrl: 'Endpoint',
+  consolePricingProvider: 'Provider',
+  consolePricingModel: 'Model',
+  consolePricingPeak: 'Peak',
+  consolePricingOffPeak: 'Off-peak',
+  consolePricingCacheHit: 'Cache-hit price',
+  consolePricingCacheMiss: 'Cache-miss price',
+  consolePricingOutputPrice: 'Output price',
+  consolePricingAddRow: 'Add route',
+  consolePricingRemoveRow: 'Remove route',
+  consolePricingInvalidBaseUrl: 'Every row needs an endpoint.',
+  consolePricingInvalidProvider: 'Every row needs a provider.',
+  consolePricingInvalidModel: 'Every row needs a model.',
+  consolePricingInvalidPrice: 'Cache-hit, cache-miss, and output prices must be numbers of zero or more.',
+  consolePricingInvalidDuplicate: 'Two rows name the same endpoint, provider, and model.',
 }
 
 /** Simplified Chinese copy. */
@@ -176,4 +202,23 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   consoleBridgeTesting: '测试中…',
   consoleBridgeTestOk: '可达',
   consoleBridgeTestFail: '不可达',
+  consolePricingTitle: '模型价格',
+  consolePricingDescription: '每条 接口地址/provider/model 路由的费用。',
+  consolePricingUnit: '价格单位为每百万 token 的货币单位。',
+  consolePricingEmpty: '尚未记录任何路由价格。',
+  consolePricingBaseUrl: '接口地址',
+  consolePricingProvider: '提供方',
+  consolePricingModel: '模型',
+  consolePricingPeak: '高峰',
+  consolePricingOffPeak: '低谷',
+  consolePricingCacheHit: '缓存命中价格',
+  consolePricingCacheMiss: '缓存未命中价格',
+  consolePricingOutputPrice: '输出价格',
+  consolePricingAddRow: '添加路由',
+  consolePricingRemoveRow: '删除路由',
+  consolePricingInvalidBaseUrl: '每一行都需要填写接口地址。',
+  consolePricingInvalidProvider: '每一行都需要填写提供方。',
+  consolePricingInvalidModel: '每一行都需要填写模型。',
+  consolePricingInvalidPrice: '缓存命中、缓存未命中与输出价格必须是不小于 0 的数字。',
+  consolePricingInvalidDuplicate: '有两行填写了相同的接口地址、提供方和模型。',
 }

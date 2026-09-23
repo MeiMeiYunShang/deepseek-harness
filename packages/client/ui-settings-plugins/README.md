@@ -27,6 +27,8 @@ Use the **Plugins** settings section to configure the plugins exposed by the cur
 
 Open the Plugins section in Settings and select the **Plugin configuration** tab to edit the host-plane plugins this deployment composes. The cards appear in this order: the shell executor (`bash`), the agent loop's tool-call parallelism (`agent-loop`), subagent model selection (`subagent-model-selection`), and the DeepSeek search provider (`web-search-deepseek`).
 
+The **Model pricing** card records what each `(endpoint, provider, model)` route costs, in currency units per million tokens. Every route carries a peak and an off-peak set of three rates — cache-hit input, cache-miss input, and output — because the console charges a step's tokens at the rate of the band that step was served in; a cache write has no rate of its own and is charged at the cache-miss rate. Rows are added, corrected, and removed in place, and one save writes the whole table; a row missing its endpoint, provider, or model, a rate that is missing or negative, or an exact repeat of another row's endpoint, provider, and model blocks the save and names the row to fix. An empty table is a normal state rather than an error.
+
 ### What appears here
 
 The tab reads which settings namespaces the Host serves and dispatches one slot key per namespace, so what renders is the intersection of two ledgers: the namespaces a live Host plugin registered, and the cards registered under those keys. A served namespace no card claims renders nothing, and a card whose namespace this deployment does not serve is never dispatched. The empty line waits for the Host's first answer, so an unanswered read never reads as "this deployment configures no plugin".

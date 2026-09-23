@@ -327,6 +327,18 @@ describe('connection node half', () => {
     expect(routes).toHaveLength(0)
   })
 
+  it('refuses a dedicated RPC channel when no Web carrier is mounted', async () => {
+    const ctx = new Context()
+    provideBrowserCredentials(ctx)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+
+    const connection = ctx.get('connection') as HostConnectionHandle
+    expect(() => connection.rpc.handle('/rpc', async () => ({ ok: true, value: null })))
+      .toThrow(/needs a mounted webServer/)
+    await fiber.dispose()
+  })
+
   it('dispatches claimed /api endpoints and withdraws the claim', async () => {
     const ctx = new Context()
     const routes: WebRoute[] = []

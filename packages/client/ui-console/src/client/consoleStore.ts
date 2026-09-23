@@ -13,7 +13,7 @@ export type TimelineMode = 'all' | 'brief'
 export type LayoutPreset = 'balanced' | 'timeline' | 'compact'
 
 /** The foldable workbench cards, keyed for per-card collapse state. */
-export type ConsoleCardKey = 'session' | 'task' | 'system' | 'timeline' | 'knowledge' | 'qa'
+export type ConsoleCardKey = 'session' | 'task' | 'system' | 'knowledge' | 'qa'
 
 /** One derived timeline entry from a forwarded `api-session/*` event. */
 export interface TimelineEntry {
@@ -47,10 +47,14 @@ export interface ConsoleStoreWrite {
   setTimelineScope: (sessionId: string | undefined) => void
   setLayout: (layout: LayoutPreset) => void
   toggleCollapsed: (card: ConsoleCardKey) => void
+  /** Open or close the workbench; the plugin's live event window follows it. */
+  setOpen: (open: boolean) => void
 }
 
 /** Console store state: the live activity/timeline the apply closure feeds. */
 export interface ConsoleStoreState {
+  /** Whether the workbench is showing; only an open console collects live events. */
+  open: boolean
   timeline: TimelineEntry[]
   seq: number
   /** Latest host resource sample, or `null` before the first frame arrives. */
@@ -82,6 +86,7 @@ type ConsoleStoreActions = {
   setTimelineScope: (draft: ConsoleStoreState, sessionId: string | undefined) => void
   setLayout: (draft: ConsoleStoreState, layout: LayoutPreset) => void
   toggleCollapsed: (draft: ConsoleStoreState, card: ConsoleCardKey) => void
+  setOpen: (draft: ConsoleStoreState, open: boolean) => void
 }
 
 /**
@@ -93,6 +98,7 @@ type ConsoleStoreActions = {
 export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, ConsoleStoreActions> {
   return defineStore({
     init: (): ConsoleStoreState => ({
+      open: false,
       timeline: [],
       seq: 0,
       systemStatus: null,
@@ -131,6 +137,9 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       },
       toggleCollapsed(draft, card): void {
         draft.collapsed[card] = !(draft.collapsed[card] ?? false)
+      },
+      setOpen(draft, open): void {
+        draft.open = open
       },
     },
   })

@@ -190,10 +190,38 @@
   padding: 16px;
 }
 
+/* Content-driven card: keeps the height its tiles need and only grows into
+   spare room. A card whose body is a fixed stack of tiles has no scroll
+   region of its own, so letting it shrink below that height clips the tiles
+   with nothing to scroll; the panel scrolls instead. Cards with a scrollable
+   body keep the shrinking default. */
+.cardAuto {
+  flex: 1 0 auto;
+}
+
 /* A collapsed card shrinks to its title bar and releases its flex share, so
    the sibling cards in the same column absorb the freed height. */
 .cardCollapsed {
   flex: none;
+}
+
+/* Older-events page control at the end of the newest-first window. */
+.timelineMore {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.timelineMore:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
 .cardTitle {
@@ -213,7 +241,16 @@
 
 .cardHeader .cardTitle {
   margin: 0;
+}
+
+/* The growing part of the header row: title first, then anything a card places
+   directly after it. Everything past the group stays right-aligned. */
+.cardTitleGroup {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .cardHeaderActions {
@@ -248,6 +285,7 @@
   margin-bottom: 12px;
 }
 
+/* Switches the body below the header; the header row owns the spacing. */
 .sessionViewToggle {
   display: inline-flex;
   overflow: hidden;
@@ -297,13 +335,26 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-.countsBlock {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+/* Both counters carry exactly five tiles. Three per row is the widest count
+   whose labels still fit on one line, so a tile never takes more than a third
+   of the counter and rows are centered: the trailing pair reads as a row of its
+   own instead of a ragged orphan under a full one. */
+.countsBlock,
+.taskStats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
 
 .countItem {
+  /* Border-box so the cap is the tile's real width, padding and tone bar
+     included. The basis is the same third, so the wrap decision and the cap
+     agree: exactly three tiles per row at any width, and `min()` stops one row
+     from stretching on a wide card. */
+  box-sizing: border-box;
+  flex: 1 1 calc((100% - 16px) / 3);
+  max-width: min(220px, calc((100% - 16px) / 3));
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -417,12 +468,6 @@
   margin-bottom: 10px;
   font-size: 12px;
   color: var(--dsw-alias-label-secondary);
-}
-
-.taskStats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
-  gap: 8px;
 }
 
 /* --- System status card --- */
@@ -861,6 +906,13 @@
   padding: 16px;
 }
 
+/* This card is not a `.card`, and its `flex` is declared below the shared
+   collapsed modifier, so the folded state needs its own rule here to release
+   the flex share and shrink to the title bar. */
+.smartQACardCollapsed {
+  flex: none;
+}
+
 .smartQA {
   display: flex;
   flex-direction: column;
@@ -1083,6 +1135,12 @@
 @media (max-width: 1099px) {
   .columns {
     grid-template-columns: 1fr 1.6fr;
+  }
+
+  /* The presets only re-ratio the three-column grid, so below their breakpoint
+     the switcher would offer three identical results. */
+  .layoutSwitcher {
+    display: none;
   }
 
   /* A stacked column must size to its content, never shrink below it and

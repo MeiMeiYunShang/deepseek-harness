@@ -13,6 +13,9 @@ import { formatTime } from './format.ts'
 import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
 
+/** One page of timeline rows; older events need another click. */
+const TIMELINE_PAGE = 40
+
 /** A timeline row's decorative tone class suffix. */
 export type RowTone = 'info' | 'action' | 'warn' | 'error' | 'neutral' | 'hollow'
 
@@ -29,7 +32,7 @@ export interface TimelineDetail {
 /** Props for the timeline card. */
 export interface TimelineCardProps {
   /** Translator. */
-  t: (key: ConsoleKey) => string
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
   /** Unfiltered timeline entries. */
   timeline: readonly TimelineEntry[]
   /** Selected verbosity. */
@@ -44,10 +47,6 @@ export interface TimelineCardProps {
   clearScope: () => void
   /** Send one instruction over the composer. */
   sendInstruction: (text: string) => Promise<unknown>
-  /** Whether the card body is collapsed. */
-  collapsed: boolean
-  /** Toggle the collapsed state. */
-  onToggleCollapse: () => void
 }
 
 /** Dot tone for a timeline entry kind. */
@@ -57,21 +56,26 @@ export function rowTone(kind: string): RowTone {
 
 /** Props for the timeline list body. */
 export interface TimelineListProps {
-  t: (key: ConsoleKey) => string
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
   timeline: readonly TimelineEntry[]
   scope: string | undefined
   detailOf: (entry: TimelineEntry) => TimelineDetail | undefined
 }
 
-/** The event list with per-row folding and optional ask-card detail. */
+/** The event list with per-row folding, a newest-first page window, and optional ask-card detail. */
 export function TimelineList({ t, timeline, scope, detailOf }: TimelineListProps) {
   const [expandedSeq, setExpandedSeq] = useState<number | null>(null)
+  const [visible, setVisible] = useState(TIMELINE_PAGE)
   const scoped = scope === undefined ? [...timeline] : timeline.filter(entry => entry.sessionId === scope)
   if (scoped.length === 0) return <span className={css.emptyHint}>{t('timelineEmpty')}</span>
+  // Newest first, but only one page in the DOM: the store keeps a 200-entry
+  // window, and rendering all of it costs a row per event on every push.
   const reversed = scoped.reverse()
+  const shown = reversed.slice(0, visible)
+  const hidden = reversed.length - shown.length
   return (
     <>
-      {reversed.map((entry, index) => {
+      {shown.map((entry, index) => {
         const label = t(timelineLabelKey(entry.kind))
         const detail = detailOf(entry)
         const fullText = `${t('sessionPrefix')} ${shortId(entry.sessionId)} ${label}`
@@ -84,7 +88,7 @@ export function TimelineList({ t, timeline, scope, detailOf }: TimelineListProps
             key={entry.id}
             time={formatTime(entry.time)}
             tone={rowTone(entry.kind)}
-            last={index === reversed.length - 1}
+            last={index === shown.length - 1 && hidden === 0}
             text={text}
             showToggle={showToggle}
             expanded={isExpanded}
@@ -95,6 +99,15 @@ export function TimelineList({ t, timeline, scope, detailOf }: TimelineListProps
           </TimelineRow>
         )
       })}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className={css.timelineMore}
+          onClick={() => { setVisible(count => count + TIMELINE_PAGE) }}
+        >
+          {t('timelineMore', { count: String(hidden) })}
+        </button>
+      )}
     </>
   )
 }
@@ -186,7 +199,7 @@ export function AskCardBody({ detail, t }: { detail: TimelineDetail; t: (key: Co
 
 /** Props for the instruction composer. */
 export interface ComposerProps {
-  t: (key: ConsoleKey) => string
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
   selected: string | undefined
   sendInstruction: (text: string) => Promise<unknown>
 }
@@ -242,19 +255,19 @@ export function Composer({ t, selected, sendInstruction }: ComposerProps) {
   )
 }
 
-/** The timeline card: toolbar, list, and composer. */
+/** The timeline card: toolbar, list, and composer. It is the middle column's
+ * only card, so folding it would leave an empty column rather than free room;
+ * it renders no fold control and is always expanded. */
 export function TimelineCard(props: TimelineCardProps) {
-  const { t, timeline, timelineMode, scope, selected, setTimelineMode, clearScope, sendInstruction, collapsed, onToggleCollapse } = props
+  const { t, timeline, timelineMode, scope, selected, setTimelineMode, clearScope, sendInstruction } = props
   const byMode = timelineMode === 'all'
     ? timeline
     : timeline.filter(entry => entry.kind === 'status')
   return (
-    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+    <div className={css.card}>
       <CardHeader
         t={t}
         title={t('timeline')}
-        collapsed={collapsed}
-        onToggleCollapse={onToggleCollapse}
         actions={(
           <>
             <div className={css.timelineScope}>
@@ -285,14 +298,10 @@ export function TimelineCard(props: TimelineCardProps) {
           </>
         )}
       />
-      {!collapsed && (
-        <>
-          <div className={css.timeline}>
-            <TimelineList t={t} timeline={byMode} scope={scope} detailOf={() => undefined} />
-          </div>
-          <Composer t={t} selected={selected} sendInstruction={sendInstruction} />
-        </>
-      )}
+      <div className={css.timeline}>
+        <TimelineList t={t} timeline={byMode} scope={scope} detailOf={() => undefined} />
+      </div>
+      <Composer t={t} selected={selected} sendInstruction={sendInstruction} />
     </div>
   )
 }

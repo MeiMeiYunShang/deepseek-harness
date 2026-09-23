@@ -435,6 +435,20 @@ describe('Modal', () => {
     expect(screen.getByText('Custom body')).toBeDefined()
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  it('takes the panel geometry from `size` and names itself from a rendered node', () => {
+    const { rerender } = render(
+      <Modal open onClose={() => {}} title="Panel surface" closeLabel="Close"><span>body</span></Modal>)
+    const compact = screen.getByRole('dialog').className
+    rerender(
+      <Modal open onClose={() => {}} headless size="panel" labelledBy="panel-name">
+        <h2 id="panel-name">Panel surface</h2>
+      </Modal>)
+    // The size class is the card's geometry, so a panel card is not a compact one.
+    const panel = screen.getByRole('dialog', { name: 'Panel surface' })
+    expect(panel.className).not.toBe(compact)
+    expect(panel.hasAttribute('aria-label')).toBe(false)
+  })
 })
 
 describe('ConnectionIndicator', () => {

@@ -22,6 +22,7 @@ import { createConsoleStore } from './consoleStore.ts'
 import type { ConsoleStoreWrite } from './consoleStore.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
+import type { ModelPrice } from './pricing.ts'
 import type { LlmChatRequest } from '@deepseek-ai/dsh-llm/types'
 import { en, zh, type ConsoleKey, NS } from './locales.ts'
 
@@ -36,6 +37,20 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 interface ConsoleBridgeSmartQaSetting {
   /** Model override for the console Smart Q&A panel (`provider/model`). */
   smartQaModel?: string
+}
+
+/**
+ * The `console-pricing` settings namespace and the field holding its table.
+ * Spelled locally, like the bridge namespace above: the settings card that
+ * edits it lives in another client package, and a client bundle must not reach
+ * across packages for a value.
+ */
+const CONSOLE_PRICING_NS = 'console-pricing'
+
+/** The pricing namespace's fields this plugin reads. */
+interface ConsolePricingSetting {
+  /** The operator's recorded price table; absent until the first save. */
+  models?: ModelPrice[]
 }
 
 /** Required services for locale, sidebar slot, sessions/workspaces, settings, and Remote. */
@@ -58,34 +73,44 @@ export function apply(ctx: ClientContext): void {
     setTimelineScope: store.actions.setTimelineScope,
     setLayout: store.actions.setLayout,
     toggleCollapsed: store.actions.toggleCollapsed,
+    setOpen: store.actions.setOpen,
   }
 
-  // The timeline is a monitoring mirror: forward the coarse session activity
-  // and running-state changes into a bounded store window.
-  ctx.effect(
-    () => ctx.remote.$on('api-session/activity', (sessionId: string, updatedAt: number) => {
-      store.actions.pushTimeline({ sessionId, time: updatedAt, kind: 'activity' })
-    }),
-    'ui-console: session activity',
-  )
-  ctx.effect(
-    () => ctx.remote.$on('api-session/status', (sessionId: string, _running: boolean) => {
-      store.actions.pushTimeline({ sessionId, time: Date.now(), kind: 'status' })
-    }),
-    'ui-console: session status',
-  )
-  // The status panel subscribes to the host sampler over the forwarded event.
-  ctx.effect(
-    () => ctx.remote.$on('host/metrics', (metrics: { cpu: number; memory: number; gpu: number | null }) => {
-      store.actions.updateSystemStatus({ cpu: metrics.cpu, memory: metrics.memory, gpu: metrics.gpu })
-    }),
-    'ui-console: host metrics',
-  )
+  // The timeline is a monitoring mirror and the status panel follows the host
+  // sampler, so both cost work per event. Nothing needs either while the
+  // console is closed, so the window opens with it and closes with it: session
+  // activity can fire many times a minute, and every push would otherwise wake
+  // the store's subscribers for a panel nobody is looking at.
+  const live: (() => void)[] = []
+  const syncLive = (): void => {
+    if (store.store.getSnapshot().open === (live.length > 0)) return
+    if (live.length === 0) {
+      live.push(
+        ctx.remote.$on('api-session/activity', (sessionId: string, updatedAt: number) => {
+          store.actions.pushTimeline({ sessionId, time: updatedAt, kind: 'activity' })
+        }),
+        ctx.remote.$on('api-session/status', (sessionId: string, _running: boolean) => {
+          store.actions.pushTimeline({ sessionId, time: Date.now(), kind: 'status' })
+        }),
+        ctx.remote.$on('host/metrics', (metrics: { cpu: number; memory: number; gpu: number | null }) => {
+          store.actions.updateSystemStatus({ cpu: metrics.cpu, memory: metrics.memory, gpu: metrics.gpu })
+        }),
+      )
+      return
+    }
+    for (const dispose of live.splice(0)) dispose()
+  }
+  ctx.effect(() => store.store.subscribe(syncLive), 'ui-console: live event window')
+  ctx.effect(() => () => { for (const dispose of live.splice(0)) dispose() }, 'ui-console: live teardown')
 
   // Resolve the Smart Q&A default model once at load from the console-bridge
   // setting (`provider/model`); an unset or malformed override leaves it null,
   // so the panel stays disabled until the operator configures a model.
   const settings = ctx.settingsScope.bind<ConsoleBridgeSmartQaSetting>({ namespace: 'console-bridge' })
+  // Read once at load, like the Smart Q&A default above: a price change is a
+  // deployment edit the operator confirms in settings, not a live feed.
+  const pricing = ctx.settingsScope.bind<ConsolePricingSetting>({ namespace: CONSOLE_PRICING_NS })
+  const prices = pricing.getSnapshot().value?.models ?? []
   const defaultModel = ((): { provider: string; model: string } | null => {
     const override = settings.getSnapshot().value?.smartQaModel?.trim()
     if (override === undefined || override.length === 0) return null
@@ -144,6 +169,7 @@ export function apply(ctx: ClientContext): void {
         services,
         chat: ((request: LlmChatRequest, signal: AbortSignal) => ctx.remote.llm.chat(request, signal)) as ChatFetcher,
         defaultModel,
+        prices,
       }),
     }, ConsoleButton),
   )

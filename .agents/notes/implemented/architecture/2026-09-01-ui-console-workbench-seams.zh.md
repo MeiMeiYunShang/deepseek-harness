@@ -19,6 +19,7 @@ console-bridge 迁移需要一个浏览器工作台，而旧的 apiproxy 界面�
 | 主机资源指标 | `ctx.remote.$on('host/metrics')` |
 | 待处理的 `ask_user_question` / `plan-review` | 基于 `ctx.uiSession.pendingInteractions` 的 `useSessionPendingInteraction` |
 | 累计任务统计 | `SessionSummary.projectionValues` 上的 `sessionStats` 投影 |
+| 模型费用 | 按 `console-pricing` 设置表计价的 `sessionStats.routes`（逐路由 token） |
 | 侧栏底部操作 | `ctx.slots.inject('sidebar.footer.action', …)` |
 | 全屏遮罩 | `dsh-client-ui-primitives` 的 `Modal` |
 | 智能问答补全 | `ctx.remote.llm.chat(request)` -> `AsyncIterable<LlmChatChunk>` |
@@ -35,7 +36,17 @@ store 由 `apply` 中转发来的 `api-session/*` 与 `host/metrics` 事件供�
 
 已拒绝。在 `apply` 中手工构造选择器钩子需要 `bindSnapshotSelector`，它位于 `ui-renderer` 且不是被许可的跨包值导入（打包纯度门会拒绝）。合法路径是 register 的 `hooks` 命名空间，由 renderer 在绑定点绑定为 `use<Name>` 选择器钩子。
 
+### 把扁平 token 总量按会话当前模型计价
+
+否决。一次会话可能中途换模型，而 `sessionStats` 每会话只报一个扁平 token 总量；按会话当下的模型给这个总量计价，会为每一步由其他路由服务的 token 多收或少收。因此投影折叠 `request/header`——它在步骤内记录，且只在头部变化时记录，所以折叠把路由向前携带——并按 `(provider, model)` 给 `assistant/message` 的用量分桶。
+
+### 把未定价的路由显示为 0
+
+否决。运营者配置的 `console-pricing` 表是唯一价格来源，表里没有的路由意味着费用未知，而不是免费；`totalCost` 把这类路由单独返回，卡片渲染「未定价」而不是数字。被表标价为零的路由仍然显示 0，因为那是一条已记录的事实。
+
 ## Consequences
+
+- 费用是整表口径的数字：卡片只在「全部会话」作用域渲染它，因为某个会话在共享价格表中的份额并不是「限定到一次对话」想问的问题。
 
 - 控制台是监控镜像，而非完整的对话界面：待处理交互只列出、不回答；时间线是对转发 `api-session/*` 事件的粗略标签，而非完整会话事件窗口。
 - 在配置 `console-bridge.smartQaModel`（形如 `provider/model`）之前，智能问答保持禁用；没有客户端模型目录 Remote 可用来种子一个默认值。

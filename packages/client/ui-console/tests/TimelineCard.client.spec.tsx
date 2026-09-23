@@ -36,8 +36,6 @@ describe('TimelineCard', () => {
       setTimelineMode={() => {}}
       clearScope={() => {}}
       sendInstruction={vi.fn(async () => undefined)}
-      collapsed={false}
-      onToggleCollapse={() => {}}
     />)
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
     // the activity row is filtered out in brief mode.
@@ -54,8 +52,6 @@ describe('TimelineCard', () => {
       setTimelineMode={() => {}}
       clearScope={() => {}}
       sendInstruction={vi.fn(async () => undefined)}
-      collapsed={false}
-      onToggleCollapse={() => {}}
     />)
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
     expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
@@ -74,8 +70,6 @@ describe('TimelineCard', () => {
       setTimelineMode={setTimelineMode}
       clearScope={clearScope}
       sendInstruction={vi.fn(async () => undefined)}
-      collapsed={false}
-      onToggleCollapse={() => {}}
     />)
     fireEvent.click(screen.getByRole('button', { name: en.timelineScopeAll }))
     expect(clearScope).toHaveBeenCalled()
@@ -93,13 +87,11 @@ describe('TimelineCard', () => {
       setTimelineMode={() => {}}
       clearScope={() => {}}
       sendInstruction={vi.fn(async () => undefined)}
-      collapsed={false}
-      onToggleCollapse={() => {}}
     />)
     expect(screen.getByText(en.timelineEmpty)).toBeTruthy()
   })
 
-  it('hides the list and composer when collapsed', () => {
+  it('always renders its body: the card offers no fold control', () => {
     render(<TimelineCard
       t={t}
       timeline={[entry(1, 's1', 'status', 1000)]}
@@ -109,12 +101,11 @@ describe('TimelineCard', () => {
       setTimelineMode={() => {}}
       clearScope={() => {}}
       sendInstruction={vi.fn(async () => undefined)}
-      collapsed
-      onToggleCollapse={() => {}}
     />)
     expect(screen.getByText(en.timeline)).toBeTruthy()
-    expect(screen.queryByText(en.timelineEmpty)).toBeNull()
-    expect(screen.queryByPlaceholderText(en.composerPlaceholder)).toBeNull()
+    expect(screen.getByPlaceholderText(en.composerPlaceholder)).toBeTruthy()
+    // No fold control: the collapse/expand labels never reach this card.
+    expect(screen.queryByRole('button', { name: en.collapse })).toBeNull()
   })
 })
 
@@ -222,3 +213,31 @@ describe('Composer', () => {
 function folded(text: string): string {
   return text.length <= 48 ? text : `${text.slice(0, 48)}…`
 }
+
+describe('TimelineList paging', () => {
+  const interpolate = (key: string, params?: Record<string, unknown>): string => {
+    const raw = (en as Record<string, string>)[key] ?? key
+    return params === undefined
+      ? raw
+      : raw.replace(/\{(\w+)\}/g, (_match, name: string) => String(params[name]))
+  }
+  const many = Array.from({ length: 45 }, (_value, index) => entry(index + 1, 's1', 'status', 1000 + index))
+
+  it('renders one page of newest events and reveals older ones on demand', () => {
+    render(<TimelineList t={interpolate} timeline={many} scope={undefined} detailOf={() => undefined} />)
+
+    expect(screen.getAllByText(new RegExp(`^${en.sessionPrefix} s1 `))).toHaveLength(40)
+    const more = screen.getByRole('button', { name: 'Show 5 earlier events' })
+
+    fireEvent.click(more)
+
+    expect(screen.getAllByText(new RegExp(`^${en.sessionPrefix} s1 `))).toHaveLength(45)
+    expect(screen.queryByRole('button', { name: /earlier events/ })).toBeNull()
+  })
+
+  it('renders no page control when a scope fits in one page', () => {
+    render(<TimelineList t={interpolate} timeline={many.slice(0, 3)} scope={undefined} detailOf={() => undefined} />)
+
+    expect(screen.queryByRole('button', { name: /earlier events/ })).toBeNull()
+  })
+})

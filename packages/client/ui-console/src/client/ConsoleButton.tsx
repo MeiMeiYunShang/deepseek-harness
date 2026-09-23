@@ -1,10 +1,10 @@
 /**
  * Console workbench button: a sidebar-footer trigger that opens the true
- * fullscreen workbench modal. The component owns only the open state; every
- * data source and verb arrives through the composed props shares.
+ * fullscreen workbench modal. The open state lives in the console store, so
+ * the plugin's live event window can follow it; every data source and verb
+ * arrives through the composed props shares.
  */
 
-import { useState } from 'react'
 import { IconCodeOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the useWorkspaces standard hook (GlobalStandardProps merge).
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { ConsoleStoreState, ConsoleStoreWrite } from './consoleStore.ts'
+import type { ModelPrice } from './pricing.ts'
 import { NS } from './locales.ts'
 import type { ConsoleServices } from './services.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
@@ -38,6 +39,8 @@ export interface ConsoleFaces {
   chat: ChatFetcher
   /** Default Smart Q&A model, or null when none is resolvable. */
   defaultModel: ConsoleQaModel | null
+  /** The operator's model price table for the task-statistics cost figure. */
+  prices: readonly ModelPrice[]
 }
 
 /** Composed props: slot runtime + injected face + console dictionary. */
@@ -53,8 +56,8 @@ export type ConsoleButtonProps =
  * @returns the trigger button and the fullscreen modal when open.
  */
 export function ConsoleButton(props: ConsoleButtonProps) {
-  const [open, setOpen] = useState(false)
   const { t, wide } = props
+  const open = props.useConsole(value => value.open)
   const byId = props.useSessions(value => value.byId)
   const current = props.useSessions(value => value.current)
   const workspace = props.useWorkspaces(value => value)
@@ -66,7 +69,7 @@ export function ConsoleButton(props: ConsoleButtonProps) {
 
   const workbench: WorkbenchProps = {
     t,
-    onClose: () => { setOpen(false) },
+    onClose: () => { props.store.setOpen(false) },
     byId,
     current,
     archived,
@@ -78,6 +81,7 @@ export function ConsoleButton(props: ConsoleButtonProps) {
     services: props.services,
     chat: props.chat,
     defaultModel: props.defaultModel,
+    prices: props.prices,
   }
   return (
     <>
@@ -87,7 +91,7 @@ export function ConsoleButton(props: ConsoleButtonProps) {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={t('trigger')}
-        onClick={() => { setOpen(true) }}
+        onClick={() => { props.store.setOpen(true) }}
       >
         <IconCodeOutline16 size={16} className={css.triggerIcon} />
         {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}

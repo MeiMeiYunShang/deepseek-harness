@@ -5,6 +5,7 @@ describe('createConsoleStore', () => {
   it('starts empty with a bounded timeline and default views', () => {
     const store = createConsoleStore().create()
     expect(store.getSnapshot()).toEqual({
+      open: false,
       timeline: [],
       seq: 0,
       systemStatus: null,
@@ -15,6 +16,17 @@ describe('createConsoleStore', () => {
       layout: 'balanced',
       collapsed: {},
     })
+  })
+
+  it('tracks the workbench open state the live event window follows', () => {
+    const store = createConsoleStore().create()
+    expect(store.getSnapshot().open).toBe(false)
+
+    store.actions.setOpen(true)
+    expect(store.getSnapshot().open).toBe(true)
+
+    store.actions.setOpen(false)
+    expect(store.getSnapshot().open).toBe(false)
   })
 
   it('appends timeline entries with monotonically increasing ids', () => {

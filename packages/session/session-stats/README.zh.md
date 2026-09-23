@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包通过公开的 `sessionStats` 值，为客户端提供全会话轮次与步骤计数，以及 LLM、工具、首 token 和解码墙钟时间。这些数字来自完整的持久日志，因此分页与压缩不会改变它们。当客户端必须在重新加载或缩减历史记录后显示一致的会话统计时，请使用本包。全会话统计不可用时，客户端可改用窗口口径计数。
+本包通过公开的 `sessionStats` 值，为客户端提供全会话轮次与步骤计数、提供方输入与输出 token 计数，以及 LLM、工具、首 token 和解码墙钟时间。这些数字来自完整的持久日志，因此分页与压缩不会改变它们。当客户端必须在重新加载或缩减历史记录后显示一致的会话统计时，请使用本包。全会话统计不可用时，客户端可改用窗口口径计数。
 
 ## 目录
 
@@ -45,6 +45,8 @@ kind: "package-reference"
 | `toolMs` | 匹配的 `tool/call` → `tool/result` 墙钟时间之和 |
 | `ttftMs` / `ttftSteps` | 首 token 延迟之和及其承载步数 |
 | `decodeMs` / `decodeTokens` | 上报用量的步的解码墙钟时间与提供方输出 token 之和 |
+| `inputTokens` | 同样这些上报用量的步的提供方输入 token 之和 |
+| `routes` | 按模型路由与价格时段分组的提供方输入、输出、缓存读取与缓存写入 token；会话中途换过模型时每条路由各留一桶，跨过低谷边界的会话则在每个桶内各留一个时段；每个时段的四项计数按该时段自身的单价计价，报告省略或误报的缓存带计 0 |
 
 每个字段在首个贡献事件之前均为 0；已装配的注册表恒提供该键，因此客户端读取值本身，而非键的存在性。客户端通过投影 seam 的快照与变更流渲染全日志数字；参考消费者是 Web 聊天统计条，其窗口折叠以相同字段名充当无单元时的回退。
 
@@ -70,20 +72,23 @@ kind: "package-reference"
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：`inject`、在挂载 fiber 上注册单元 |
+| [`src/index.ts`](src/index.ts) | 插件入口：`inject`、在挂载 fiber 上注册单元，以及构建单元所用的低谷窗口 |
 | [`src/projection.ts`](src/projection.ts) | 折叠：状态形状、逐事件转换、wire 视图 |
+| [`src/off-peak.ts`](src/off-peak.ts) | `console-pricing` 的低谷窗口、时段判定，以及该判定所决定的 state version |
 | [`src/types.ts`](src/types.ts) | `sessionStats` 投影键声明与字段类型的唯一归属 |
 
 ### 数据模型
 
-折叠状态保存八个总计外加进行中的边界：`lastTurn`（最近一次被计数 `step/end` 的轮次）、`openStep`（打开步的边界事实，由其 `assistant/message` 关闭）与 `pendingCalls`（按 callId 记录的工具分发时间）。wire 视图是严格子集——八个总计——因此持久缓存的状态 schema 以边界字段扩展视图 schema。
+折叠状态保存九个总计外加进行中的边界：`lastTurn`（最近一次被计数 `step/end` 的轮次）、`openStep`（打开步的边界事实，由其 `assistant/message` 关闭）与 `pendingCalls`（按 callId 记录的工具分发时间）。wire 视图是严格子集——九个总计——因此持久缓存的状态 schema 以边界字段扩展视图 schema。
 
 ### 折叠规则
 
 - 不相关事件返回同一状态引用；注册表的 `Object.is` 门禁保持变更流安静。
 - 首 token 延迟记录首个非空 delta chunk，并在步内 `llm/retry` 后保留。
-- 解码时间与 token 只在同时携带首 token 与有效提供方用量报告的步上累加；与窗口折叠守卫节点用量一样忽略畸形用量。
+- 解码时间与 token 只在同时携带首 token 与有效提供方用量报告的步上累加；与窗口折叠守卫节点用量一样忽略畸形用量，而同一份报告缺失的输入计数不贡献任何值。
 - 工具时间按 callId 配对 `tool/call` → `tool/result`；未解决的调用在 `turn/end` 时丢弃，因为结果总在其轮内落地，而撞上 `Object` 原型名的 callId 读作未匹配。
+- token 计数按上报的 `assistant/message` 事件自身的时间落入价格时段，因此跨过低谷边界的会话在边界两侧都留有可计价的 token。
+- 窗口来自 `console-pricing` settings namespace。投影单元只接收状态与下一个事件，因此由插件读取窗口并把判定闭包进折叠，并在会话创建时（该 namespace 的属主可能更晚挂载）与 namespace 变更时重新读取。
 
 </details>
 
@@ -120,6 +125,8 @@ kind: "package-reference"
 - **被取消的步计数但不计时**——没有组装出 assistant 消息，其部分流式时间不进入任何墙钟数字；反之 max-tokens 的 usage 宿主消息贡献 surface 上看不到的模型时间。
 - **计数是日志口径，不是 surface 口径**——消息后来被压缩掉的步仍然计入；数字描述整个会话，而非当前模型可见 surface。
 - **仅在组合了投影注册表时挂载**——其他装配不提供 `sessionStats` 键，其消费者回退到窗口口径计数。
+- **时段判定读取的是上报事件自身的时间**——计数随组装好的 `assistant/message` 到达，因此请求始于低谷边界之前、消息落在边界之后的步按较晚的时段计费。
+- **窗口变更会重新切分每个会话的历史**——单元的 state version 由解析出的窗口推导，因此更换窗口会丢弃按旧窗口折叠出的全部缓存行，并让每个会话从其首个事件重新折叠。
 
 <a id="dev-note"></a>
 ### 开发备注

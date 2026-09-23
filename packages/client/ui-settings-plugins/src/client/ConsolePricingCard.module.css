@@ -1,0 +1,124 @@
+/* The console-pricing table: one row per endpoint/provider/model route, its two bands, plus the add action. */
+
+.unit,
+.empty,
+.problem {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.unit,
+.empty {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.problem {
+  grid-column: 1 / -1;
+  color: var(--dsw-alias-label-error);
+}
+
+.table {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The two bands sit under the route's identity fields, each with its own three rates. */
+.bands {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.band {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bandLabel {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
+.input {
+  height: 34px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+}
+
+.input:focus-visible {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.input:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.remove:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-layer-4);
+  color: var(--dsw-alias-label-error);
+}
+
+.remove:disabled {
+  cursor: default;
+}
+
+.add {
+  justify-self: start;
+  padding: 6px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.add:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-layer-4);
+}
+
+.add:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}

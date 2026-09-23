@@ -42,6 +42,7 @@ function services(double: Partial<ConsoleServices> = {}): ConsoleServices {
 }
 
 const baseStore = (): ConsoleStoreState => ({
+  open: false,
   timeline: [{ id: 1, sessionId: 's1', time: 1000, kind: 'status' }],
   seq: 1,
   systemStatus: { cpu: 42, memory: 61, gpu: null },
@@ -69,6 +70,7 @@ function renderWorkbench(overrides: {
     setTimelineScope: vi.fn(),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
+    setOpen: vi.fn(),
   }
   const srv = services(overrides.services)
   render(<Workbench
@@ -85,6 +87,7 @@ function renderWorkbench(overrides: {
     services={srv}
     chat={vi.fn(async function* () { /* no chunks */ })}
     defaultModel={null}
+    prices={[]}
   />)
   return { snap, store, srv }
 }

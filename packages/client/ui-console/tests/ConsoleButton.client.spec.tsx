@@ -30,6 +30,7 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
 
 function makeStore(overrides: Partial<ConsoleStoreState> = {}): ConsoleStoreState {
   return {
+    open: false,
     timeline: [{ id: 1, sessionId: 's1', time: 1000, kind: 'status' }],
     seq: 1,
     systemStatus: { cpu: 42, memory: 61, gpu: null },
@@ -79,6 +80,9 @@ function renderConsole(overrides: {
     setTimelineScope: vi.fn(),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
+    // The open state lives in the store, so the writers drive the same
+    // snapshot the component reads through its bound hook.
+    setOpen: vi.fn((open: boolean) => { snap.update((draft) => { draft.open = open }) }),
   }
   const props = {
     wide: overrides.wide ?? true,
@@ -105,6 +109,7 @@ function renderConsole(overrides: {
     services: srv,
     chat,
     defaultModel: overrides.defaultModel ?? null,
+    prices: [],
   } as unknown as ConsoleButtonProps
   render(<ConsoleButton {...props} />)
   return { snap, chat, srv, writers }
@@ -134,7 +139,10 @@ describe('ConsoleButton', () => {
         s2: session('s2', {
           completed: true,
           projectionValues: {
-            sessionStats: { turns: 3, steps: 5, llmMs: 1200, toolMs: 800, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 },
+            sessionStats: {
+              turns: 3, steps: 5, llmMs: 1200, toolMs: 800,
+              ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0, routes: [],
+            },
           },
         }),
       },
@@ -213,7 +221,10 @@ describe('ConsoleButton', () => {
         s1: session('s1', {
           running: true,
           projectionValues: {
-            sessionStats: { turns: 0, steps: 0, llmMs: 0, toolMs: 90_000, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 },
+            sessionStats: {
+              turns: 0, steps: 0, llmMs: 0, toolMs: 90_000,
+              ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0, routes: [],
+            },
           },
         }),
       },

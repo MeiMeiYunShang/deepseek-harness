@@ -116,21 +116,13 @@ export function SessionStatusCard({
   const pending = sessions.filter(session => pendingKindOf(session.id) !== undefined).length
 
   return (
-    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+    <div className={clsx(css.card, sessionView === 'stats' && css.cardAuto, collapsed && css.cardCollapsed)}>
       <CardHeader
         t={t}
         title={t('sessionStatus')}
         collapsed={collapsed}
         onToggleCollapse={onToggleCollapse}
-        actions={(
-          <button type="button" className={css.newSessionButton} onClick={onNewSession}>
-            <IconPlusOutline16 size={14} />
-            <span>{t('newSession')}</span>
-          </button>
-        )}
-      />
-      {!collapsed && (
-        <>
+        afterTitle={!collapsed && (
           <div className={css.sessionViewToggle} role="group" aria-label={t('sessionViewToggleAria')}>
             <button
               type="button"
@@ -149,38 +141,46 @@ export function SessionStatusCard({
               {t('sessionGridView')}
             </button>
           </div>
-          {sessionView === 'stats'
-            ? (
-              <div className={css.countsBlock}>
-                <CountItem tone="Current" label={t('sessionCurrent')}>{String(sessions.length)}</CountItem>
-                <CountItem tone="Running" label={t('sessionRunning')}>{String(running)}</CountItem>
-                <CountItem tone="Waiting" label={t('sessionPending')}>{String(pending)}</CountItem>
-                <CountItem tone="Pending" label={t('sessionCompleted')}>{String(completed)}</CountItem>
-                <CountItem tone="Waiting" label={t('sessionArchived')}>{String(sessions.filter(session => isArchived(session.id)).length)}</CountItem>
-              </div>
-            )
-            : (
-              <div className={css.sessionGrid} aria-label={t('sessionGridAria')}>
-                {sessions.length === 0
-                  ? <span className={css.emptyHint}>{t('noSession')}</span>
-                  : sessions.map((session) => {
-                    const phase = cellPhase(session, pendingKindOf(session.id), isArchived(session.id))
-                    return (
-                      <GridCell
-                        key={session.id}
-                        summary={session}
-                        tone={phase.tone}
-                        aria={phase.aria}
-                        active={session.id === current}
-                        selected={session.id === selected}
-                        onClick={() => { selectSession(session.id) }}
-                        onContextMenu={(x, y) => { onContextMenu(session.id, x, y) }}
-                      />
-                    )
-                  })}
-              </div>
-            )}
-        </>
+        )}
+        actions={(
+          <button type="button" className={css.newSessionButton} onClick={onNewSession}>
+            <IconPlusOutline16 size={14} />
+            <span>{t('newSession')}</span>
+          </button>
+        )}
+      />
+      {!collapsed && (
+        sessionView === 'stats'
+          ? (
+            <div className={css.countsBlock}>
+              <CountItem tone="Current" label={t('sessionCurrent')}>{String(sessions.length)}</CountItem>
+              <CountItem tone="Running" label={t('sessionRunning')}>{String(running)}</CountItem>
+              <CountItem tone="Waiting" label={t('sessionPending')}>{String(pending)}</CountItem>
+              <CountItem tone="Pending" label={t('sessionCompleted')}>{String(completed)}</CountItem>
+              <CountItem tone="Waiting" label={t('sessionArchived')}>{String(sessions.filter(session => isArchived(session.id)).length)}</CountItem>
+            </div>
+          )
+          : (
+            <div className={css.sessionGrid} aria-label={t('sessionGridAria')}>
+              {sessions.length === 0
+                ? <span className={css.emptyHint}>{t('noSession')}</span>
+                : sessions.map((session) => {
+                  const phase = cellPhase(session, pendingKindOf(session.id), isArchived(session.id))
+                  return (
+                    <GridCell
+                      key={session.id}
+                      summary={session}
+                      tone={phase.tone}
+                      aria={phase.aria}
+                      active={session.id === current}
+                      selected={session.id === selected}
+                      onClick={() => { selectSession(session.id) }}
+                      onContextMenu={(x, y) => { onContextMenu(session.id, x, y) }}
+                    />
+                  )
+                })}
+            </div>
+          )
       )}
     </div>
   )

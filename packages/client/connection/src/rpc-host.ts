@@ -175,10 +175,17 @@ export class HostConnectionService extends Service implements HostConnectionHand
         await bridge(req, res, fetchHandler)
       },
     }
-    return owner.effect(
-      () => owner.webServer.register(route),
-      `client-connection: ${channel} rpc channel`,
-    )
+    return owner.effect(() => {
+      // Connection provides its registries without a Web carrier, so the plugin
+      // does not inject `webServer`; read the optional service here instead of
+      // through the context proxy, which requires that declaration. A channel
+      // can only be served where a Web server is mounted.
+      const webServer = this.ctx.get('webServer')
+      if (webServer === undefined) {
+        throw new Error(`connection: RPC channel ${JSON.stringify(channel)} needs a mounted webServer`)
+      }
+      return webServer.register(route)
+    }, `client-connection: ${channel} rpc channel`)
   }
 
   private registerInterceptor(
