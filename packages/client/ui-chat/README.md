@@ -14,6 +14,7 @@ Use this package to render a browser chat from recorded Session conversations, i
 
 - [System prompt row](#system-prompt-row)
 - [Turn token usage](#turn-token-usage)
+- [Turn cost](#turn-cost)
 - [Turn Process Folding](#turn-process-folding)
 - [Scroll ownership](#scroll-ownership)
 - [Model Experience](#model-experience)
@@ -31,6 +32,13 @@ Each nonempty appended `system/message` owns a collapsed prompt row, including a
 ## Turn token usage
 
 A completed Turn shows an expandable usage row only when the loaded window includes `turn/start` and every started model attempt reports safe, exact usage. The row omits unavailable optional buckets. Incomplete or contradictory accounting hides the complete disclosure instead of presenting a partial total.
+
+<a id="turn-cost"></a>
+## Turn cost
+
+The same completed-Turn action row shows what that Turn cost, after the usage and duration figures, as the operator's `console-pricing` table applied to that Turn's own `(provider, model)` buckets in the `sessionStats` projection. The host already split those buckets by the price band each reporting event fell in, so Chat never re-derives a band, never reconstructs a cache-miss count by subtraction, and never prices a Turn against the session's or another Turn's tokens. The table is adopted from the settings section whenever one is accepted, so a backend that answers after this plugin mounted still prices; the charge rules are shared with the console through `dsh-client-ui-primitives`.
+
+A Turn whose tokens the projection attributed to no route shows no figure at all. A route the operator's table does not list — or prices through more than one endpoint — shows the reason instead of a charge, because a missing price is not a free model.
 
 -----
 
@@ -63,6 +71,7 @@ None; Chat presentation does not assemble or mutate provider requests.
 
 - **The transcript reflects the loaded Session window** — older transcript nodes become available only after Session Controller loads the preceding event page. Turn navigation is wider than the window: the rail merges the loaded Turns with the host `turnOutline` projection, so every started Turn gets a fixed-pitch mark (10px apart; a ladder taller than the frame scrolls inside it with gradient fades), and activating an unloaded mark pages history through the Turn's `turn/start` seq before landing on its row. Without the projection (assemblies not mounting `dsh-session-turn-outline`) the rail falls back to loaded Turns only.
 - **Rail previews are card-sized** — one prompt line (50 characters) and up to three response lines (120), on loaded and unloaded Turns alike; an unloaded Turn's response arrives from the outline only once the Turn settled, so an open Turn previews its prompt (or just the Turn number) until then.
+- **Turn cost covers the projection's bucket accrual** — the charge is the tokens the `sessionStats` fold attributed to the Turn's assembled messages, so an attempt that failed and was retried contributes to the usage row's attempt-level total without contributing to the charge. The console's whole-session cost folds the same accrual, so the Turn charges sum to it.
 
 
 <a id="dev-note"></a>

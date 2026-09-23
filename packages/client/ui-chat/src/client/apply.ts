@@ -29,6 +29,7 @@ import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
 import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { en, NS, zh } from './locale.ts'
+import { PriceTablePolicy, CONSOLE_PRICING_NAMESPACE } from './price-table.ts'
 import { TranscriptViewRow, type TranscriptViewRowInjected } from './settings/TranscriptViewRow.tsx'
 import { createChatStore } from './stores.ts'
 import { TranscriptViewPolicy } from './transcript-view.ts'
@@ -81,6 +82,9 @@ export function apply(ctx: Context): void {
   const transcriptView = new TranscriptViewPolicy(
     ctx.settingsScope.bind<ChatSettings>({ namespace: CHAT_SETTINGS_NAMESPACE }),
   )
+  const priceTable = new PriceTablePolicy(
+    ctx.settingsScope.bind({ namespace: CONSOLE_PRICING_NAMESPACE }),
+  )
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
@@ -111,7 +115,7 @@ export function apply(ctx: Context): void {
         const session = binding.session
         const chat = chatSource(binding)
         return {
-          hooks: { transcriptView: transcriptView.mode },
+          hooks: { transcriptView: transcriptView.mode, prices: priceTable.prices },
           keyedHooks: {
             chatNode: key => chat.getSnapshot().nodes.source(key),
             chatNodeProcess: key => chat.getSnapshot().nodes.processSource(key),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   costOf, formatAmount, priceOf, totalCost,
   type BandTokens, type ModelPrice, type RouteTokens,
-} from '../src/client/pricing.ts'
+} from '../src/pricing.ts'
 
 const TABLE: readonly ModelPrice[] = [
   {

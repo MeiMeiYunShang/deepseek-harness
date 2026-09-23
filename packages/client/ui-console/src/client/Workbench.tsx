@@ -13,7 +13,7 @@ import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/cli
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { contextMenuItems, contextAnchorRect } from './ContextMenu.tsx'
 import type { ConsoleCardKey, ConsoleStoreState, ConsoleStoreWrite, LayoutPreset } from './consoleStore.ts'
-import type { ModelPrice } from './pricing.ts'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS, type ConsoleKey } from './locales.ts'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
@@ -100,8 +100,7 @@ export function Workbench({
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [presets, setPresets] = useState<{ readonly id: string; readonly name: string | undefined }[]>([])
 
-  // Escape closes the workbench, unless a nested dialog owns the key first —
-  // the rename and new-session modals carry their own handler.
+  // Escape closes the workbench, unless a nested dialog owns the key first —  // the rename and new-session modals carry their own handler.
   useEffect(() => {
     if (renameTarget !== null || newSessionOpen) return
     const onKeyDown = (event: KeyboardEvent): void => {

@@ -14,6 +14,7 @@ kind: "package-reference"
 
 - [系统提示词行](#system-prompt-row)
 - [轮次 token 用量](#turn-token-usage)
+- [轮次费用](#turn-cost)
 - [轮次过程折叠](#turn-process-folding)
 - [滚动归属](#scroll-ownership)
 - [模型体验](#model-experience)
@@ -33,6 +34,13 @@ kind: "package-reference"
 ## 轮次 token 用量
 
 只有当已加载窗口包含 `turn/start`，且每次已启动的模型尝试都报告安全、精确的用量时，已完成 Turn 才显示可展开的用量行。该行会省略不可用的可选用量桶。记账不完整或相互矛盾时，整个详情都不显示，避免把部分总量冒充完整结果。
+
+<a id="turn-cost"></a>
+## 轮次费用
+
+同一个已完成 Turn 的操作行还在用量与用时数字之后显示该轮的费用：把运营者的 `console-pricing` 价格表应用到该 Turn 自己在 `sessionStats` 投影中的 `(provider, model)` 桶。这些桶已由宿主按每个上报事件所属的时段拆分，因此 Chat 不再判定时段、不用减法反推缓存未命中数，也绝不拿会话总量或别的轮次去给本轮计价。价格表在每次接受设置区块时采纳，所以在本插件挂载之后才应答的后端同样能计价；计费规则经由 `dsh-client-ui-primitives` 与控制台共用。
+
+投影未把某轮 token 归属到任何路由时，该轮不显示任何数字。运营者价格表未列出的路由 —— 或同一模型被多个接口地址重复定价的路由 —— 显示原因而不是费用，因为缺价不等于免费。
 
 -----
 
@@ -65,6 +73,7 @@ Chat 会在历史前插与 renderer 重新挂载时恢复语义锚点。没有�
 
 - **transcript 只反映已加载的 Session 窗口**——只有 Session Controller 加载前一页 event 后，更早的 transcript node 才会出现。轮次导航比窗口更宽：轨道把已加载的 Turn 与宿主 `turnOutline` 投影合并，每个已开始的 Turn 都有固定间距刻度（相隔 10px；阶梯高于外框时在框内滚动并以渐变淡出标示可滚方向），激活未加载刻度会先把历史分页拉到该 Turn 的 `turn/start` seq 再落到它的行上。没有该投影时（未挂载 `dsh-session-turn-outline` 的装配），轨道回退到仅显示已加载 Turn。
 - **导航预览按卡片尺寸截断**——提示词一行（50 字符）、回复至多三行（120 字符），已加载与未加载 Turn 一致；未加载 Turn 的回复要等该轮落定后才随大纲到达，进行中的轮次在此之前只预览提示词（或仅轮次号）。
+- **轮次费用只覆盖投影的桶累计**——费用对应 `sessionStats` 折叠归属到该轮已组装消息的 token，因此「失败后重试」的那次尝试会计入用量行的尝试级总量，却不计入费用。控制台的整会话费用采用同一份累计，所以各轮费用之和与它一致。
 
 
 <a id="dev-note"></a>

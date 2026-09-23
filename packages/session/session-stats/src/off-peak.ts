@@ -134,8 +134,8 @@ function fingerprint(text: string): number {
   return hash
 }
 
-/** Fold state version with no off-peak window configured (4 held the single-bucket routes). */
-const PEAK_ONLY_STATE_VERSION = 5
+/** Fold state version with no off-peak window configured. */
+const PEAK_ONLY_STATE_VERSION = 6
 
 /**
  * The persisted-cache state version one resolved window folds under.

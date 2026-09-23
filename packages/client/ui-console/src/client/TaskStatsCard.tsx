@@ -2,13 +2,13 @@
 
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
+import { formatAmount, totalCost, type ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionStatsBandTokens, SessionStatsRoute } from '@deepseek-ai/dsh-session-stats/types'
 // Type-only: pulls the sessionStats projection-key merge into SessionProjectionMap.
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import type { ConsoleKey } from './locales.ts'
 import { formatDuration } from './format.ts'
-import { formatAmount, totalCost, type ModelPrice } from './pricing.ts'
 import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
 

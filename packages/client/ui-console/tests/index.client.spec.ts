@@ -1,18 +1,28 @@
-﻿/** What the browser half registers and subscribes, and that it leaves with the fiber. */
+/** What the browser half registers and subscribes, and that it leaves with the fiber. */
 
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
-import { TestRemote, TestSessions, TestWorkspaces } from '@deepseek-ai/dsh-client-test-runtime'
+import { TestRemote, TestSessions, TestWorkspaces, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
 import type { ConsoleServices } from '../src/client/services.ts'
 
 /** Stabilizer that lets TestSessions/TestWorkspaces write outside React act. */
 const stabilize = async (fn: () => void): Promise<void> => {
   fn()
+}
+
+/** One operator price row, adopted by the console-pricing namespace under test. */
+const FLASH: ModelPrice = {
+  baseUrl: 'https://api.deepseek.com',
+  provider: 'deepseek-official',
+  model: 'deepseek-v4-flash',
+  peak: { cacheHit: 0.25, cacheMiss: 1, output: 2 },
+  offPeak: { cacheHit: 0.125, cacheMiss: 0.5, output: 1 },
 }
 
 async function bench(setting?: { smartQaModel?: string }, erroring = false) {
@@ -34,11 +44,16 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
   }
   const directoryPicker = { pick: vi.fn(async () => (erroring ? { ok: false, error: remoteError } : await remoteResult(null))) }
   const remote = new TestRemote(ctx, { llm: { chat, listProviders: vi.fn() }, agentPresets, directoryPicker })
-  // The console-bridge settings scope: apply reads smartQaModel once at load.
+  // The two settings scopes apply binds: the console-bridge section read once at
+  // load for the Smart Q&A default model, and the console-pricing table adopted
+  // from every section the Host accepts.
+  const bridge = stubSettingsScope<{ smartQaModel?: string }>()
+  if (setting !== undefined) bridge.publish({ status: 'ready', value: setting, revision: 1 })
+  const pricing = stubSettingsScope<{ models?: ModelPrice[] }>()
   ctx.provide('settingsScope', {
-    bind: () => ({ getSnapshot: () => ({ value: setting }) }),
-  })
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, agentPresets, directoryPicker, chat }
+    bind: ({ namespace }: { namespace: string }) => namespace === 'console-pricing' ? pricing.scope : bridge.scope,
+  } as never)
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, agentPresets, directoryPicker, chat, pricing }
 }
 
 function declareSidebar(slots: SlotRegistry): () => void {
@@ -54,7 +69,7 @@ describe('ui-console apply', () => {
   })
 
   it('registers one sidebar footer action and the console dictionary', async () => {
-    const { ctx, slots } = await bench()
+    const { ctx, slots, pricing } = await bench()
     declareSidebar(slots)
 
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -63,10 +78,13 @@ describe('ui-console apply', () => {
     const entry = slots.entries('sidebar.footer.action')[0]!
     expect(entry.options).toMatchObject({ id: 'console', order: 40 })
     expect(resolveSlotLabel(entry.options.label)).toBe('Console')
-    // The injected face exposes the store hook, the service verb set, the chat
-    // fetcher, and the default model.
+    // The injected face exposes the store hook, the price table, the service
+    // verb set, the chat fetcher, and the default model.
     const face = (entry.inject as unknown as () => {
-      hooks: { console: { getSnapshot: () => unknown; subscribe: unknown } }
+      hooks: {
+        console: { getSnapshot: () => unknown; subscribe: unknown }
+        prices: { getSnapshot: () => readonly ModelPrice[] }
+      }
       store: unknown
       services: unknown
       chat: unknown
@@ -74,6 +92,11 @@ describe('ui-console apply', () => {
     })()
     expect(typeof face.hooks.console.getSnapshot).toBe('function')
     expect(typeof face.hooks.console.subscribe).toBe('function')
+    // The price table is served as a live source: the namespace answers after
+    // bind, so the value a read at bind time would have found is empty.
+    expect(face.hooks.prices.getSnapshot()).toEqual([])
+    pricing.publish({ status: 'ready', value: { models: [FLASH] }, revision: 1 })
+    expect(face.hooks.prices.getSnapshot()).toEqual([FLASH])
     expect(typeof face.store).toBe('object')
     expect(typeof face.services).toBe('object')
     expect(typeof face.chat).toBe('function')

@@ -102,13 +102,13 @@ describe('priceBandOf', () => {
 describe('sessionStatsStateVersion', () => {
   const window = { start: '22:00', end: '06:00', timezone: 'UTC' }
 
-  it('bumps the single-bucket version to the peak-only one', () => {
-    expect(sessionStatsStateVersion(undefined)).toBe(5)
+  it('answers the peak-only version when no window is configured', () => {
+    expect(sessionStatsStateVersion(undefined)).toBe(6)
   })
 
   it('gives one window one version and another window another', () => {
     expect(sessionStatsStateVersion(window)).toBe(sessionStatsStateVersion({ ...window }))
-    expect(sessionStatsStateVersion(window)).toBeGreaterThan(5)
+    expect(sessionStatsStateVersion(window)).toBeGreaterThan(6)
     expect(sessionStatsStateVersion(window)).not.toBe(sessionStatsStateVersion({ ...window, start: '23:00' }))
     expect(sessionStatsStateVersion(window)).not.toBe(sessionStatsStateVersion({ ...window, timezone: 'Asia/Tokyo' }))
     // A windowed fold is never mistaken for a peak-only row.

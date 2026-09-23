@@ -23,7 +23,9 @@ import * as SessionStatsPlugin from '@deepseek-ai/dsh-session-stats'
 import { CONSOLE_PRICING_NAMESPACE, sessionStatsStateVersion } from '@deepseek-ai/dsh-session-stats/src/off-peak.ts'
 import type { OffPeakWindow } from '@deepseek-ai/dsh-session-stats/src/off-peak.ts'
 import { sessionStatsProjectionDefinition } from '@deepseek-ai/dsh-session-stats/src/projection.ts'
-import type { SessionStatsBandTokens, SessionStatsProjection, SessionStatsRoute } from '@deepseek-ai/dsh-session-stats/types'
+import type {
+  SessionStatsBandTokens, SessionStatsProjection, SessionStatsRoute, SessionStatsTurnRoute,
+} from '@deepseek-ai/dsh-session-stats/types'
 
 async function harness(withStatsPlugin: boolean): Promise<{ ctx: Context; session: Session }> {
   const ctx = new Context()
@@ -58,6 +60,7 @@ function totals(overrides: Partial<SessionStatsProjection> = {}): SessionStatsPr
   return {
     turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0,
     routes: [],
+    turnRoutes: [],
     ...overrides,
   }
 }
@@ -224,6 +227,25 @@ function routeBucket(
   offPeak: Partial<SessionStatsBandTokens> = {},
 ): SessionStatsRoute {
   return { provider, model, peak: { ...ZERO_BAND, ...peak }, offPeak: { ...ZERO_BAND, ...offPeak } }
+}
+
+/**
+ * One turn's expected bucket: a route bucket plus the turn it belongs to.
+ * @param turn - host-assigned turn number.
+ * @param provider - registered provider route.
+ * @param model - provider model id.
+ * @param peak - the peak band's counts.
+ * @param offPeak - the off-peak band's counts; omitted means all zero.
+ * @returns the expected per-turn bucket.
+ */
+function turnBucket(
+  turn: number,
+  provider: string,
+  model: string,
+  peak: Partial<SessionStatsBandTokens>,
+  offPeak: Partial<SessionStatsBandTokens> = {},
+): SessionStatsTurnRoute {
+  return { turn, ...routeBucket(provider, model, peak, offPeak) }
 }
 
 describe('sessionStats wall-time fold (controlled timestamps)', () => {
@@ -639,6 +661,103 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
       expect(routes).toEqual([
         routeBucket('deepseek-official', 'deepseek-v4-flash', { inputTokens: 1, outputTokens: 1 }),
       ])
+    })
+
+    describe('per-turn buckets', () => {
+      /**
+       * One complete step of one turn: its boundaries, the route header, and a
+       * usage report.
+       * @param turn - turn the step belongs to.
+       * @param openedAt - epoch ms of the step's start boundary.
+       * @param reportedAt - epoch ms of the assembled message, where the band is read.
+       * @param usage - the provider-reported counts.
+       * @param step - step number within the turn.
+       * @param route - route the header names; omitted keeps the previous route.
+       * @returns the step's events, in order.
+       */
+      function stepOfTurn(
+        turn: number,
+        openedAt: number,
+        reportedAt: number,
+        usage: TokenUsage,
+        step: number,
+        route?: { readonly provider: string; readonly model: string },
+      ): SessionEvent[] {
+        return [
+          at(openedAt, 'step/start', { turn, step }),
+          ...route === undefined ? [] : [headerAt(openedAt, route.provider, route.model)],
+          messageAt(reportedAt, [firstToken(reportedAt)], usage, turn, step),
+          at(reportedAt, 'step/end', { turn, step }),
+        ]
+      }
+
+      it('keeps one bucket per turn, so a turn served by another model carries its own route', () => {
+        const value = fold([
+          ...stepOfTurn(1, hour(20), hour(20, 5), { inputTokens: 10, outputTokens: 60 }, 1,
+            { provider: 'deepseek-official', model: 'deepseek-v4-flash' }),
+          ...stepOfTurn(2, hour(21), hour(21, 5), { inputTokens: 5, outputTokens: 20 }, 1,
+            { provider: 'zhipu', model: 'glm-4v-flash' }),
+        ], nineToSix)
+        expect(value.turnRoutes).toEqual([
+          turnBucket(1, 'deepseek-official', 'deepseek-v4-flash', { inputTokens: 10, outputTokens: 60 }),
+          turnBucket(2, 'zhipu', 'glm-4v-flash', { inputTokens: 5, outputTokens: 20 }),
+        ])
+      })
+
+      it('adds every step of one turn into that turn\'s single bucket', () => {
+        const value = fold([
+          ...stepOfTurn(1, hour(20), hour(20, 5), { inputTokens: 10, outputTokens: 60, cacheReadTokens: 900 }, 1,
+            { provider: 'deepseek-official', model: 'deepseek-v4-flash' }),
+          ...stepOfTurn(1, hour(21), hour(21, 5), { inputTokens: 5, outputTokens: 20, cacheWriteTokens: 30 }, 2),
+        ], nineToSix)
+        expect(value.turnRoutes).toEqual([
+          turnBucket(1, 'deepseek-official', 'deepseek-v4-flash',
+            { inputTokens: 15, outputTokens: 80, cacheReadTokens: 900, cacheWriteTokens: 30 }),
+        ])
+      })
+
+      it('splits one turn across the off-peak boundary inside that turn\'s own bucket', () => {
+        const value = fold([
+          ...stepOfTurn(1, hour(10), hour(10, 5), { inputTokens: 10, outputTokens: 60 }, 1,
+            { provider: 'deepseek-official', model: 'deepseek-v4-flash' }),
+          ...stepOfTurn(1, hour(20), hour(20, 5), { inputTokens: 5, outputTokens: 20 }, 2),
+        ], nineToSix)
+        expect(value.turnRoutes).toEqual([
+          turnBucket(1, 'deepseek-official', 'deepseek-v4-flash',
+            { inputTokens: 5, outputTokens: 20 }, { inputTokens: 10, outputTokens: 60 }),
+        ])
+        expect(value.routes).toEqual([
+          routeBucket('deepseek-official', 'deepseek-v4-flash',
+            { inputTokens: 5, outputTokens: 20 }, { inputTokens: 10, outputTokens: 60 }),
+        ])
+      })
+
+      it('partitions the session-wide buckets by turn', () => {
+        const value = fold([
+          ...stepOfTurn(1, hour(10), hour(10, 5), { inputTokens: 10, outputTokens: 60, cacheReadTokens: 7 }, 1,
+            { provider: 'deepseek-official', model: 'deepseek-v4-flash' }),
+          ...stepOfTurn(1, hour(20), hour(20, 5), { inputTokens: 5, outputTokens: 20 }, 2),
+          ...stepOfTurn(2, hour(21), hour(21, 5), { inputTokens: 3, outputTokens: 4, cacheWriteTokens: 9 }, 1,
+            { provider: 'zhipu', model: 'glm-4v-flash' }),
+        ], nineToSix)
+        for (const band of ['peak', 'offPeak'] as const) {
+          for (const field of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'] as const) {
+            expect(bandSum(value.turnRoutes, band, field)).toBe(bandSum(value.routes, band, field))
+          }
+        }
+      })
+
+      it('attributes no bucket to a step that never saw a route header', () => {
+        const value = fold([
+          at(hour(10), 'step/start', { turn: 1, step: 1 }),
+          messageAt(hour(10, 5), [firstToken(hour(10, 5))], { inputTokens: 10, outputTokens: 60 }),
+          at(hour(10, 6), 'step/end', { turn: 1, step: 1 }),
+        ], nineToSix)
+        expect(value.turnRoutes).toEqual([])
+        expect(value.routes).toEqual([])
+        // The flat totals keep counting the tokens the route buckets cannot attribute.
+        expect(value.inputTokens).toBe(10)
+      })
     })
   })
 })

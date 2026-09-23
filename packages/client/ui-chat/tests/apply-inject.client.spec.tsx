@@ -9,6 +9,7 @@ import {
 } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionBehaviorOverrides } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   apply as applyConversation, inject as injectConversation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -47,7 +48,12 @@ function sessionFakeFor() {
 
 async function bench() {
   const runtime = await SlotTestRuntime.create()
-  runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+  const pricing = stubSettingsScope<{ models?: ModelPrice[] }>()
+  runtime.ctx.provide('settingsScope', {
+    bind: ({ namespace }: { namespace: string }) => namespace === 'console-pricing'
+      ? pricing.scope
+      : stubSettingsScope().scope,
+  } as never)
   const layout = { closeRightbar: vi.fn(), openRightbar: vi.fn() }
   runtime.ctx.provide('layout', layout as never)
   const sidebarRight = { openResource: vi.fn<(address: string) => void>() }
@@ -84,7 +90,7 @@ async function bench() {
     ) => ChatViewInjected)(id, instance.actions)
     return { instance, injected }
   }
-  return { runtime, layout, openWorkspacePath, sidebarRight, session, chatViewApi }
+  return { runtime, layout, openWorkspacePath, sidebarRight, session, pricing, chatViewApi }
 }
 
 describe('Chat inject API', () => {
@@ -167,8 +173,29 @@ describe('Chat inject API', () => {
     await b.runtime.dispose()
   })
 
-  it('owns image loading, scroll memory, and optional closing-file mentions', async () => {
+  it('serves the operator price table the Turn cost figure prices against', async () => {
     const b = await bench()
+    const { injected } = b.chatViewApi(ROOT)
+    // The `console-pricing` namespace has not answered yet, so nothing is priced.
+    expect(injected.hooks.prices.getSnapshot()).toEqual([])
+
+    const flash: ModelPrice = {
+      baseUrl: 'https://api.deepseek.com',
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      peak: { cacheHit: 0.25, cacheMiss: 1, output: 2 },
+      offPeak: { cacheHit: 0.125, cacheMiss: 0.5, output: 1 },
+    }
+    b.pricing.publish({ status: 'ready', value: { models: [flash] }, revision: 1 })
+    expect(injected.hooks.prices.getSnapshot()).toEqual([flash])
+
+    // A section that records no table stops the charge instead of keeping the old one.
+    b.pricing.publish({ value: {}, revision: 2 })
+    expect(injected.hooks.prices.getSnapshot()).toEqual([])
+    await b.runtime.dispose()
+  })
+
+  it('owns image loading, scroll memory, and optional closing-file mentions', async () => {    const b = await bench()
     const { injected } = b.chatViewApi(ROOT)
     const owner = {} as never
 

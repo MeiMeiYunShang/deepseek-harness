@@ -53,6 +53,7 @@ kind: "package-library"
 | `MarkdownText`、`CodeBlock` | 不可信 GFM 与 TeX 数学，以及高亮代码。 |
 | `TerminalBlock`、`ReadBlock`、`DiffBlock`、`SearchBlock`、`WebBlock` | 与各类工具结果意图对应的 agent 输出卡片。 |
 | `icons/*`、`FishLogo`、`BrandWordmark`、`ReferenceIcon`、`LinkIcon`、`DocumentFileIcon` | 字形与品牌标识，全部随 `currentColor`。 |
+| `formatAmount`、`priceOf`、`costOf`、`totalCost` | 所有客户端费用数字背后的运营者价格表算术。 |
 
 有三组容易混淆：
 
@@ -61,6 +62,10 @@ kind: "package-library"
 - **`FoldToggle` 与对外导出面。** 它是包内组件，未导出；输出卡片用它做头尾折叠。
 
 需求确实特殊时，在自己的包里写自己的组件没有问题。不可以的是复制这里已有的控件——而当第二个包需要同一个控件时，它就该住进本包（[决定](../../../.agents/notes/implemented/architecture/2026-09-05-shared-client-control-primitives.zh.md)）。
+
+### 费用算术
+
+`totalCost` 是控制台整会话数字与聊天轮次数字共用的唯一计费规则归属：每个包各存一份拷贝会让两个费用面就同一批 token 给出不同结果。它按价格行 `(baseUrl, provider, model)` 查找，并对每个时段用该时段自己的四项提供方计数计费——缓存读取按缓存命中价、未缓存输入与缓存写入按缓存未命中价、输出按输出价。上报的桶不带接口地址，因此只有恰好一行命中其 `provider`/`model` 时才计价：没有命中行报为未定价，多行命中报为价格不唯一，因为缺价不等于免费，而两个接口的单价也不可能同时计费。`formatAmount` 只负责数字；货币文案留在各包的 locale 词典里。
 
 ### 控件与图标
 
@@ -95,6 +100,7 @@ kind: "package-library"
 | [`src/ReadBlock.tsx`](src/ReadBlock.tsx) / [`src/DiffBlock.tsx`](src/DiffBlock.tsx) | 读取与差异卡片 |
 | [`src/SearchBlock.tsx`](src/SearchBlock.tsx) / [`src/WebBlock.tsx`](src/WebBlock.tsx) | 搜索与网页检索卡片 |
 | [`src/icons/`](src/icons/) | `ic_ds_*` 字形组件与品牌标记 |
+| [`src/pricing.ts`](src/pricing.ts) | 所有费用面共用的运营者价格表计费算术 |
 | [`src/useAnchoredPosition.ts`](src/useAnchoredPosition.ts) / [`src/useAnchoredMaxHeight.ts`](src/useAnchoredMaxHeight.ts) | 浮动面板与浮层几何钩子 |
 
 ### 流式 markdown

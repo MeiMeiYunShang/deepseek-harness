@@ -47,6 +47,7 @@ Mount the plugin beside the session store and the projection registry when clien
 | `decodeMs` / `decodeTokens` | Summed decode wall time and provider output tokens over usage-reporting steps |
 | `inputTokens` | Summed provider input tokens over the same usage-reporting steps |
 | `routes` | Provider input, output, cache-read, and cache-write tokens per model route and price band, so a session that switched models keeps one bucket per route and a session that crossed the off-peak boundary keeps one band per bucket; each band's four counts are priced at that band's own rate, and a cache band a report omits or misreports contributes 0 |
+| `turnRoutes` | The same four counts per price band, bucketed by the Turn that spent them as well as by route; one Turn's buckets are what a consumer prices when it shows a charge for a single Turn, and they partition `routes`, so per-Turn charges sum to the session's |
 
 Every field is 0 until its first contributing event; the composed registry always serves the key, so clients read the value rather than key presence. Clients render whole-log figures through the projection seam's snapshot and change feed; the reference consumer is the web chat stats strip, whose window fold mirrors these field names as its no-unit fallback.
 
@@ -88,6 +89,7 @@ The fold state holds the nine totals plus in-flight boundaries: `lastTurn` (turn
 - Decode time and tokens accrue only over steps carrying both a first token and a valid provider usage report; malformed usage is ignored like the window fold guards node usage, and an input count the same report omits contributes nothing.
 - Tool time pairs `tool/call` → `tool/result` by callId; unresolved calls are dropped at `turn/end` because results land within their turn, and a callId colliding with an `Object` prototype name reads as unmatched.
 - Token counts accrue into the price band of the reporting `assistant/message` event's own time, so a session that spans the off-peak boundary keeps priceable tokens on both sides of it.
+- Route buckets accrue twice, once for the session and once for the reporting Turn, through the same helper; the per-Turn buckets therefore partition the session-wide ones, and a client that prices one Turn needs no other Turn's tokens.
 - The window comes from the `console-pricing` settings namespace. A projection unit receives only state and the next event, so the plugin reads the window and closes it over the fold, re-reading it when a session is created (the namespace's owner may mount later) and when the namespace changes.
 
 </details>
@@ -126,6 +128,8 @@ These limits define what the figures describe and when the unit is absent. They 
 - **Counts are log-scoped, not surface-scoped** — steps whose messages were later compacted away stay counted; the figures describe the whole session, not the current model-visible surface.
 - **Mounted only where the projection registry is composed** — other assemblies serve no `sessionStats` key, and their consumers fall back to window-scoped counting.
 - **Band selection reads the reporting event's own time** — the counts arrive with the assembled `assistant/message`, so a step whose request began before an off-peak boundary and whose message landed after it is charged at the later band.
+- **Route buckets follow assembled messages, not every billed attempt** — a step whose attempt failed and was retried accrues only its assembled message's usage, so a provider charge for the abandoned attempt enters no bucket; the flat `inputTokens` and `decodeTokens` totals read the same event.
+- **The wire value grows with the session** — `turnRoutes` carries one bucket per Turn and route, and every push and listing carries the complete array (whole-value rule).
 - **A window change re-splits every session's history** — the unit's state version is derived from the resolved window, so changing the window discards every cached row folded under the previous one and refolds each session from its first event.
 
 <a id="dev-note"></a>

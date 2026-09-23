@@ -20,9 +20,9 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { ConsoleButton } from './ConsoleButton.tsx'
 import { createConsoleStore } from './consoleStore.ts'
 import type { ConsoleStoreWrite } from './consoleStore.ts'
+import { CONSOLE_PRICING_NAMESPACE, PriceTablePolicy } from './price-table.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
-import type { ModelPrice } from './pricing.ts'
 import type { LlmChatRequest } from '@deepseek-ai/dsh-llm/types'
 import { en, zh, type ConsoleKey, NS } from './locales.ts'
 
@@ -37,20 +37,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 interface ConsoleBridgeSmartQaSetting {
   /** Model override for the console Smart Q&A panel (`provider/model`). */
   smartQaModel?: string
-}
-
-/**
- * The `console-pricing` settings namespace and the field holding its table.
- * Spelled locally, like the bridge namespace above: the settings card that
- * edits it lives in another client package, and a client bundle must not reach
- * across packages for a value.
- */
-const CONSOLE_PRICING_NS = 'console-pricing'
-
-/** The pricing namespace's fields this plugin reads. */
-interface ConsolePricingSetting {
-  /** The operator's recorded price table; absent until the first save. */
-  models?: ModelPrice[]
 }
 
 /** Required services for locale, sidebar slot, sessions/workspaces, settings, and Remote. */
@@ -107,10 +93,12 @@ export function apply(ctx: ClientContext): void {
   // setting (`provider/model`); an unset or malformed override leaves it null,
   // so the panel stays disabled until the operator configures a model.
   const settings = ctx.settingsScope.bind<ConsoleBridgeSmartQaSetting>({ namespace: 'console-bridge' })
-  // Read once at load, like the Smart Q&A default above: a price change is a
-  // deployment edit the operator confirms in settings, not a live feed.
-  const pricing = ctx.settingsScope.bind<ConsolePricingSetting>({ namespace: CONSOLE_PRICING_NS })
-  const prices = pricing.getSnapshot().value?.models ?? []
+  // The price table is adopted instead of read: the `console-pricing` namespace
+  // answers after `bind` returns, so one synchronous read would leave the cost
+  // figure unpriced for the life of the page.
+  const priceTable = new PriceTablePolicy(
+    ctx.settingsScope.bind({ namespace: CONSOLE_PRICING_NAMESPACE }),
+  )
   const defaultModel = ((): { provider: string; model: string } | null => {
     const override = settings.getSnapshot().value?.smartQaModel?.trim()
     if (override === undefined || override.length === 0) return null
@@ -164,12 +152,11 @@ export function apply(ctx: ClientContext): void {
       label: () => t('console'),
       locale: NS,
       inject: () => ({
-        hooks: { console: store.store },
+        hooks: { console: store.store, prices: priceTable.prices },
         store: write,
         services,
         chat: ((request: LlmChatRequest, signal: AbortSignal) => ctx.remote.llm.chat(request, signal)) as ChatFetcher,
         defaultModel,
-        prices,
       }),
     }, ConsoleButton),
   )

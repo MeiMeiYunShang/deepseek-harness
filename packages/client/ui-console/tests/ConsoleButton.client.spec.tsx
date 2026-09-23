@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the sessionStats projection-key merge used in the fixtures below.
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import { ConsoleButton } from '../src/client/ConsoleButton.tsx'
@@ -16,6 +17,27 @@ import { en } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 const t = (key: string): string => (en as Record<string, string>)[key] ?? key
+
+/** The operator's row for the only route the statistics below report. */
+const FLASH: ModelPrice = {
+  baseUrl: 'https://api.deepseek.com',
+  provider: 'deepseek-official',
+  model: 'deepseek-v4-flash',
+  peak: { cacheHit: 0.25, cacheMiss: 1, output: 2 },
+  offPeak: { cacheHit: 0.125, cacheMiss: 0.5, output: 1 },
+}
+
+/** One reported route: a million peak-band input tokens, charged at 1 per million. */
+const ROUTED_STATS = {
+  turns: 0, steps: 0, llmMs: 0, toolMs: 0,
+  ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 1_000_000, turnRoutes: [],
+  routes: [{
+    provider: 'deepseek-official',
+    model: 'deepseek-v4-flash',
+    peak: { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    offPeak: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  }],
+}
 
 function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
@@ -68,9 +90,11 @@ function renderConsole(overrides: {
   archived?: readonly string[]
   workspaces?: readonly { id: string; label: string }[]
   services?: Partial<ConsoleServices>
+  prices?: readonly ModelPrice[]
   wide?: boolean
 } = {}) {
   const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? makeStore())
+  const prices = createSnapshotStore<readonly ModelPrice[]>(overrides.prices ?? [])
   const chat = vi.fn(async function* () { /* no chunks */ })
   const srv = overrides.services === undefined ? services() : services(overrides.services)
   const writers = {
@@ -105,14 +129,14 @@ function renderConsole(overrides: {
       archivedSessionIds: overrides.archived ?? [],
     }),
     useConsole: bindSnapshotSelector(snap),
+    usePrices: bindSnapshotSelector(prices),
     store: writers,
     services: srv,
     chat,
     defaultModel: overrides.defaultModel ?? null,
-    prices: [],
   } as unknown as ConsoleButtonProps
   render(<ConsoleButton {...props} />)
-  return { snap, chat, srv, writers }
+  return { snap, prices, chat, srv, writers }
 }
 
 describe('ConsoleButton', () => {
@@ -141,7 +165,7 @@ describe('ConsoleButton', () => {
           projectionValues: {
             sessionStats: {
               turns: 3, steps: 5, llmMs: 1200, toolMs: 800,
-              ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0, routes: [],
+              ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0, routes: [], turnRoutes: [],
             },
           },
         }),
@@ -223,7 +247,7 @@ describe('ConsoleButton', () => {
           projectionValues: {
             sessionStats: {
               turns: 0, steps: 0, llmMs: 0, toolMs: 90_000,
-              ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0, routes: [],
+              ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0, routes: [], turnRoutes: [],
             },
           },
         }),
@@ -241,5 +265,19 @@ describe('ConsoleButton', () => {
     expect(screen.getByText('1m30s')).toBeTruthy()
     expect(screen.getByText('12%')).toBeTruthy()
     expect(screen.getByText(en.timelineEmpty)).toBeTruthy()
+  })
+
+  it('charges the cost figure from a table adopted after the modal opened', () => {
+    const { prices } = renderConsole({
+      byId: { s1: session('s1', { projectionValues: { sessionStats: ROUTED_STATS } }) },
+    })
+    fireEvent.click(screen.getByRole('button', { name: en.trigger }))
+
+    // No section yet: the route is named as unpriced rather than charged at zero.
+    expect(screen.getByText(en.taskCostUnpriced)).toBeTruthy()
+
+    act(() => { prices.set([FLASH]) })
+    expect(screen.getByText('1.00')).toBeTruthy()
+    expect(screen.queryByText(en.taskCostUnpriced)).toBeNull()
   })
 })

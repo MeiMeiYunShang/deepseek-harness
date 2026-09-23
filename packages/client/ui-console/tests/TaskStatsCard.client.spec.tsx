@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { SessionStatsProjection } from '@deepseek-ai/dsh-session-stats/types'
 import { aggregateSessionStats, TaskStatsCard } from '../src/client/TaskStatsCard.tsx'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { BandTokens, ModelPrice } from '../src/client/pricing.ts'
+import type { BandTokens, ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -30,7 +30,7 @@ const band = (counts: Partial<BandTokens> = {}): BandTokens => ({
 
 const STATS = {
   turns: 3, steps: 5, llmMs: 1200, toolMs: 90_000,
-  ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0, routes: [],
+  ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, inputTokens: 0, routes: [], turnRoutes: [],
 }
 
 const FLASH: ModelPrice = {
@@ -97,8 +97,8 @@ describe('TaskStatsCard', () => {
   })
 
   it('aggregate reads a value without route buckets as no buckets', () => {
-    // A host that predates the route buckets — or a persisted projection row at
-    // an older state version — streams a value without `routes`; the absence is
+    // A host that predates the route buckets —or a persisted projection row at
+    // an older state version —streams a value without `routes`; the absence is
     // a wire fact the declared type cannot express.
     const legacy = { ...STATS, routes: undefined } as unknown as SessionStatsProjection
     const stats = aggregateSessionStats({

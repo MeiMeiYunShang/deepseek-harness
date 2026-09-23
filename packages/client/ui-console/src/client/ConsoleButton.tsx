@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the useWorkspaces standard hook (GlobalStandardProps merge).
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { ConsoleStoreState, ConsoleStoreWrite } from './consoleStore.ts'
-import type { ModelPrice } from './pricing.ts'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS } from './locales.ts'
 import type { ConsoleServices } from './services.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
@@ -39,14 +39,18 @@ export interface ConsoleFaces {
   chat: ChatFetcher
   /** Default Smart Q&A model, or null when none is resolvable. */
   defaultModel: ConsoleQaModel | null
-  /** The operator's model price table for the task-statistics cost figure. */
-  prices: readonly ModelPrice[]
 }
 
 /** Composed props: slot runtime + injected face + console dictionary. */
 export type ConsoleButtonProps =
   PropsRuntime<'sidebar.footer.action'>
-  & InjectFace<{ hooks: { console: HostObservable<ConsoleStoreState> } } & ConsoleFaces>
+  & InjectFace<{
+    hooks: {
+      console: HostObservable<ConsoleStoreState>
+      /** The operator's model price table for the task-statistics cost figure. */
+      prices: HostObservable<readonly ModelPrice[]>
+    }
+  } & ConsoleFaces>
   & PropsLocale<typeof NS>
 
 /**
@@ -58,6 +62,9 @@ export type ConsoleButtonProps =
 export function ConsoleButton(props: ConsoleButtonProps) {
   const { t, wide } = props
   const open = props.useConsole(value => value.open)
+  // The operator's table is read through its bound hook, so a section the
+  // settings mirror accepts after this plugin mounted still prices the card.
+  const prices = props.usePrices(value => value)
   const byId = props.useSessions(value => value.byId)
   const current = props.useSessions(value => value.current)
   const workspace = props.useWorkspaces(value => value)
@@ -81,7 +88,7 @@ export function ConsoleButton(props: ConsoleButtonProps) {
     services: props.services,
     chat: props.chat,
     defaultModel: props.defaultModel,
-    prices: props.prices,
+    prices,
   }
   return (
     <>

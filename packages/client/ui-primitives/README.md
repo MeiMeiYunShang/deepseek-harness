@@ -53,6 +53,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | `MarkdownText`, `CodeBlock` | Untrusted GFM with TeX math, and highlighted code. |
 | `TerminalBlock`, `ReadBlock`, `DiffBlock`, `SearchBlock`, `WebBlock` | The agent-output card matching each tool-result intent. |
 | `icons/*`, `FishLogo`, `BrandWordmark`, `ReferenceIcon`, `LinkIcon`, `DocumentFileIcon` | Glyphs and brand marks, all riding `currentColor`. |
+| `formatAmount`, `priceOf`, `costOf`, `totalCost` | Operator price-table arithmetic behind every client cost figure. |
 
 Three pairs are easy to confuse:
 
@@ -61,6 +62,10 @@ Three pairs are easy to confuse:
 - **`FoldToggle` against the exported surface.** It is package-internal and not exported; the output cards use it for their head-tail fold.
 
 Writing your own component in your own package is fine when the need is genuinely specific. What is not fine is copying a control that already exists here — and once a second package needs the same control, it belongs in this package ([decision](../../../.agents/notes/implemented/architecture/2026-09-05-shared-client-control-primitives.md)).
+
+### Cost arithmetic
+
+`totalCost` is the one home of the charge rules the console's whole-session figure and the chat Turn figure both apply, because a copy in each package would let the two money surfaces disagree about the same tokens. It charges each price band from that band's own four provider counts — cache reads at the row's cache-hit rate, uncached input and cache writes at its cache-miss rate, and output at its output rate — against a table keyed `(baseUrl, provider, model)`. A reported bucket carries no endpoint, so exactly one row for its `provider`/`model` prices it: no such row reports the route as unpriced and several rows report it as ambiguous, because a missing price is not a free model and two endpoints' rates cannot both be charged. `formatAmount` renders the digits only; currency text stays with each package's locale dictionary.
 
 ### Controls and icons
 
@@ -95,6 +100,7 @@ The package is one separation: presentational React atoms with zero Cordis and z
 | [`src/ReadBlock.tsx`](src/ReadBlock.tsx) / [`src/DiffBlock.tsx`](src/DiffBlock.tsx) | Read and diff cards |
 | [`src/SearchBlock.tsx`](src/SearchBlock.tsx) / [`src/WebBlock.tsx`](src/WebBlock.tsx) | Search and web-retrieval cards |
 | [`src/icons/`](src/icons/) | `ic_ds_*` glyph components and brand marks |
+| [`src/pricing.ts`](src/pricing.ts) | Operator price-table cost arithmetic shared by every money surface |
 | [`src/useAnchoredPosition.ts`](src/useAnchoredPosition.ts) / [`src/useAnchoredMaxHeight.ts`](src/useAnchoredMaxHeight.ts) | Floating-panel and overlay geometry hooks |
 
 ### Streaming markdown

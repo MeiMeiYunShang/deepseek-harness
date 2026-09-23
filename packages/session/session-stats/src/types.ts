@@ -58,6 +58,19 @@ export interface SessionStatsRoute {
 }
 
 /**
+ * Provider-reported tokens one model route served inside one turn, split by the
+ * daily price band each reporting event was served in.
+ *
+ * A charge is never attributed from a guessed route, so per-turn accounting
+ * needs the route of the turn it belongs to: {@link SessionStatsRoute} totals
+ * say what the session spent on a route, never which turn spent it.
+ */
+export interface SessionStatsTurnRoute extends SessionStatsRoute {
+  /** Host-assigned turn the tokens were served in. */
+  turn: number
+}
+
+/**
  * Whole-log conversation figures, independent of how much history a client
  * has paged in. Counts and wall times all fold from the complete durable log;
  * every field is 0 until its first contributing event lands. Field names
@@ -85,6 +98,14 @@ export interface SessionStatsProjection {
   inputTokens: number
   /** Provider-reported tokens per model route, in first-seen order. */
   routes: SessionStatsRoute[]
+  /**
+   * Provider-reported tokens per model route within each turn, in
+   * `(turn, route)` first-seen order. One turn's buckets carry that turn's own
+   * four counts and band split, so a consumer that prices one turn — the chat
+   * action row's cost, unlike the console's whole-session figure — never
+   * charges it at the rate or band of another turn.
+   */
+  turnRoutes: SessionStatsTurnRoute[]
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {

@@ -22,7 +22,9 @@
  *
  * Token counts additionally split by the daily price band the reporting
  * event's own time falls in, so one session can be priced across an off-peak
- * boundary; `./off-peak.ts` owns the window and the decision.
+ * boundary; `./off-peak.ts` owns the window and the decision. The buckets
+ * carry the turn as well as the route, so a consumer that prices one turn
+ * takes that turn's own counts and bands.
  *
  * @module @deepseek-ai/dsh-session-stats/projection
  */
@@ -30,7 +32,7 @@
 import { z } from 'zod'
 import { assistantStreamFirstTokenTime } from '@deepseek-ai/dsh-llm'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
-import type { SessionStatsBandTokens, SessionStatsRoute } from './types.ts'
+import type { SessionStatsBandTokens, SessionStatsRoute, SessionStatsTurnRoute } from './types.ts'
 import { priceBandOf, sessionStatsStateVersion, type OffPeakWindow, type PriceBand } from './off-peak.ts'
 
 
@@ -56,6 +58,8 @@ interface SessionStatsTotals {
   inputTokens: number
   /** Provider-reported tokens per model route, in first-seen order. */
   routes: SessionStatsRoute[]
+  /** Provider-reported tokens per `(turn, model route)`, in first-seen order. */
+  turnRoutes: SessionStatsTurnRoute[]
 }
 
 /**
@@ -92,6 +96,15 @@ const bandTokensSchema = z.object({
   cacheWriteTokens: z.number().nonnegative(),
 })
 
+const routeSchema = z.object({
+  provider: z.string(),
+  model: z.string(),
+  peak: bandTokensSchema,
+  offPeak: bandTokensSchema,
+})
+
+const turnRouteSchema = routeSchema.extend({ turn: z.number().int().nonnegative() })
+
 const sessionStatsSchema = z.object({
   turns: z.number().int().nonnegative(),
   steps: z.number().int().nonnegative(),
@@ -102,12 +115,8 @@ const sessionStatsSchema = z.object({
   decodeMs: z.number().nonnegative(),
   decodeTokens: z.number().nonnegative(),
   inputTokens: z.number().nonnegative(),
-  routes: z.array(z.object({
-    provider: z.string(),
-    model: z.string(),
-    peak: bandTokensSchema,
-    offPeak: bandTokensSchema,
-  })),
+  routes: z.array(routeSchema),
+  turnRoutes: z.array(turnRouteSchema),
 }).strict()
 
 /**
@@ -133,33 +142,43 @@ function emptyBand(): SessionStatsBandTokens {
   return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }
 }
 
+/** A route bucket's peak and off-peak counts, whatever else the bucket carries. */
+interface BandedRoute {
+  peak: SessionStatsBandTokens
+  offPeak: SessionStatsBandTokens
+}
+
 /**
- * Add one step's token counts to the named band of its route's bucket,
- * appending the route on first sight. A session that switched models keeps one
- * bucket per route, so each model's tokens stay priced at its own rate, and a
- * session that crossed the off-peak boundary keeps one band per bucket, so
- * each band's tokens stay priced at that band's rate.
- * @param routes - the buckets accumulated so far.
- * @param route - the route that served this step.
+ * Add one step's token counts to the named band of the matching bucket,
+ * appending a bucket built by `create` when none matches.
+ *
+ * The session-wide route buckets and the per-turn ones fold through this one
+ * helper, so both carry exactly the same counts and bands: the per-turn
+ * buckets partition the session-wide ones by turn, and their sums are equal by
+ * construction. A session that switched models keeps one bucket per route, and
+ * a session that crossed the off-peak boundary keeps one band per bucket, so
+ * each band's tokens stay priced at that band's own rate.
+ * @param buckets - the buckets accumulated so far.
+ * @param matches - whether a bucket is the one this step accrues into.
+ * @param create - builds the bucket to append when none matches.
  * @param band - the band this step's event time falls in.
  * @param tokens - this step's provider-reported counts.
  * @returns the buckets with this step folded in.
  */
-function accrueRoute(
-  routes: readonly SessionStatsRoute[],
-  route: { provider: string; model: string },
+function accrueInto<T extends BandedRoute>(
+  buckets: readonly T[],
+  matches: (bucket: T) => boolean,
+  create: () => T,
   band: PriceBand,
   tokens: SessionStatsBandTokens,
-): SessionStatsRoute[] {
-  const index = routes.findIndex(entry => entry.provider === route.provider && entry.model === route.model)
-  const current = index < 0
-    ? { ...route, peak: emptyBand(), offPeak: emptyBand() }
-    : routes[index] as SessionStatsRoute
-  const accrued: SessionStatsRoute = band === 'peak'
+): T[] {
+  const index = buckets.findIndex(matches)
+  const current = index < 0 ? create() : buckets[index] as T
+  const accrued = band === 'peak'
     ? { ...current, peak: addTokens(current.peak, tokens) }
     : { ...current, offPeak: addTokens(current.offPeak, tokens) }
-  if (index < 0) return [...routes, accrued]
-  const next = [...routes]
+  if (index < 0) return [...buckets, accrued]
+  const next = [...buckets]
   next[index] = accrued
   return next
 }
@@ -227,6 +246,7 @@ export function sessionStatsProjectionDefinition(
       decodeTokens: 0,
       inputTokens: 0,
       routes: [],
+      turnRoutes: [],
       lastTurn: null,
       openStep: null,
       pendingCalls: {},
@@ -283,12 +303,29 @@ export function sessionStatsProjectionDefinition(
                 // the step's input and output tokens from the bucket.
                 const route = state.route
                 if (route !== null) {
-                  next.routes = accrueRoute(state.routes, route, bandOf(event.time), {
+                  const tokens: SessionStatsBandTokens = {
                     inputTokens,
                     outputTokens,
                     cacheReadTokens: usageTokens(event.data.usage, 'cacheReadTokens') ?? 0,
                     cacheWriteTokens: usageTokens(event.data.usage, 'cacheWriteTokens') ?? 0,
-                  })
+                  }
+                  const band = bandOf(event.time)
+                  next.routes = accrueInto(
+                    state.routes,
+                    entry => entry.provider === route.provider && entry.model === route.model,
+                    () => ({ ...route, peak: emptyBand(), offPeak: emptyBand() }),
+                    band,
+                    tokens,
+                  )
+                  next.turnRoutes = accrueInto(
+                    state.turnRoutes,
+                    entry => entry.turn === event.data.turn
+                      && entry.provider === route.provider
+                      && entry.model === route.model,
+                    () => ({ turn: event.data.turn, ...route, peak: emptyBand(), offPeak: emptyBand() }),
+                    band,
+                    tokens,
+                  )
                 }
               }
             }
@@ -340,6 +377,7 @@ export function sessionStatsProjectionDefinition(
         decodeTokens: state.decodeTokens,
         inputTokens: state.inputTokens,
         routes: state.routes,
+        turnRoutes: state.turnRoutes,
       }),
     },
   }

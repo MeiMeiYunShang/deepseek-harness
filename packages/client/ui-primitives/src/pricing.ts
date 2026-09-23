@@ -1,13 +1,17 @@
 /**
- * Console cost math over an operator-supplied model price table.
+ * Cost math over an operator-supplied model price table.
+ *
+ * This is the one home of the charge rules every client money surface shares —
+ * the console's whole-session cost and the chat action row's per-turn cost —
+ * because a second copy would let the two surfaces disagree about the same
+ * tokens, and because a plugin cannot import another plugin's module.
  *
  * One session can switch models mid-conversation, so tokens are attributed per
- * `(provider, model)` route and charged against the row for that route. The
- * table lives in the console pricing settings namespace; a route with no row is
- * reported as unpriced rather than charged at zero, because a missing price and
- * a free model are different facts.
+ * `(provider, model)` route and charged against the row for that route. A route
+ * with no row is reported as unpriced rather than charged at zero, because a
+ * missing price and a free model are different facts.
  *
- * The session projection splits each route's tokens by the daily price band the
+ * The host projection splits each route's tokens by the daily price band the
  * reporting event fell in, so each band is charged from its own bucket: cache
  * reads at the cache-hit rate, uncached input and cache writes at the cache-miss
  * rate, and output at the output rate.

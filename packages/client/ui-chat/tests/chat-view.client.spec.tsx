@@ -21,6 +21,7 @@ import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controlle
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { KeyedSnapshotSelectorHook, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import { EMPTY_CONVERSATION_SNAPSHOT } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -59,6 +60,15 @@ beforeEach(() => {
 
 const SID = 's1' as SessionId
 type RoutedChatNodeOwner = ChatNodeOwnerProps & { readonly node: ChatNode }
+
+/** Operator price table the harness serves the Chat target's price hook. */
+const HARNESS_PRICES: readonly ModelPrice[] = [{
+  baseUrl: 'https://api.deepseek.com',
+  provider: 'mock',
+  model: 'mock',
+  peak: { cacheHit: 0.25, cacheMiss: 1, output: 2 },
+  offPeak: { cacheHit: 0.125, cacheMiss: 0.5, output: 1 },
+}]
 
 function sessionSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot {
   return {
@@ -228,6 +238,7 @@ function makeHarness(
   init: HarnessUpdate = {},
   sessionOverrides: Partial<SessionSnapshot> = {},
   chatSnapshot?: ChatSnapshot,
+  projectionValues: Readonly<Record<string, unknown>> = {},
 ) {
   const {
     chat: initialChat, nodes, partial, runningCalls, turnTimings, turnEnds, turnUsages,
@@ -254,6 +265,11 @@ function makeHarness(
   const loadThrough = vi.fn<(seq: number) => Promise<void>>().mockResolvedValue(undefined)
   // Mutable outline holder: tests swap the value and drive a re-render via set().
   let outlineValue: unknown
+  // Key-addressed projection reads beyond the outline, seeded per case.
+  const useProjection = ((key: string, selector?: (value: unknown) => unknown) => {
+    const value = key === 'turnOutline' ? outlineValue : projectionValues[key]
+    return selector === undefined ? value : selector(value)
+  }) as ChatViewSlotProps['useProjection']
   const openView = vi.fn<(view: string, focus: string) => void>()
   // In-memory scroll memory matching the apply.ts per-session map contract.
   let savedScroll: ReturnType<ChatViewSlotProps['chatScroll']['read']> = null
@@ -377,7 +393,7 @@ function makeHarness(
       createSnapshotStore<SessionPendingInteractionSnapshot>(new Map()),
     ),
     useWorkspaces: emptyWorkspaces(),
-    useProjection: () => outlineValue,
+    useProjection,
     useInput: (() => { throw new Error('unused') }),
     inputActions: {
       setDraft: () => {},
@@ -389,6 +405,7 @@ function makeHarness(
     useStore: bindSnapshotSelector(chat),
     actions: chat.actions,
     useTranscriptView: bindSnapshotSelector(transcriptView),
+    usePrices: bindSnapshotSelector(createSnapshotStore<readonly ModelPrice[]>(HARNESS_PRICES)),
     renderSlot,
     SessionProvider: SessionProviderStub,
     viewRequest: null,
@@ -1882,6 +1899,36 @@ describe('ChatView', () => {
     expect(timeDialog.textContent).toContain('本轮总用时19秒')
     expect(timeDialog.textContent).toContain('输出速度（TPS）20 tok/s')
     expect(timeDialog.textContent).toContain('首 token 用时（TTFT）1.2秒')
+  })
+
+  it('prices the turn in the action row after its usage and duration figures', () => {
+    const h = makeHarness({
+      nodes: [user(1, 'hi'), assistant(16, 'final answer', 1, 1)],
+      turnTimings: new Map([[1, { startTime: 1_000, endTime: 20_000 }]]),
+      turnEnds: new Map([[1, 20]]),
+      turnUsages: new Map([[1, {
+        uncachedInputTokens: 5_060,
+        outputTokens: 100,
+        totalTokens: 5_160,
+      }]]),
+    }, {}, undefined, {
+      // Turn 1's own route buckets, as the session projection reports them.
+      sessionStats: {
+        turnRoutes: [{
+          turn: 1,
+          provider: 'mock',
+          model: 'mock',
+          peak: { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+          offPeak: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+        }],
+      },
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    const text = view.container.querySelector('[data-turn-tail="1"]')?.textContent ?? ''
+    // The harness table prices 1M peak uncached input at 1 per million.
+    expect(text).toContain('¥1.00')
+    expect(text.indexOf('用量')).toBeLessThan(text.indexOf('用时'))
+    expect(text.indexOf('用时')).toBeLessThan(text.indexOf('¥1.00'))
   })
 
   it('withholds the usage-details trigger when turn usage is outside the window', () => {
