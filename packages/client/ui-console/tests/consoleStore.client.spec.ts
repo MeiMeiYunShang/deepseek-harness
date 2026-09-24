@@ -4,8 +4,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { createConsoleStore, historyEntries } from '../src/client/consoleStore.ts'
 
 /** One list row for the history projection. */
-function summary(id: string, updatedAt: number): SessionSummary {
-  return { id: id as SessionId, displayTitle: id, running: false, blank: false, updatedAt }
+function summary(id: string, updatedAt: number, displayTitle = id): SessionSummary {
+  return { id: id as SessionId, displayTitle, running: false, blank: false, updatedAt }
 }
 
 /** A session-list snapshot in host order. */
@@ -108,10 +108,13 @@ describe('createConsoleStore', () => {
 })
 
 describe('historyEntries', () => {
-  it('projects one history row per listed session, oldest update first', () => {
-    expect(historyEntries(list([summary('newer', 300), summary('older', 100)]))).toEqual([
-      { sessionId: 'older', time: 100, kind: 'history' },
-      { sessionId: 'newer', time: 300, kind: 'history' },
+  it('projects one history row per listed session, oldest update first, each with its display title', () => {
+    expect(historyEntries(list([
+      summary('newer', 300, 'Newer work'),
+      summary('older', 100, 'Older work'),
+    ]))).toEqual([
+      { sessionId: 'older', time: 100, kind: 'history', title: 'Older work' },
+      { sessionId: 'newer', time: 300, kind: 'history', title: 'Newer work' },
     ])
   })
 
@@ -124,6 +127,6 @@ describe('historyEntries', () => {
       ...list([summary('listed', 100)]),
       ids: ['listed' as SessionId, 'gone' as SessionId],
     }
-    expect(historyEntries(orphaned)).toEqual([{ sessionId: 'listed', time: 100, kind: 'history' }])
+    expect(historyEntries(orphaned)).toEqual([{ sessionId: 'listed', time: 100, kind: 'history', title: 'listed' }])
   })
 })

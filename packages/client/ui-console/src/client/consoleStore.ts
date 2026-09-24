@@ -32,6 +32,8 @@ export interface TimelineEntry {
   kind: TimelineKind
   /** Optional event detail text (e.g. an instruction or ask question). */
   detail?: string
+  /** Session's human-facing title, carried by the backfilled `history` row and revealed when the row is expanded. */
+  title?: string
 }
 
 /** One sampled host resource snapshot; all values are 0–100 percent (gpu nullable). */
@@ -154,7 +156,8 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
  * Project the client's session list into one history row per listed session,
  * ordered by ascending update time. The store appends in insertion order and
  * the timeline list renders the array reversed, so ascending input makes the
- * most recently updated session render first.
+ * most recently updated session render first. Each row carries the summary's
+ * human-facing title, the only identifying text the snapshot holds.
  * @param list - current session-list snapshot; a listed id without a row is skipped.
  * @returns one `history` row per listed session, oldest first.
  */
@@ -163,7 +166,7 @@ export function historyEntries(list: SessionListState): Omit<TimelineEntry, 'id'
   for (const id of list.ids) {
     const summary = list.byId[id]
     if (summary === undefined) continue
-    rows.push({ sessionId: summary.id, time: summary.updatedAt, kind: 'history' })
+    rows.push({ sessionId: summary.id, time: summary.updatedAt, kind: 'history', title: summary.displayTitle })
   }
   rows.sort((left, right) => left.time - right.time)
   return rows

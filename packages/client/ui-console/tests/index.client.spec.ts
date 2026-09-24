@@ -161,10 +161,11 @@ describe('ui-console apply', () => {
     face.store.setOpen(true)
 
     // Ascending insertion order, because the list renders the array reversed:
-    // the last seeded row is the newest snapshot.
-    expect(face.hooks.console.getSnapshot().timeline.map(row => [row.sessionId, row.time, row.kind])).toEqual([
-      ['s-older', 100, 'history'],
-      ['s-newer', 300, 'history'],
+    // the last seeded row is the newest snapshot. Every seeded row carries the
+    // summary's human-facing title, which is what the row reveals when opened.
+    expect(face.hooks.console.getSnapshot().timeline.map(row => [row.sessionId, row.time, row.kind, row.title])).toEqual([
+      ['s-older', 100, 'history', 's-older'],
+      ['s-newer', 300, 'history', 's-newer'],
     ])
     await fiber.dispose()
   })

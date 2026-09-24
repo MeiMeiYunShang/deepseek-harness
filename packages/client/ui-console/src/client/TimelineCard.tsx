@@ -80,11 +80,14 @@ export function TimelineList({ t, timeline, scope, detailOf }: TimelineListProps
       {shown.map((entry, index) => {
         const label = t(timelineLabelKey(entry.kind))
         const detail = detailOf(entry)
-        const fullText = `${t('sessionPrefix')} ${shortId(entry.sessionId)} ${label}`
+        const header = `${t('sessionPrefix')} ${shortId(entry.sessionId)} ${label}`
+        // The collapsed line stays the session header; a row that carries a
+        // title — the backfilled history row — reveals it on expansion.
+        const fullText = entry.title === undefined ? header : `${header} · ${entry.title}`
         const isExpanded = expandedSeq === entry.id
-        const text = isExpanded ? fullText : foldText(fullText, FOLD_LIMIT)
-        const folding = fullText.length > FOLD_LIMIT
-        const showToggle = folding || detail !== undefined
+        const text = isExpanded ? fullText : foldText(header, FOLD_LIMIT)
+        const folding = header.length > FOLD_LIMIT
+        const showToggle = folding || entry.title !== undefined || detail !== undefined
         return (
           <TimelineRow
             key={entry.id}

@@ -110,13 +110,14 @@ export function TaskStatsCard({ t, byId, scope, titleOf, prices, collapsed, onTo
     ? Object.values(byId).filter(summary => summary.running).length
     : (byId[scope]?.running === true ? 1 : 0)
   const stats = aggregateSessionStats(byId, scope)
-  // Cost is a whole-list figure: a single session's share of a shared table is
-  // not what an operator asks for when they scope to one conversation.
-  const cost = scope === undefined ? totalCost(prices, stats.routes) : undefined
+  // Cost is priced from the scoped routes alone: aggregateSessionStats skips
+  // every session outside the scope and accumulates only its own buckets, so a
+  // scoped figure is that session's charge, not a share of a shared table.
+  const cost = totalCost(prices, stats.routes)
   // A bucket carries no endpoint, so a route the table cannot price at all — or
   // prices twice over — leaves the whole figure untrustworthy. The item then
   // names the reason instead of showing a number that omits those routes.
-  const costNote = cost === undefined || (cost.ambiguous.length === 0 && cost.unpriced.length === 0)
+  const costNote = cost.ambiguous.length === 0 && cost.unpriced.length === 0
     ? undefined
     : cost.ambiguous.length > 0 ? t('taskCostAmbiguous') : t('taskCostUnpriced')
   return (
@@ -131,11 +132,9 @@ export function TaskStatsCard({ t, byId, scope, titleOf, prices, collapsed, onTo
             <StatItem tone="Running" label={t('taskSteps')}>{String(stats.steps)}</StatItem>
             <StatItem tone="Waiting" label={t('taskLlmMs')}>{formatDuration(stats.llmMs)}</StatItem>
             <StatItem tone="Pending" label={t('taskToolMs')}>{formatDuration(stats.toolMs)}</StatItem>
-            {cost !== undefined && (
-              <StatItem tone={costNote === undefined ? 'Running' : 'Waiting'} label={t('taskCost')}>
-                {costNote ?? formatAmount(cost.amount)}
-              </StatItem>
-            )}
+            <StatItem tone={costNote === undefined ? 'Running' : 'Waiting'} label={t('taskCost')}>
+              {costNote ?? formatAmount(cost.amount)}
+            </StatItem>
           </div>
         </>
       )}

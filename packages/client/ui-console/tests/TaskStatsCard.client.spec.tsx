@@ -208,7 +208,7 @@ describe('TaskStatsCard', () => {
     expect(screen.getByText(en.taskCostAmbiguous)).toBeTruthy()
   })
 
-  it('omits the cost item when the scope is a single session', () => {
+  it('renders the cost figure for the scoped session', () => {
     render(<TaskStatsCard
       t={t}
       byId={{ s1: session('s1', { projectionValues: { sessionStats: {
@@ -221,6 +221,65 @@ describe('TaskStatsCard', () => {
       collapsed={false}
       onToggleCollapse={() => {}}
     />)
-    expect(screen.queryByText(en.taskCost)).toBeNull()
+    expect(screen.getByText(en.taskCost)).toBeTruthy()
+    expect(screen.getByText('1.00')).toBeTruthy()
+  })
+
+  it('charges a scoped session its own route buckets, not another session on the same route', () => {
+    render(<TaskStatsCard
+      t={t}
+      byId={{
+        s1: session('s1', { projectionValues: { sessionStats: {
+          ...STATS,
+          routes: [route({ inputTokens: 1_000_000 })],
+        } } }),
+        s2: session('s2', { projectionValues: { sessionStats: {
+          ...STATS,
+          routes: [route({ inputTokens: 2_000_000 })],
+        } } }),
+      }}
+      scope="s1"
+      titleOf={() => 'Selected'}
+      prices={[FLASH]}
+      collapsed={false}
+      onToggleCollapse={() => {}}
+    />)
+    // s1's own 1M uncached input at 1 each; the other session's 2M on the same
+    // route never enters the scoped accumulator, so the figure is not a share
+    // of the 3.00 the whole list would bill.
+    expect(screen.getByText('1.00')).toBeTruthy()
+    expect(screen.queryByText('3.00')).toBeNull()
+  })
+
+  it('still names the unpriced route when scoped', () => {
+    render(<TaskStatsCard
+      t={t}
+      byId={{ s1: session('s1', { projectionValues: { sessionStats: {
+        ...STATS,
+        routes: [{ provider: 'local', model: 'llama', peak: band({ inputTokens: 10 }), offPeak: band({ outputTokens: 10 }) }],
+      } } }) }}
+      scope="s1"
+      titleOf={() => 'Selected'}
+      prices={[]}
+      collapsed={false}
+      onToggleCollapse={() => {}}
+    />)
+    expect(screen.getByText(en.taskCostUnpriced)).toBeTruthy()
+  })
+
+  it('still names the ambiguous price when scoped', () => {
+    render(<TaskStatsCard
+      t={t}
+      byId={{ s1: session('s1', { projectionValues: { sessionStats: {
+        ...STATS,
+        routes: [route({ inputTokens: 1_000_000 })],
+      } } }) }}
+      scope="s1"
+      titleOf={() => 'Selected'}
+      prices={[FLASH, { ...FLASH, baseUrl: 'https://proxy.example.com' }]}
+      collapsed={false}
+      onToggleCollapse={() => {}}
+    />)
+    expect(screen.getByText(en.taskCostAmbiguous)).toBeTruthy()
   })
 })

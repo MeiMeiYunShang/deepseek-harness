@@ -114,6 +114,26 @@ describe('TimelineCard', () => {
     ])
   })
 
+  it('offers a backfilled history row its toggle and reveals the session title', () => {
+    render(<TimelineCard
+      t={t}
+      timeline={[{ id: 1, sessionId: 's1', time: 1000, kind: 'history', title: 'Repair the composer' }]}
+      timelineMode="all"
+      scope={undefined}
+      selected={undefined}
+      setTimelineMode={() => {}}
+      clearScope={() => {}}
+      sendInstruction={vi.fn(async () => undefined)}
+    />)
+    // Collapsed, the row shows the short session header it has always shown.
+    expect(screen.getByText(`${en.sessionPrefix} s1 ${en.timelineHistory}`)).toBeTruthy()
+    expect(screen.queryByText(/Repair the composer/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: en.timelineExpand }))
+    expect(screen.getByText(`${en.sessionPrefix} s1 ${en.timelineHistory} · Repair the composer`)).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.timelineCollapse })).toBeTruthy()
+  })
+
   it('hides a history row in brief mode, which filters to status rows', () => {
     render(<TimelineCard
       t={t}
@@ -202,6 +222,27 @@ describe('TimelineList', () => {
     render(<TimelineList t={t} timeline={[entry(1, 's1', 'status', 1000)]} scope={undefined} detailOf={() => undefined} />)
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
     expect(screen.queryByRole('button', { name: en.timelineExpand })).toBeNull()
+  })
+
+  it('offers the toggle to a titled history row and withholds it from a live row of equal length', () => {
+    render(<TimelineList
+      t={t}
+      timeline={[
+        entry(1, 's1', 'status', 1000),
+        { id: 2, sessionId: 's1', time: 2000, kind: 'history', title: 'Ship the fix' },
+      ]}
+      scope={undefined}
+      detailOf={() => undefined}
+    />)
+    const liveText = `${en.sessionPrefix} s1 ${en.timelineStatus}`
+    // Only the history row offers the toggle; the live row keeps its one line.
+    const toggles = screen.getAllByRole('button', { name: en.timelineExpand })
+    expect(toggles).toHaveLength(1)
+    expect(screen.getByText(liveText)).toBeTruthy()
+
+    fireEvent.click(toggles[0]!)
+    expect(screen.getByText(`${en.sessionPrefix} s1 ${en.timelineHistory} · Ship the fix`)).toBeTruthy()
+    expect(screen.getByText(liveText)).toBeTruthy()
   })
 })
 

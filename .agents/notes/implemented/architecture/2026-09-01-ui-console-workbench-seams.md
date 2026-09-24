@@ -47,7 +47,7 @@ Rejected. The operator's `console-pricing` table is the only price source, so a 
 
 ## Consequences
 
-- Cost is a whole-list figure: the card renders it only in the all-sessions scope, because one session's share of a shared price table is not what scoping to a conversation asks for.
+- Cost renders in both scopes, and the scoped figure is exact: `aggregateSessionStats` skips every session outside the scope and accumulates only that session's own `sessionStats.routes` buckets, so the total charges that conversation rather than a share of a shared price table.
 - A session square carries one gesture per intent. The left click sets the console's own scope — the task-statistics `作用域` line and the instruction composer's target — and the header's all-sessions pill clears it. The right-click menu carries the verbs that act on that session: open switches the application's current session, while rename, fork, and archive change it. Opening is a menu verb rather than the click because the workbench is fullscreen, so a click that switched the application's session would show no effect until the panel closed.
 - The console is a monitoring mirror, not a full conversation surface: pending interactions are listed, not answered; the timeline is a coarse label over the forwarded `api-session/*` events plus one backfilled `history` row per session the list already held at the first open, rather than the full session event window.
 - Smart Q&A is disabled until the `console-bridge.smartQaModel` setting (`provider/model`) is configured; there is no client model-catalog remote to seed a default.
