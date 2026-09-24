@@ -335,6 +335,26 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* The scope pill: the session card header's control that returns the console's
+   one scope to the whole session list. */
+.scopePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 9px;
+  background: transparent;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.scopePill:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
 /* Both counters carry exactly five tiles. Three per row is the widest count
    whose labels still fit on one line, so a tile never takes more than a third
    of the counter and rows are centered: the trailing pair reads as a row of its
@@ -526,32 +546,12 @@
   margin-bottom: 12px;
 }
 
-.timelineScope {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* The scope pill: one control, shared by the timeline toolbar and the session
-   card header, that names the scope a card's contents are limited to. */
-.timelineScopePill,
-.scopePill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 9px;
-  background: transparent;
-  padding: 2px 8px;
-  font: inherit;
+/* The timeline's scope label: names the session the card's rows are limited to.
+   The card carries no clear control of its own — the session card header's pill
+   returns the whole console to every session. */
+.timelineScopeLabel {
   font-size: 12px;
-  color: var(--dsw-alias-label-primary);
-  cursor: pointer;
-}
-
-.timelineScopePill:hover,
-.scopePill:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .timelineMode {

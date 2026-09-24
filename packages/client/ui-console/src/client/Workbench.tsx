@@ -86,8 +86,7 @@ export function Workbench({
   const timeline = useConsole(value => value.timeline)
   const timelineMode = useConsole(value => value.timelineMode)
   const sessionView = useConsole(value => value.sessionView)
-  const selected = useConsole(value => value.selectedSession)
-  const timelineScope = useConsole(value => value.timelineScope)
+  const selectedSession = useConsole(value => value.selectedSession)
   const systemStatus = useConsole(value => value.systemStatus)
   const layout = useConsole(value => value.layout)
   const collapsed = useConsole(value => value.collapsed)
@@ -162,7 +161,7 @@ export function Workbench({
               byId={byId}
               current={current}
               sessionView={sessionView}
-              selected={selected}
+              selected={selectedSession}
               isArchived={id => archived.has(id)}
               pendingKindOf={pendingKindOf}
               setSessionView={store.setSessionView}
@@ -173,7 +172,7 @@ export function Workbench({
               collapsed={isCollapsed('session')}
               onToggleCollapse={toggleCard('session')}
             />
-            <TaskStatsCard t={t} byId={byId} scope={selected} titleOf={titleOf} prices={prices} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} />
+            <TaskStatsCard t={t} byId={byId} scope={selectedSession} titleOf={titleOf} prices={prices} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} />
             <SystemStatusCard t={t} status={systemStatus} collapsed={isCollapsed('system')} onToggleCollapse={toggleCard('system')} />
           </div>
           <div className={css.column}>
@@ -181,11 +180,10 @@ export function Workbench({
               t={t}
               timeline={timeline}
               timelineMode={timelineMode}
-              scope={timelineScope}
-              selected={selected}
+              selectedSession={selectedSession}
+              titleOf={titleOf}
               setTimelineMode={store.setTimelineMode}
-              clearScope={() => { store.setTimelineScope(undefined) }}
-              sendInstruction={text => sendToSession(services, selected, text)}
+              sendInstruction={text => sendToSession(services, selectedSession, text)}
             />
           </div>
           <div className={css.column}>

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-console-three-column-workbench.md
-2026-09-03-console-three-column-workbench.md: 57216a0cd83beabb33322db1484dc8376f17e4b5
-2026-09-03-console-three-column-workbench.zh.md: a55aa928b41d7552848a51d5a7e72154a1fe068b
+2026-09-03-console-three-column-workbench.md: c43ef5806b6ad7453f14ffd0c3c5b982972d0c7c
+2026-09-03-console-three-column-workbench.zh.md: ee581852d085c1de9b2b15ee58cdd8d981866873

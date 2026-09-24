@@ -51,7 +51,6 @@ export interface ConsoleStoreWrite {
   setTimelineMode: (mode: TimelineMode) => void
   setSessionView: (view: SessionView) => void
   setSelectedSession: (sessionId: string | undefined) => void
-  setTimelineScope: (sessionId: string | undefined) => void
   setLayout: (layout: LayoutPreset) => void
   toggleCollapsed: (card: ConsoleCardKey) => void
   /** Open or close the workbench. */
@@ -70,10 +69,12 @@ export interface ConsoleStoreState {
   timelineMode: TimelineMode
   /** Session-status card view. */
   sessionView: SessionView
-  /** Grid-selected session id (drives the timeline detail and composer). */
+  /**
+   * The console's scope: `undefined` covers the whole session list. One value
+   * drives the task-statistics scope line and cost, the rows the timeline
+   * lists, and the instruction composer's target.
+   */
   selectedSession: string | undefined
-  /** Timeline scope: one session id, or `undefined` for the whole list. */
-  timelineScope: string | undefined
   /** Selected column layout preset. */
   layout: LayoutPreset
   /** Per-card fold state: a true value hides that card's body. */
@@ -90,7 +91,6 @@ type ConsoleStoreActions = {
   setTimelineMode: (draft: ConsoleStoreState, mode: TimelineMode) => void
   setSessionView: (draft: ConsoleStoreState, view: SessionView) => void
   setSelectedSession: (draft: ConsoleStoreState, sessionId: string | undefined) => void
-  setTimelineScope: (draft: ConsoleStoreState, sessionId: string | undefined) => void
   setLayout: (draft: ConsoleStoreState, layout: LayoutPreset) => void
   toggleCollapsed: (draft: ConsoleStoreState, card: ConsoleCardKey) => void
   setOpen: (draft: ConsoleStoreState, open: boolean) => void
@@ -98,8 +98,8 @@ type ConsoleStoreActions = {
 
 /**
  * Console store: holds the live activity timeline the apply closure feeds, the
- * selected timeline verbosity, the session-status view, the grid selection, and
- * the timeline scope. The component reads it through the `useStore` share.
+ * selected timeline verbosity, the session-status view, and the console's
+ * selected session. The component reads it through the `useStore` share.
  * @returns the store handle.
  */
 export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, ConsoleStoreActions> {
@@ -112,7 +112,6 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       timelineMode: 'all',
       sessionView: 'stats',
       selectedSession: undefined,
-      timelineScope: undefined,
       layout: 'balanced',
       collapsed: {},
     }),
@@ -135,9 +134,6 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       },
       setSelectedSession(draft, sessionId): void {
         draft.selectedSession = sessionId
-      },
-      setTimelineScope(draft, sessionId): void {
-        draft.timelineScope = sessionId
       },
       setLayout(draft, layout): void {
         draft.layout = layout

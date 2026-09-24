@@ -1,6 +1,6 @@
 /**
- * Timeline card: a toolbar (scope pill + brief/all toggle), the event list with
- * collapsible details, and the bottom instruction composer.
+ * Timeline card: a toolbar (the scope label + brief/all toggle), the event list
+ * with collapsible details, and the bottom instruction composer.
  */
 
 import { useState } from 'react'
@@ -37,14 +37,16 @@ export interface TimelineCardProps {
   timeline: readonly TimelineEntry[]
   /** Selected verbosity. */
   timelineMode: TimelineMode
-  /** Timeline scope: one session id, or undefined for the whole list. */
-  scope: string | undefined
-  /** The grid-selected session id (composer target), or undefined. */
-  selected: string | undefined
+  /**
+   * The console's selected session: the card lists only its entries and the
+   * composer sends to it, while `undefined` lists every session and leaves the
+   * composer disabled.
+   */
+  selectedSession: string | undefined
+  /** Resolve a session's display title for the scope label. */
+  titleOf: (id: string) => string | undefined
   /** Set the verbosity. */
   setTimelineMode: (mode: TimelineMode) => void
-  /** Clear the scope pill. */
-  clearScope: () => void
   /** Send one instruction over the composer. */
   sendInstruction: (text: string) => Promise<unknown>
 }
@@ -60,15 +62,18 @@ export function rowTone(kind: string): RowTone {
 export interface TimelineListProps {
   t: (key: ConsoleKey, params?: Record<string, unknown>) => string
   timeline: readonly TimelineEntry[]
-  scope: string | undefined
+  /** The console's selected session; `undefined` lists every entry. */
+  selectedSession: string | undefined
   detailOf: (entry: TimelineEntry) => TimelineDetail | undefined
 }
 
 /** The event list with per-row folding, a newest-first page window, and optional ask-card detail. */
-export function TimelineList({ t, timeline, scope, detailOf }: TimelineListProps) {
+export function TimelineList({ t, timeline, selectedSession, detailOf }: TimelineListProps) {
   const [expandedSeq, setExpandedSeq] = useState<number | null>(null)
   const [visible, setVisible] = useState(TIMELINE_PAGE)
-  const scoped = scope === undefined ? [...timeline] : timeline.filter(entry => entry.sessionId === scope)
+  const scoped = selectedSession === undefined
+    ? [...timeline]
+    : timeline.filter(entry => entry.sessionId === selectedSession)
   if (scoped.length === 0) return <span className={css.emptyHint}>{t('timelineEmpty')}</span>
   // Newest first, but only one page in the DOM: the store keeps a 200-entry
   // window, and rendering all of it costs a row per event on every push.
@@ -205,16 +210,17 @@ export function AskCardBody({ detail, t }: { detail: TimelineDetail; t: (key: Co
 /** Props for the instruction composer. */
 export interface ComposerProps {
   t: (key: ConsoleKey, params?: Record<string, unknown>) => string
-  selected: string | undefined
+  /** The console's selected session, i.e. the instruction target; `undefined` disables the composer. */
+  selectedSession: string | undefined
   sendInstruction: (text: string) => Promise<unknown>
 }
 
 /** Instruction composer: a disabled-aware input plus a send action. */
-export function Composer({ t, selected, sendInstruction }: ComposerProps) {
+export function Composer({ t, selectedSession, sendInstruction }: ComposerProps) {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const disabled = selected === undefined || draft.trim() === '' || busy
+  const disabled = selectedSession === undefined || draft.trim() === '' || busy
 
   async function submit(): Promise<void> {
     /* v8 ignore next -- the disabled button cannot fire the handler, so the
@@ -239,10 +245,10 @@ export function Composer({ t, selected, sendInstruction }: ComposerProps) {
         <input
           type="text"
           className={css.composerInput}
-          placeholder={selected === undefined ? t('composerDisabled') : t('composerPlaceholder')}
+          placeholder={selectedSession === undefined ? t('composerDisabled') : t('composerPlaceholder')}
           value={draft}
-          disabled={selected === undefined}
-          aria-disabled={selected === undefined}
+          disabled={selectedSession === undefined}
+          aria-disabled={selectedSession === undefined}
           onChange={(event) => { setDraft(event.target.value) }}
         />
         <button
@@ -264,7 +270,7 @@ export function Composer({ t, selected, sendInstruction }: ComposerProps) {
  * only card, so folding it would leave an empty column rather than free room;
  * it renders no fold control and is always expanded. */
 export function TimelineCard(props: TimelineCardProps) {
-  const { t, timeline, timelineMode, scope, selected, setTimelineMode, clearScope, sendInstruction } = props
+  const { t, timeline, timelineMode, selectedSession, titleOf, setTimelineMode, sendInstruction } = props
   const byMode = timelineMode === 'all'
     ? timeline
     : timeline.filter(entry => entry.kind === 'status')
@@ -273,40 +279,38 @@ export function TimelineCard(props: TimelineCardProps) {
       <CardHeader
         t={t}
         title={t('timeline')}
+        /* The scope the rows below are limited to, named where they are read.
+           Clearing it is the session card header's single all-sessions pill. */
+        afterTitle={selectedSession !== undefined && (
+          <span className={css.timelineScopeLabel}>
+            {t('timelineScopeLabel')}: {titleOf(selectedSession) ?? shortId(selectedSession)}
+          </span>
+        )}
         actions={(
-          <>
-            <div className={css.timelineScope}>
-              {scope !== undefined && (
-                <button type="button" className={css.timelineScopePill} onClick={clearScope}>
-                  {t('timelineScopeAll')}
-                </button>
-              )}
-            </div>
-            <div className={css.timelineMode} role="group" aria-label={t('timelineModeAria')}>
-              <button
-                type="button"
-                className={clsx(css.modeButton, timelineMode === 'brief' && css.modeButtonActive)}
-                aria-pressed={timelineMode === 'brief'}
-                onClick={() => { setTimelineMode('brief') }}
-              >
-                {t('timelineStatus')}
-              </button>
-              <button
-                type="button"
-                className={clsx(css.modeButton, timelineMode === 'all' && css.modeButtonActive)}
-                aria-pressed={timelineMode === 'all'}
-                onClick={() => { setTimelineMode('all') }}
-              >
-                {t('timelineActivity')}
-              </button>
-            </div>
-          </>
+          <div className={css.timelineMode} role="group" aria-label={t('timelineModeAria')}>
+            <button
+              type="button"
+              className={clsx(css.modeButton, timelineMode === 'brief' && css.modeButtonActive)}
+              aria-pressed={timelineMode === 'brief'}
+              onClick={() => { setTimelineMode('brief') }}
+            >
+              {t('timelineStatus')}
+            </button>
+            <button
+              type="button"
+              className={clsx(css.modeButton, timelineMode === 'all' && css.modeButtonActive)}
+              aria-pressed={timelineMode === 'all'}
+              onClick={() => { setTimelineMode('all') }}
+            >
+              {t('timelineActivity')}
+            </button>
+          </div>
         )}
       />
       <div className={css.timeline}>
-        <TimelineList t={t} timeline={byMode} scope={scope} detailOf={() => undefined} />
+        <TimelineList t={t} timeline={byMode} selectedSession={selectedSession} detailOf={() => undefined} />
       </div>
-      <Composer t={t} selected={selected} sendInstruction={sendInstruction} />
+      <Composer t={t} selectedSession={selectedSession} sendInstruction={sendInstruction} />
     </div>
   )
 }

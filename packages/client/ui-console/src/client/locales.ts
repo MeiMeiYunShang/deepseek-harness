@@ -44,7 +44,7 @@ export type ConsoleKey = 'console'
   | 'pendingPlanReview'
   | 'noPending'
   | 'timeline'
-  | 'timelineScopeAll'
+  | 'timelineScopeLabel'
   | 'timelineClear'
   | 'timelineStatus'
   | 'timelineActivity'
@@ -161,7 +161,7 @@ export const en: Record<ConsoleKey, string> = {
   pendingPlanReview: 'Plan review',
   noPending: 'None',
   timeline: 'Timeline',
-  timelineScopeAll: 'All sessions',
+  timelineScopeLabel: 'Scope',
   timelineClear: 'Clear',
   timelineStatus: 'Status',
   timelineActivity: 'Activity',
@@ -276,7 +276,7 @@ export const zh: Record<ConsoleKey, string> = {
   pendingPlanReview: '计划审阅',
   noPending: '无',
   timeline: '时间线',
-  timelineScopeAll: '全部会话',
+  timelineScopeLabel: '作用域',
   timelineClear: '清除',
   timelineStatus: '状态',
   timelineActivity: '活动',

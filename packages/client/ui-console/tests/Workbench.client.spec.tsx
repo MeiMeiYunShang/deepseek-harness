@@ -43,13 +43,15 @@ function services(double: Partial<ConsoleServices> = {}): ConsoleServices {
 
 const baseStore = (): ConsoleStoreState => ({
   open: false,
-  timeline: [{ id: 1, sessionId: 's1', time: 1000, kind: 'status' }],
-  seq: 1,
+  timeline: [
+    { id: 1, sessionId: 's1', time: 1000, kind: 'status' },
+    { id: 2, sessionId: 's2', time: 2000, kind: 'status' },
+  ],
+  seq: 2,
   systemStatus: { cpu: 42, memory: 61, gpu: null },
   timelineMode: 'brief',
   sessionView: 'stats',
   selectedSession: 's1',
-  timelineScope: undefined,
   layout: 'balanced',
   collapsed: {},
 })
@@ -67,20 +69,23 @@ function renderWorkbench(overrides: {
   const store = {
     setTimelineMode: vi.fn(),
     setSessionView: vi.fn(),
-    setSelectedSession: vi.fn(),
-    setTimelineScope: vi.fn(),
+    // The console holds one scope, so a grid square and the all-sessions pill
+    // move the same snapshot value every card reads.
+    setSelectedSession: vi.fn((sessionId: string | undefined) => { snap.update((draft) => { draft.selectedSession = sessionId }) }),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
     setOpen: vi.fn(),
   }
   const srv = services(overrides.services)
+  // One row set: the cards and the title resolver read the same sessions.
+  const byId = overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }
   render(<Workbench
     t={t}
     onClose={overrides.onClose ?? (() => {})}
-    byId={overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }}
+    byId={byId}
     current="s1"
     archived={new Set(overrides.archived ?? [])}
-    titleOf={overrides.titleOf ?? (id => (overrides.byId ?? { s1: session('s1') })[id]?.displayTitle)}
+    titleOf={overrides.titleOf ?? (id => byId[id]?.displayTitle)}
     pendingKindOf={() => undefined}
     workspaces={overrides.workspaces ?? [{ id: 'w1', label: 'Workspace' }]}
     useConsole={bindSnapshotSelector(snap)}
@@ -180,23 +185,48 @@ describe('Workbench', () => {
     await waitFor(() =>{  expect(store.setSessionView).not.toHaveBeenCalled() })
   })
 
-  it('scopes the console to a grid session and sends an instruction through the composer', async () => {
-    const { store, srv } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid' } })
+  it('scopes the timeline and the composer to a grid session', async () => {
+    const { store, srv } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: undefined } })
+    // Unscoped: every session is listed and the composer has no target.
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    expect(screen.getByPlaceholderText(en.composerDisabled)).toBeTruthy()
+
     const cell = screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes('s2'))
     if (cell !== undefined) fireEvent.click(cell)
     await waitFor(() =>{  expect(store.setSelectedSession).toHaveBeenCalledWith('s2') })
+
+    // One click moves the one scope the timeline, the statistics card, and the
+    // composer all read.
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    expect(screen.getAllByText(`${en.taskScope}: s2`)).toHaveLength(2)
+
     // composer input is the enabled textbox; SmartQA input is disabled (model null).
     const composer = screen.getByPlaceholderText(en.composerPlaceholder) as HTMLInputElement
     fireEvent.change(composer, { target: { value: 'instruct' } })
     const dialog = screen.getByRole('dialog')
     fireEvent.click(within(dialog).getAllByRole('button', { name: en.send }).find(button => !(button as HTMLButtonElement).disabled)!)
-    await waitFor(() =>{  expect(srv.sendInstruction).toHaveBeenCalledWith('s1', 'instruct') })
+    await waitFor(() =>{  expect(srv.sendInstruction).toHaveBeenCalledWith('s2', 'instruct') })
   })
 
-  it('returns the scope to all sessions through the header pill', () => {
+  it('returns the timeline, the statistics line, and the composer to the whole list in one action', () => {
     const { store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: 's2' } })
+    // Scoped: the timeline lists s2 alone, and both it and the statistics card
+    // name that session with the same scope label.
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    expect(screen.getAllByText(`${en.taskScope}: s2`)).toHaveLength(2)
+
     fireEvent.click(screen.getByRole('button', { name: en.scopeAllSessions }))
+
     expect(store.setSelectedSession).toHaveBeenCalledWith(undefined)
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    // The timeline names no scope any more; only the statistics line carries one.
+    expect(screen.getAllByText(new RegExp(`^${en.timelineScopeLabel}: `))).toHaveLength(1)
+    expect(screen.getByText(`${en.taskScope}: ${en.taskAllSessions}`)).toBeTruthy()
+    expect(screen.getByPlaceholderText(en.composerDisabled)).toBeTruthy()
   })
 
   it('renames a session whose title cannot be resolved, falling back to the id', async () => {
@@ -257,13 +287,5 @@ describe('Workbench', () => {
     renderWorkbench({ store: { ...baseStore(), collapsed: { qa: true } } })
     expect(screen.getByText(en.smartQA)).toBeTruthy()
     expect(screen.queryByPlaceholderText(en.inputPlaceholder)).toBeNull()
-  })
-
-  it('clears the timeline scope through the pill', () => {
-    // The console scope stays unset: the session card then renders no
-    // all-sessions pill of its own, and the timeline's is the only one.
-    const { store } = renderWorkbench({ store: { ...baseStore(), selectedSession: undefined, timelineScope: 's1' } })
-    fireEvent.click(screen.getByRole('button', { name: en.timelineScopeAll }))
-    expect(store.setTimelineScope).toHaveBeenCalledWith(undefined)
   })
 })

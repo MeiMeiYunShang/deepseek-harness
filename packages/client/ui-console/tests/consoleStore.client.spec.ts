@@ -24,6 +24,8 @@ function list(rows: readonly SessionSummary[]): SessionListState {
 describe('createConsoleStore', () => {
   it('starts empty with a bounded timeline, showing every kind by default', () => {
     const store = createConsoleStore().create()
+    // The console holds one scope, not two: `selectedSession` is the whole set
+    // of state a grid click can move.
     expect(store.getSnapshot()).toEqual({
       open: false,
       timeline: [],
@@ -32,7 +34,6 @@ describe('createConsoleStore', () => {
       timelineMode: 'all',
       sessionView: 'stats',
       selectedSession: undefined,
-      timelineScope: undefined,
       layout: 'balanced',
       collapsed: {},
     })
@@ -89,11 +90,6 @@ describe('createConsoleStore', () => {
     expect(store.getSnapshot().selectedSession).toBe('s1')
     store.actions.setSelectedSession(undefined)
     expect(store.getSnapshot().selectedSession).toBeUndefined()
-
-    store.actions.setTimelineScope('s1')
-    expect(store.getSnapshot().timelineScope).toBe('s1')
-    store.actions.setTimelineScope(undefined)
-    expect(store.getSnapshot().timelineScope).toBeUndefined()
 
     store.actions.setLayout('timeline')
     expect(store.getSnapshot().layout).toBe('timeline')

@@ -59,7 +59,6 @@ function makeStore(overrides: Partial<ConsoleStoreState> = {}): ConsoleStoreStat
     timelineMode: 'brief',
     sessionView: 'stats',
     selectedSession: undefined,
-    timelineScope: undefined,
     layout: 'balanced',
     collapsed: {},
     ...overrides,
@@ -100,10 +99,9 @@ function renderConsole(overrides: {
   const writers = {
     setTimelineMode: vi.fn(),
     setSessionView: vi.fn(),
-    // The console scope lives in the store too: a grid square and the
-    // all-sessions pill drive the same snapshot the cards read.
+    // The console holds one scope: a grid square and the all-sessions pill
+    // drive the same snapshot the cards read.
     setSelectedSession: vi.fn((sessionId: string | undefined) => { snap.update((draft) => { draft.selectedSession = sessionId }) }),
-    setTimelineScope: vi.fn(),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
     // The open state lives in the store, so the writers drive the same
@@ -269,23 +267,47 @@ describe('ConsoleButton', () => {
     expect(screen.getByText(en.timelineEmpty)).toBeTruthy()
   })
 
-  it('scopes the task statistics from a grid square and back through the pill', () => {
+  it('scopes the timeline, the task statistics, and the composer from a grid square and back through the pill', () => {
     const { snap } = renderConsole({
       byId: { s1: session('s1', { running: true }), s2: session('s2') },
-      store: makeStore({ sessionView: 'grid', selectedSession: undefined }),
+      store: makeStore({
+        sessionView: 'grid',
+        selectedSession: undefined,
+        timeline: [
+          { id: 1, sessionId: 's1', time: 1000, kind: 'status' },
+          { id: 2, sessionId: 's2', time: 2000, kind: 'status' },
+        ],
+        seq: 2,
+      }),
     })
     fireEvent.click(screen.getByRole('button', { name: en.trigger }))
     expect(screen.getByText(new RegExp(`${en.taskScope}: ${en.taskAllSessions}`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    const idleComposer = screen.getByPlaceholderText(en.composerDisabled) as HTMLInputElement
+    expect(idleComposer.disabled).toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: /s2/ }))
 
     expect(snap.getSnapshot().selectedSession).toBe('s2')
-    expect(screen.getByText(new RegExp(`${en.taskScope}: s2`))).toBeTruthy()
+    // One scope: the square moves the timeline's filter, the scope line, and
+    // the composer's target together.
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    expect(screen.getAllByText(`${en.timelineScopeLabel}: s2`)).toHaveLength(2)
+    const scopedComposer = screen.getByPlaceholderText(en.composerPlaceholder) as HTMLInputElement
+    expect(scopedComposer.disabled).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: en.scopeAllSessions }))
 
     expect(snap.getSnapshot().selectedSession).toBeUndefined()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    // The timeline names no scope any more; only the statistics line carries one.
+    expect(screen.getAllByText(new RegExp(`^${en.timelineScopeLabel}: `))).toHaveLength(1)
     expect(screen.getByText(new RegExp(`${en.taskScope}: ${en.taskAllSessions}`))).toBeTruthy()
+    const unscopedComposer = screen.getByPlaceholderText(en.composerDisabled) as HTMLInputElement
+    expect(unscopedComposer.disabled).toBe(true)
   })
 
   it('charges the cost figure from a table adopted after the modal opened', () => {
