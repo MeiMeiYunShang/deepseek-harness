@@ -7,7 +7,29 @@
  */
 
 import type { SessionEventLikeEntry, SessionEventWindow } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
+import type { ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm/types'
+import type { SessionStatsTurnRoute } from '@deepseek-ai/dsh-session-stats/types'
+
+/**
+ * One reply's own provider-reported token accounting, as plain counts.
+ *
+ * The four counts are DISJOINT: `inputTokens` is the uncached (cache-miss)
+ * prompt count alone, and cached prompt tokens are reported separately, so the
+ * reply's total is all three prompt-side buckets plus `outputTokens` — never
+ * `inputTokens + outputTokens`. A cache bucket the adapter did not report is
+ * `0`, the same reading the `tokenUsage` and `sessionStats` projections give an
+ * absent bucket.
+ */
+export interface TimelineUsage {
+  /** Uncached prompt tokens; billed input also includes both cache buckets. */
+  readonly inputTokens: number
+  /** Output tokens, reasoning included. */
+  readonly outputTokens: number
+  /** Cache-read (cache-hit) prompt tokens. */
+  readonly cacheReadTokens: number
+  /** Cache-write prompt tokens. */
+  readonly cacheWriteTokens: number
+}
 
 /** One conversation message rendered under a scoped timeline. */
 export interface TimelineMessage {
@@ -19,6 +41,26 @@ export interface TimelineMessage {
   readonly text: string
   /** Event time in epoch milliseconds. */
   readonly time: number
+  /** The reply's own token accounting; absent when the event carried none. */
+  readonly usage?: TimelineUsage
+  /**
+   * The priceable buckets of the turn this reply closes, as the `sessionStats`
+   * projection reports them. Present on exactly one reply per turn — the last
+   * text-bearing reply of that turn — because a turn spans several steps and
+   * only its closing reply may carry the turn's charge.
+   */
+  readonly turnCost?: readonly SessionStatsTurnRoute[]
+}
+
+/**
+ * The reply's total token count: the three disjoint prompt-side buckets plus
+ * output. Summing `inputTokens + outputTokens` would drop every cached prompt
+ * token the provider billed.
+ * @param usage - the reply's own counts.
+ * @returns the reply's billed-prompt plus output token count.
+ */
+export function replyTokenTotal(usage: TimelineUsage): number {
+  return usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens
 }
 
 /**
@@ -34,6 +76,21 @@ function textOf(content: readonly ContentBlock[]): string {
     if (block.type === 'text' && block.text !== '') parts.push(block.text)
   }
   return parts.join('\n')
+}
+
+/**
+ * The reply's own counts as plain numbers, with an unreported cache bucket read
+ * as zero.
+ * @param usage - the event's optional provider token accounting.
+ * @returns the four disjoint counts.
+ */
+function usageOf(usage: TokenUsage): TimelineUsage {
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cacheReadTokens: usage.cacheReadTokens ?? 0,
+    cacheWriteTokens: usage.cacheWriteTokens ?? 0,
+  }
 }
 
 /**
@@ -81,24 +138,79 @@ function messageOfEntry(entry: SessionEventLikeEntry): TimelineMessage | undefin
     return messageOf(event.seq, 'user', event.time, event.data.content)
   }
   if (event.type === 'assistant/message') {
-    return messageOf(event.seq, 'assistant', event.time, event.data.message.content)
+    const message = messageOf(event.seq, 'assistant', event.time, event.data.message.content)
+    if (message === undefined || event.data.usage === undefined) return message
+    return { ...message, usage: usageOf(event.data.usage) }
   }
   return undefined
 }
 
 /**
+ * The log sequence of each turn's closing reply: the LAST text-bearing
+ * assistant message the window holds for that turn.
+ *
+ * This is the rule the chat's turn tail applies before it prices a turn
+ * (`finalized.findLast(hasText)`): one turn spans several steps, so its charge
+ * belongs to the single reply that closes it. The window is the contiguous tail
+ * of the log, so the last reply it holds for a turn is the turn's last reply.
+ * @param window - the session's current contiguous event window.
+ * @returns one closing sequence per turn that rendered a reply.
+ */
+function closingReplySeqs(window: SessionEventWindow): Map<number, number> {
+  const closing = new Map<number, number>()
+  for (const entry of window.entries) {
+    const event = entry.event
+    if (event.type !== 'assistant/message' || textOf(event.data.message.content) === '') continue
+    closing.set(event.data.turn, event.seq)
+  }
+  return closing
+}
+
+/**
+ * The buckets to render per closing reply, keyed by that reply's log sequence.
+ * @param window - the session's current contiguous event window.
+ * @param turnRoutes - the session's per-turn route buckets, in projection order.
+ * @returns the buckets of every turn whose closing reply the window holds.
+ */
+function turnCostByReply(
+  window: SessionEventWindow,
+  turnRoutes: readonly SessionStatsTurnRoute[],
+): Map<number, readonly SessionStatsTurnRoute[]> {
+  const bucketsByTurn = new Map<number, SessionStatsTurnRoute[]>()
+  for (const bucket of turnRoutes) {
+    const buckets = bucketsByTurn.get(bucket.turn)
+    if (buckets === undefined) bucketsByTurn.set(bucket.turn, [bucket])
+    else buckets.push(bucket)
+  }
+  const byReply = new Map<number, readonly SessionStatsTurnRoute[]>()
+  for (const [turn, seq] of closingReplySeqs(window)) {
+    const buckets = bucketsByTurn.get(turn)
+    if (buckets !== undefined) byReply.set(seq, buckets)
+  }
+  return byReply
+}
+
+/**
  * Project a Session event window into renderable conversation messages.
  *
- * The window is the only source: it is partial by design (`hasMore`), and this
- * projection neither pages nor fetches.
+ * The window is the only source of messages: it is partial by design
+ * (`hasMore`), and this projection neither pages nor fetches.
  * @param window - the session's current contiguous event window.
+ * @param turnRoutes - the session's per-turn route buckets from the
+ * `sessionStats` projection; empty when no projection value is available.
  * @returns one entry per text-bearing durable message, in log order.
  */
-export function deriveTimelineMessages(window: SessionEventWindow): readonly TimelineMessage[] {
+export function deriveTimelineMessages(
+  window: SessionEventWindow,
+  turnRoutes: readonly SessionStatsTurnRoute[] = [],
+): readonly TimelineMessage[] {
+  const costByReply = turnCostByReply(window, turnRoutes)
   const messages: TimelineMessage[] = []
   for (const entry of window.entries) {
     const message = messageOfEntry(entry)
-    if (message !== undefined) messages.push(message)
+    if (message === undefined) continue
+    const turnCost = costByReply.get(message.key)
+    messages.push(turnCost === undefined ? message : { ...message, turnCost })
   }
   return messages
 }

@@ -744,12 +744,19 @@
   word-break: break-word;
 }
 
-/* The assistant metadata row: the reply's own event time, and nothing the
-   console cannot source (per-message tokens and cost do not exist here). */
+/* The assistant metadata row: the reply's own event time, its own token
+   total, and — on the reply that closes its turn — that turn's charge. */
 .messageMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   font-size: 11px;
   color: var(--dsw-alias-label-secondary);
   font-variant-numeric: tabular-nums;
+}
+
+.messageMetaChip {
+  white-space: nowrap;
 }
 
 .readonlyMirror {

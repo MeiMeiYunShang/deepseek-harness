@@ -14,7 +14,7 @@ Status: implemented
 - 把工作台拆分为聚焦的纯函数与组件模块：`format.ts`、`sessionState.ts`、`timelineText.ts`（纯辅助），以及 `SessionStatusCard`、`TaskStatsCard`、`SystemStatusCard`、`TimelineCard`、`KnowledgeCard`、`ContextMenu`、`modals`（组件），由 `Workbench` 组合，`ConsoleButton` 打开。
 - 丰富 store（`consoleStore`），在现有时间线之外加入 `sessionView` 与 `selectedSession`，并暴露有界的写面（`ConsoleStoreWrite`），使组件只触碰声明的动作。
 - 经由在 `index.ts` 中基于 `ctx.sessions`（`open`/`fork`/`rename`，通过会话行为面/`prompt`）、`ctx.workspaces`（`archiveSession`、`create`）与 `ctx.remote.agentPresets`（`list`/`select`）构建的 `ConsoleServices` 面连接会话动词，并在服务边界解包 `RemoteResult`。
-- 会话状态、任务统计、当前选择与网格来自标准 `useSessions`/`useSessionPendingInteraction`/`useWorkspaces` 钩子，经槽组合模型传入；宿主指标与跨会话时间线仍走转发到 apply 自有 store 的远程事件，该 store 还持有唯一一个订阅，把选中会话的事件窗口折叠为限定范围的时间线卡片所渲染的对话。
+- 会话状态、任务统计、当前选择与网格来自标准 `useSessions`/`useSessionPendingInteraction`/`useWorkspaces` 钩子，经槽组合模型传入；宿主指标与跨会话时间线仍走转发到 apply 自有 store 的远程事件，该 store 还持有唯一一对订阅，把选中会话的事件窗口与该会话的 `sessionStats` 逐轮桶折叠为限定范围的时间线卡片所渲染的对话。
 - 知识库没有后端接缝，因此 `KnowledgeCard` 渲染空/占位状态，并为未来 source 导出行类型。
 
 ## 考虑过的替代方案

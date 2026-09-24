@@ -5,9 +5,10 @@
  * from the forwarded `api-session/*` and `host/metrics` events into a store the
  * apply closure owns, with the timeline backfilled from the session list on the
  * first open; the console's selected session contributes its own conversation
- * from that session's event feed; session verbs (rename/fork/archive/create)
- * and the workspace/preset options ride the real service faces; Smart Q&A
- * streams over `ctx.remote.llm.chat`.
+ * from that session's event feed, with each reply's own token counts and its
+ * turn's charge read from the same session's `sessionStats` projection; session
+ * verbs (rename/fork/archive/create) and the workspace/preset options ride the
+ * real service faces; Smart Q&A streams over `ctx.remote.llm.chat`.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -30,6 +31,7 @@ import type { ChatFetcher } from './SmartQA.tsx'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { LlmChatRequest } from '@deepseek-ai/dsh-llm/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionStatsProjection } from '@deepseek-ai/dsh-session-stats/types'
 import { en, zh, type ConsoleKey, NS } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -100,38 +102,50 @@ export function apply(ctx: ClientContext): void {
   }), 'ui-console: timeline history seed')
 
   // The selected session's conversation, derived from its own event feed —
-  // `SessionSnapshot` carries no messages. The apply closure owns the single
-  // subscription, so the card renders plain data through its bound hook and
-  // holds no subscription machinery of its own; a window revision that leaves
-  // the rendered conversation unchanged publishes nothing.
+  // `SessionSnapshot` carries no messages — plus the per-turn route buckets the
+  // same session's `sessionStats` projection reports, which are the only source
+  // of a reply's turn charge. The apply closure owns both subscriptions, so the
+  // card renders plain data through its bound hook and holds no subscription
+  // machinery of its own; a revision that leaves the rendered conversation
+  // unchanged publishes nothing.
   const messages = createSnapshotStore<readonly TimelineMessage[]>([])
   ctx.effect(() => {
     let scoped: string | undefined
     let stopFeed: (() => void) | undefined
+    let stopStats: (() => void) | undefined
     const publish = (next: readonly TimelineMessage[]): void => {
       if (!sameTimelineMessages(messages.getSnapshot(), next)) messages.set(next)
     }
-    // Swapping the console's scope disposes the previous session's feed before
-    // the new one is read, so exactly one feed is ever subscribed.
+    // Swapping the console's scope disposes the previous session's subscriptions
+    // before the new session is read, so exactly one session is ever followed.
     const following = (): void => {
       const sessionId = store.getSnapshot().selectedSession
       if (sessionId === scoped) return
       scoped = sessionId
       stopFeed?.()
+      stopStats?.()
       stopFeed = undefined
-      const feed = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId as SessionId)?.eventSource
-      if (feed === undefined) {
+      stopStats = undefined
+      const binding = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId as SessionId)
+      if (binding === undefined) {
         publish([])
         return
       }
-      publish(deriveTimelineMessages(feed.getSnapshot()))
-      stopFeed = feed.subscribe(() => { publish(deriveTimelineMessages(feed.getSnapshot())) })
+      const stats = binding.session.projections.faceOf('sessionStats')
+      const republish = (): void => {
+        const projection = stats.getSnapshot() as SessionStatsProjection | undefined
+        publish(deriveTimelineMessages(binding.eventSource.getSnapshot(), projection?.turnRoutes ?? []))
+      }
+      republish()
+      stopFeed = binding.eventSource.subscribe(republish)
+      stopStats = stats.subscribe(republish)
     }
     const stopStore = store.subscribe(following)
     following()
     return () => {
       stopStore()
       stopFeed?.()
+      stopStats?.()
     }
   }, 'ui-console: selected session conversation')
 

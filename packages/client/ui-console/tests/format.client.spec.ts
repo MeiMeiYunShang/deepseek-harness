@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDuration, formatTime, GAUGE_COLOR, toneOf } from '../src/client/format.ts'
+import { formatDuration, formatTime, formatTokens, GAUGE_COLOR, toneOf } from '../src/client/format.ts'
 
 describe('format', () => {
   it('formats durations across the ms / s / mss bands', () => {
@@ -17,6 +17,18 @@ describe('format', () => {
   it('formats epoch milliseconds as HH:MM:SS', () => {
     const date = new Date(2026, 0, 1, 9, 5, 7)
     expect(formatTime(date.getTime())).toBe('09:05:07')
+  })
+
+  it('scales a token count to the compact K / M bands', () => {
+    expect(formatTokens(0)).toBe('0')
+    expect(formatTokens(517)).toBe('517')
+    expect(formatTokens(999)).toBe('999')
+    expect(formatTokens(1_000)).toBe('1K')
+    expect(formatTokens(16_200)).toBe('16.2K')
+    expect(formatTokens(99_949)).toBe('99.9K')
+    expect(formatTokens(99_950)).toBe('100K')
+    expect(formatTokens(517_000)).toBe('517K')
+    expect(formatTokens(1_200_000)).toBe('1.2M')
   })
 
   it('maps a metric value to its severity band and color', () => {

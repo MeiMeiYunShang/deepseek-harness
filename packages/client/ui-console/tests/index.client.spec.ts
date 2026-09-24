@@ -10,6 +10,7 @@ import { TestRemote, TestSessions, TestWorkspaces, stubSettingsScope } from '@de
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
+import type { SessionStatsTurnRoute } from '@deepseek-ai/dsh-session-stats/types'
 import type { ConsoleServices } from '../src/client/services.ts'
 import type { ConsoleStoreState, ConsoleStoreWrite } from '../src/client/consoleStore.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
@@ -94,6 +95,17 @@ function promptEntry(seq: number, text: string): SessionLiveEventEntry {
       data: { id: `u${seq}`, role: 'user', content: [{ type: 'text', text }], source: { kind: 'user' } },
     },
   } as unknown as SessionLiveEventEntry
+}
+
+/** One turn's route bucket, in the sessionStats projection's own shape. */
+function turnBucket(turn: number, inputTokens: number): SessionStatsTurnRoute {
+  return {
+    turn,
+    provider: 'p',
+    model: 'm',
+    peak: { inputTokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    offPeak: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  }
 }
 
 /** One assembled assistant reply event. */
@@ -307,6 +319,33 @@ describe('ui-console apply', () => {
     // Clearing the scope empties the card without disturbing s2's own window.
     face.store.setSelectedSession(undefined)
     expect(face.hooks.messages.getSnapshot()).toEqual([])
+
+    await fiber.dispose()
+  })
+
+  it('reads the scoped session turn buckets and republishes when the projection moves', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'Repair the composer'), replyEntry(2, 'Done.')] }, { current: false })
+    await sessions.add({ id: 's2', summary: { updatedAt: 200 }, events: [promptEntry(1, 'another session')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // No projection value is served yet, so no reply carries a turn charge.
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot().map(message => message.turnCost)).toEqual([undefined, undefined])
+
+    // The projection face of the scoped session is the source, and it moves
+    // independently of the event window: the charged reply appears without a
+    // further window revision.
+    const buckets = [turnBucket(1, 32_400)]
+    sessions.behavior('s1').projections.set('sessionStats', { turnRoutes: buckets })
+    expect(face.hooks.messages.getSnapshot().map(message => message.turnCost)).toEqual([undefined, buckets])
+
+    // s2's own projection never reaches the scoped conversation.
+    sessions.behavior('s2').projections.set('sessionStats', { turnRoutes: [turnBucket(1, 7)] })
+    expect(face.hooks.messages.getSnapshot().map(message => message.turnCost)).toEqual([undefined, buckets])
 
     await fiber.dispose()
   })

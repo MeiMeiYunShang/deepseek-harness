@@ -2,14 +2,52 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SessionStatsTurnRoute } from '@deepseek-ai/dsh-session-stats/types'
 import { AskCardBody, Composer, MessageStream, rowTone, TimelineCard, TimelineList, TimelineRow } from '../src/client/TimelineCard.tsx'
 import type { TimelineEntry, TimelineMode } from '../src/client/consoleStore.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
-import { en } from '../src/client/locales.ts'
+import { en, zh } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
-const t = (key: string): string => (en as Record<string, string>)[key] ?? key
+/** The dictionary seat, interpolating `{name}` placeholders as the locale service does. */
+const t = (key: string, params?: Record<string, unknown>): string => {
+  const raw = (en as Record<string, string>)[key] ?? key
+  return params === undefined
+    ? raw
+    : raw.replace(/\{(\w+)\}/g, (_match, name: string) => String(params[name]))
+}
+
+/** The same seat over the Chinese dictionary. */
+const tZh = (key: string, params?: Record<string, unknown>): string => {
+  const raw = (zh as Record<string, string>)[key] ?? key
+  return params === undefined
+    ? raw
+    : raw.replace(/\{(\w+)\}/g, (_match, name: string) => String(params[name]))
+}
+
+/** One operator price row, quoted per million tokens. */
+const FLASH: ModelPrice = {
+  baseUrl: 'https://api.deepseek.com',
+  provider: 'p',
+  model: 'm',
+  peak: { cacheHit: 0.25, cacheMiss: 1, output: 2 },
+  offPeak: { cacheHit: 0.125, cacheMiss: 0.5, output: 1 },
+}
+
+/**
+ * The turn bucket the charged fixtures carry: 32,400 peak uncached input tokens
+ * at the row's cache-miss rate, i.e. ¥0.0324. The unpriced and ambiguous cases
+ * use the same bucket and vary the table instead.
+ */
+const PEAK_TURN: readonly SessionStatsTurnRoute[] = [{
+  turn: 1,
+  provider: 'p',
+  model: 'm',
+  peak: { inputTokens: 32_400, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  offPeak: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+}]
 
 const entry = (id: number, sessionId: string, kind: TimelineEntry['kind'], time: number): TimelineEntry =>
   ({ id, sessionId, time, kind })
@@ -20,6 +58,7 @@ function renderCard(overrides: {
   timelineMode?: TimelineMode
   selectedSession?: string
   messages?: readonly TimelineMessage[]
+  prices?: readonly ModelPrice[]
   titleOf?: (id: string) => string | undefined
   setTimelineMode?: (mode: TimelineMode) => void
 }) {
@@ -30,6 +69,7 @@ function renderCard(overrides: {
     timelineMode={overrides.timelineMode ?? 'all'}
     selectedSession={overrides.selectedSession}
     messages={overrides.messages ?? []}
+    prices={overrides.prices ?? []}
     titleOf={overrides.titleOf ?? (id => `Title of ${id}`)}
     setTimelineMode={setTimelineMode}
     sendInstruction={vi.fn(async () => undefined)}
@@ -156,12 +196,32 @@ describe('TimelineCard', () => {
     // No fold control: the collapse/expand labels never reach this card.
     expect(screen.queryByRole('button', { name: en.collapse })).toBeNull()
   })
+
+  it('prices the scoped conversation turns with the operator table it is handed', () => {
+    renderCard({
+      timeline: [entry(1, 's1', 'status', 1000)],
+      selectedSession: 's1',
+      prices: [FLASH],
+      messages: [{
+        key: 2,
+        role: 'assistant',
+        text: 'Done.',
+        time: 2000,
+        usage: { inputTokens: 1_000, outputTokens: 200, cacheReadTokens: 15_000, cacheWriteTokens: 0 },
+        turnCost: PEAK_TURN,
+      }],
+    })
+
+    expect(screen.getByText('Usage 16.2K tok')).toBeTruthy()
+    expect(screen.getByText('¥0.0324')).toBeTruthy()
+  })
 })
 
 describe('MessageStream', () => {
   it('renders an operator message as a bubble and a reply as a block with its own time', () => {
     const { container } = render(<MessageStream
       t={t}
+      prices={[]}
       messages={[
         { key: 1, role: 'user', text: 'Repair the composer', time: 1_700_000_000_000 },
         { key: 2, role: 'assistant', text: 'Done.', time: 1_700_000_005_000 },
@@ -175,8 +235,76 @@ describe('MessageStream', () => {
   })
 
   it('renders the empty hint for a conversation with no renderable message', () => {
-    render(<MessageStream t={t} messages={[]} />)
+    render(<MessageStream t={t} messages={[]} prices={[]} />)
     expect(screen.getByText(en.timelineNoMessages)).toBeTruthy()
+  })
+
+  it('shows each reply own token total and charges the turn to the reply that closes it', () => {
+    const usage = { inputTokens: 1_000, outputTokens: 200, cacheReadTokens: 15_000, cacheWriteTokens: 0 }
+    render(<MessageStream
+      t={t}
+      prices={[FLASH]}
+      messages={[
+        { key: 1, role: 'user', text: 'Repair the composer', time: 1_700_000_000_000 },
+        { key: 2, role: 'assistant', text: 'First step.', time: 1_700_000_001_000, usage },
+        { key: 3, role: 'assistant', text: 'Done.', time: 1_700_000_005_000, usage, turnCost: PEAK_TURN },
+      ]}
+    />)
+
+    // 1,000 uncached input + 15,000 cache-read + 200 output. Summing only
+    // inputTokens and outputTokens would render 1.2K.
+    expect(screen.getAllByText('Usage 16.2K tok')).toHaveLength(2)
+    // The turn's charge lands on the reply that closes the turn alone.
+    expect(screen.getByText('¥0.0324')).toBeTruthy()
+  })
+
+  it('renders the figure chips from the Chinese dictionary', () => {
+    render(<MessageStream
+      t={tZh}
+      prices={[FLASH]}
+      messages={[{
+        key: 1,
+        role: 'assistant',
+        text: '完成。',
+        time: 1_700_000_005_000,
+        usage: { inputTokens: 1_000, outputTokens: 200, cacheReadTokens: 15_000, cacheWriteTokens: 0 },
+        turnCost: PEAK_TURN,
+      }]}
+    />)
+
+    expect(screen.getByText('用量 16.2K tok')).toBeTruthy()
+    expect(screen.getByText('¥0.0324')).toBeTruthy()
+  })
+
+  it('renders no figure chip for a reply that carries neither usage nor a turn charge', () => {
+    const { container } = render(<MessageStream
+      t={t}
+      prices={[FLASH]}
+      messages={[{ key: 1, role: 'assistant', text: 'Done.', time: 1_700_000_005_000 }]}
+    />)
+
+    // An absent figure is not a zero: the metadata row keeps the timestamp alone.
+    expect(container.querySelector('[data-role="assistant"]')?.textContent).toBe(`Done.${clockOf(1_700_000_005_000)}`)
+  })
+
+  it('names the unpriced reason instead of a figure when the table omits the route', () => {
+    render(<MessageStream
+      t={t}
+      prices={[]}
+      messages={[{ key: 1, role: 'assistant', text: 'Done.', time: 100, turnCost: PEAK_TURN }]}
+    />)
+
+    expect(screen.getByText(en.taskCostUnpriced)).toBeTruthy()
+  })
+
+  it('names the ambiguous reason when two rows price the route through different endpoints', () => {
+    render(<MessageStream
+      t={t}
+      prices={[FLASH, { ...FLASH, baseUrl: 'https://proxy.example.com' }]}
+      messages={[{ key: 1, role: 'assistant', text: 'Done.', time: 100, turnCost: PEAK_TURN }]}
+    />)
+
+    expect(screen.getByText(en.taskCostAmbiguous)).toBeTruthy()
   })
 })
 
@@ -312,16 +440,10 @@ function folded(text: string): string {
 }
 
 describe('TimelineList paging', () => {
-  const interpolate = (key: string, params?: Record<string, unknown>): string => {
-    const raw = (en as Record<string, string>)[key] ?? key
-    return params === undefined
-      ? raw
-      : raw.replace(/\{(\w+)\}/g, (_match, name: string) => String(params[name]))
-  }
   const many = Array.from({ length: 45 }, (_value, index) => entry(index + 1, 's1', 'status', 1000 + index))
 
   it('renders one page of newest events and reveals older ones on demand', () => {
-    render(<TimelineList t={interpolate} timeline={many} detailOf={() => undefined} />)
+    render(<TimelineList t={t} timeline={many} detailOf={() => undefined} />)
 
     expect(screen.getAllByText(new RegExp(`^${en.sessionPrefix} s1 `))).toHaveLength(40)
     const more = screen.getByRole('button', { name: 'Show 5 earlier events' })
@@ -333,7 +455,7 @@ describe('TimelineList paging', () => {
   })
 
   it('renders no page control when a scope fits in one page', () => {
-    render(<TimelineList t={interpolate} timeline={many.slice(0, 3)} detailOf={() => undefined} />)
+    render(<TimelineList t={t} timeline={many.slice(0, 3)} detailOf={() => undefined} />)
 
     expect(screen.queryByRole('button', { name: /earlier events/ })).toBeNull()
   })

@@ -6,11 +6,12 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
+import { formatAmount, totalCost, type CostTotal, type ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TimelineEntry, TimelineMode } from './consoleStore.ts'
-import type { TimelineMessage } from './timelineMessages.ts'
+import { replyTokenTotal, type TimelineMessage } from './timelineMessages.ts'
 import type { ConsoleKey } from './locales.ts'
 import { FOLD_LIMIT, foldText, shortId, timelineLabelKey } from './timelineText.ts'
-import { formatTime } from './format.ts'
+import { formatTime, formatTokens } from './format.ts'
 import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
 
@@ -49,6 +50,8 @@ export interface TimelineCardProps {
    * the subscription behind it, so the card only renders what it is handed.
    */
   messages: readonly TimelineMessage[]
+  /** The operator's model price table, for a reply's turn cost. */
+  prices: readonly ModelPrice[]
   /** Resolve a session's display title for the scope label. */
   titleOf: (id: string) => string | undefined
   /** Set the verbosity. */
@@ -128,16 +131,50 @@ export interface MessageStreamProps {
   t: (key: ConsoleKey, params?: Record<string, unknown>) => string
   /** The selected session's conversation, in log order. */
   messages: readonly TimelineMessage[]
+  /** The operator's model price table, for a reply's turn cost; an empty table leaves every route unpriced. */
+  prices: readonly ModelPrice[]
+}
+
+/** The charge text for one priced turn, or the reason the table could not price it. */
+function costText(cost: CostTotal, t: (key: ConsoleKey, params?: Record<string, unknown>) => string): string {
+  if (cost.ambiguous.length > 0) return t('taskCostAmbiguous')
+  if (cost.unpriced.length > 0) return t('taskCostUnpriced')
+  return t('timelineCost', { amount: formatAmount(cost.amount) })
+}
+
+/**
+ * The reply's own token total and, on the reply that closes its turn, that
+ * turn's charge. A reply the event carried no usage for renders no usage chip,
+ * and a turn whose buckets the projection never reported renders no cost chip:
+ * an absent figure is not a zero.
+ */
+function MessageFigures({ message, prices, t }: {
+  message: TimelineMessage
+  prices: readonly ModelPrice[]
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
+}) {
+  const { usage, turnCost } = message
+  return (
+    <>
+      {usage !== undefined && (
+        <span className={css.messageMetaChip}>
+          {t('timelineUsage', { count: t('timelineTokens', { count: formatTokens(replyTokenTotal(usage)) }) })}
+        </span>
+      )}
+      {turnCost !== undefined && (
+        <span className={css.messageMetaChip}>{costText(totalCost(prices, turnCost), t)}</span>
+      )}
+    </>
+  )
 }
 
 /**
  * The scoped session's conversation: a right-aligned bubble per operator
  * message and left-aligned text per assistant reply, with the reply's own
- * timestamp beneath it. Per-message token counts and cost are not available to
- * the console — cost is reported per session — so the row carries no such
- * figure.
+ * timestamp and the figures that reply can source — its own token counts from
+ * the `assistant/message` event, and the charge of the turn it closes.
  */
-export function MessageStream({ t, messages }: MessageStreamProps) {
+export function MessageStream({ t, messages, prices }: MessageStreamProps) {
   if (messages.length === 0) return <span className={css.emptyHint}>{t('timelineNoMessages')}</span>
   return (
     <div className={css.messageStream}>
@@ -150,7 +187,10 @@ export function MessageStream({ t, messages }: MessageStreamProps) {
         : (
           <div key={message.key} className={css.messageAssistant} data-role="assistant">
             <p className={css.messageAssistantText}>{message.text}</p>
-            <span className={css.messageMeta}>{formatTime(message.time)}</span>
+            <span className={css.messageMeta}>
+              {formatTime(message.time)}
+              <MessageFigures message={message} prices={prices} t={t} />
+            </span>
           </div>
         ))}
     </div>
@@ -305,7 +345,7 @@ export function Composer({ t, selectedSession, sendInstruction }: ComposerProps)
  * only card, so folding it would leave an empty column rather than free room;
  * it renders no fold control and is always expanded. */
 export function TimelineCard(props: TimelineCardProps) {
-  const { t, timeline, timelineMode, selectedSession, messages, titleOf, setTimelineMode, sendInstruction } = props
+  const { t, timeline, timelineMode, selectedSession, messages, prices, titleOf, setTimelineMode, sendInstruction } = props
   const scoped = selectedSession !== undefined
   const byMode = timelineMode === 'all'
     ? timeline
@@ -347,7 +387,7 @@ export function TimelineCard(props: TimelineCardProps) {
       />
       <div className={css.timeline}>
         {scoped
-          ? <MessageStream t={t} messages={messages} />
+          ? <MessageStream t={t} messages={messages} prices={prices} />
           : <TimelineList t={t} timeline={byMode} detailOf={() => undefined} />}
       </div>
       <Composer t={t} selectedSession={selectedSession} sendInstruction={sendInstruction} />

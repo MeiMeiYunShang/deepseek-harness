@@ -1,4 +1,4 @@
-/** Pure formatting helpers: human durations, wall-clock time, and severity bands. */
+/** Pure formatting helpers: human durations, wall-clock time, token counts, and severity bands. */
 
 /**
  * Format a millisecond wall time as a compact human duration (xms / x.xs / xmxxs).
@@ -13,6 +13,22 @@ export function formatDuration(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = Math.round(totalSeconds % 60)
   return `${minutes}m${seconds.toString().padStart(2, '0')}s`
+}
+
+/**
+ * Format a token count in the chat view's compact scale: 517 / 12.2K / 517K / 1.2M.
+ * A value at or above 1,000 keeps one decimal while it stays under 100 scaled
+ * units, because per-million rates produce counts whose leading digits are the
+ * whole figure.
+ * @param value - non-negative token count.
+ * @returns the compact count string.
+ */
+export function formatTokens(value: number): string {
+  const scaled = (candidate: number): string =>
+    candidate >= 100 ? String(Math.round(candidate)) : String(Math.round(candidate * 10) / 10)
+  if (value < 1_000) return String(value)
+  if (value < 1_000_000) return `${scaled(value / 1_000)}K`
+  return `${scaled(value / 1_000_000)}M`
 }
 
 /** Format epoch milliseconds as HH:MM:SS.

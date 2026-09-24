@@ -68,7 +68,7 @@ export interface WorkbenchProps {
   chat: ChatFetcher
   /** Default Smart Q&A model. */
   defaultModel: { provider: string; model: string } | null
-  /** The operator's model price table, for the task-statistics cost figure. */
+  /** The operator's model price table, for the task-statistics cost figure and each reply's turn cost. */
   prices: readonly ModelPrice[]
   /** The selected session's conversation, in log order; empty while nothing is scoped. */
   messages: readonly TimelineMessage[]
@@ -186,6 +186,7 @@ export function Workbench({
               timelineMode={timelineMode}
               selectedSession={selectedSession}
               messages={messages}
+              prices={prices}
               titleOf={titleOf}
               setTimelineMode={store.setTimelineMode}
               sendInstruction={text => sendToSession(services, selectedSession, text)}
