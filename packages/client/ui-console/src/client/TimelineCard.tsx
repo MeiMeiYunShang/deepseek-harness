@@ -3,10 +3,13 @@
  * with collapsible details, and the bottom instruction composer.
  */
 
-import { useState } from 'react'
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import clsx from 'clsx'
-import { formatAmount, totalCost, type CostTotal, type ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  formatAmount, IconSendOutline16, totalCost, type CostTotal, type ModelPrice,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
 import type { TimelineEntry, TimelineMode } from './consoleStore.ts'
 import { replyTokenTotal, type TimelineMessage } from './timelineMessages.ts'
 import type { ConsoleKey } from './locales.ts'
@@ -40,9 +43,8 @@ export interface TimelineCardProps {
   /** Selected verbosity. */
   timelineMode: TimelineMode
   /**
-   * The console's selected session: the card renders its conversation and the
-   * composer sends to it, while `undefined` lists every session's coarse rows
-   * and leaves the composer disabled.
+   * The console's selected session: the card renders its conversation, while
+   * `undefined` lists every session's coarse rows.
    */
   selectedSession: string | undefined
   /**
@@ -56,8 +58,13 @@ export interface TimelineCardProps {
   titleOf: (id: string) => string | undefined
   /** Set the verbosity. */
   setTimelineMode: (mode: TimelineMode) => void
-  /** Send one instruction over the composer. */
-  sendInstruction: (text: string) => Promise<unknown>
+  /**
+   * The same session's composer projection, from the shared input machine the
+   * apply closure resolves and follows.
+   */
+  composer: ConsoleComposerState
+  /** The scoped machine's writers, for the field and the send action. */
+  composerActions: ConsoleComposerActions
 }
 
 /** Dot tone for a timeline entry kind. */
@@ -285,58 +292,68 @@ export function AskCardBody({ detail, t }: { detail: TimelineDetail; t: (key: Co
 /** Props for the instruction composer. */
 export interface ComposerProps {
   t: (key: ConsoleKey, params?: Record<string, unknown>) => string
-  /** The console's selected session, i.e. the instruction target; `undefined` disables the composer. */
-  selectedSession: string | undefined
-  sendInstruction: (text: string) => Promise<unknown>
+  /** The console scope's projection of the shared input machine. */
+  composer: ConsoleComposerState
+  /** That machine's writers. */
+  composerActions: ConsoleComposerActions
 }
 
-/** Instruction composer: a disabled-aware input plus a send action. */
-export function Composer({ t, selectedSession, sendInstruction }: ComposerProps) {
-  const [draft, setDraft] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const disabled = selectedSession === undefined || draft.trim() === '' || busy
+/**
+ * Instruction composer: the chat composer's field, driven by the same
+ * per-session input machine, so the draft typed here is the draft the chat view
+ * shows and the send rides the one submission path. Enter submits and
+ * Shift+Enter breaks the line, matching the chat keymap; the field grows with
+ * its content up to a CSS cap and then scrolls, so the send action stays
+ * reachable at any height.
+ */
+export function Composer({ t, composer, composerActions }: ComposerProps) {
+  const { ready, draft, failed } = composer
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null)
 
-  async function submit(): Promise<void> {
-    /* v8 ignore next -- the disabled button cannot fire the handler, so the
-     * guard only protects the async re-entry path the UI never reaches. */
-    if (disabled) return
-    const text = draft.trim()
-    setBusy(true)
-    setError(null)
-    try {
-      await sendInstruction(text)
-      setDraft('')
-    } catch {
-      setError(t('composerError'))
-    } finally {
-      setBusy(false)
-    }
+  // A textarea never reports its content height, so the box is reset to auto
+  // and re-measured against the rendered draft; the CSS cap then scrolls it.
+  useLayoutEffect(() => {
+    const field = fieldRef.current
+    /* v8 ignore next -- the ref is attached before layout effects run. */
+    if (field === null) return
+    field.style.height = 'auto'
+    field.style.height = `${field.scrollHeight}px`
+  }, [draft])
+
+  const onSubmit = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    // Shift+Enter is the line break; a composing Enter belongs to the IME.
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    composerActions.submit()
   }
 
   return (
     <div className={css.composer}>
-      <div className={css.composerRow}>
-        <input
-          type="text"
+      <div className={css.composerCard}>
+        <textarea
+          ref={fieldRef}
           className={css.composerInput}
-          placeholder={selectedSession === undefined ? t('composerDisabled') : t('composerPlaceholder')}
+          rows={1}
           value={draft}
-          disabled={selectedSession === undefined}
-          aria-disabled={selectedSession === undefined}
-          onChange={(event) => { setDraft(event.target.value) }}
+          disabled={!ready}
+          aria-disabled={!ready}
+          placeholder={t(ready ? 'composerPlaceholder' : 'composerDisabled')}
+          onChange={(event) => { composerActions.setDraft(event.target.value) }}
+          onKeyDown={onSubmit}
         />
-        <button
-          type="button"
-          className={css.sendButton}
-          disabled={disabled}
-          aria-disabled={disabled}
-          onClick={() => { void submit() }}
-        >
-          {busy ? t('stop') : t('send')}
-        </button>
+        <div className={css.composerRow}>
+          <button
+            type="button"
+            className={css.composerSend}
+            aria-label={t('send')}
+            disabled={!ready || draft.trim() === ''}
+            onClick={() => { composerActions.submit() }}
+          >
+            <IconSendOutline16 size={16} />
+          </button>
+        </div>
       </div>
-      {error !== null && <div className={css.composerError} role="alert">{error}</div>}
+      {failed && <div className={css.composerError} role="alert">{t('composerError')}</div>}
     </div>
   )
 }
@@ -345,7 +362,10 @@ export function Composer({ t, selectedSession, sendInstruction }: ComposerProps)
  * only card, so folding it would leave an empty column rather than free room;
  * it renders no fold control and is always expanded. */
 export function TimelineCard(props: TimelineCardProps) {
-  const { t, timeline, timelineMode, selectedSession, messages, prices, titleOf, setTimelineMode, sendInstruction } = props
+  const {
+    t, timeline, timelineMode, selectedSession, messages, prices, titleOf, setTimelineMode,
+    composer, composerActions,
+  } = props
   const scoped = selectedSession !== undefined
   const byMode = timelineMode === 'all'
     ? timeline
@@ -390,7 +410,7 @@ export function TimelineCard(props: TimelineCardProps) {
           ? <MessageStream t={t} messages={messages} prices={prices} />
           : <TimelineList t={t} timeline={byMode} detailOf={() => undefined} />}
       </div>
-      <Composer t={t} selectedSession={selectedSession} sendInstruction={sendInstruction} />
+      <Composer t={t} composer={composer} composerActions={composerActions} />
     </div>
   )
 }

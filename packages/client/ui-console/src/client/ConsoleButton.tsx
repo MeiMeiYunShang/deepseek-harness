@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the useWorkspaces standard hook (GlobalStandardProps merge).
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { ConsoleStoreState, ConsoleStoreWrite } from './consoleStore.ts'
+import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
 import type { TimelineMessage } from './timelineMessages.ts'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS } from './locales.ts'
@@ -29,12 +30,14 @@ export interface ConsoleQaModel {
   model: string
 }
 
-/** The injected face: store writers, service verbs, chat, and the model. */
+/** The injected face: store writers, service verbs, composer writers, chat, and the model. */
 export interface ConsoleFaces {
   /** Console store writers. */
   store: ConsoleStoreWrite
   /** Service verbs. */
   services: ConsoleServices
+  /** Writers onto the scoped session's input machine. */
+  composerActions: ConsoleComposerActions
   /** Streams Smart Q&A completions over the `chat` Remote. */
   chat: ChatFetcher
   /** Default Smart Q&A model, or null when none is resolvable. */
@@ -51,6 +54,8 @@ export type ConsoleButtonProps =
       prices: HostObservable<readonly ModelPrice[]>
       /** The selected session's conversation, in log order; empty while nothing is scoped. */
       messages: HostObservable<readonly TimelineMessage[]>
+      /** The same session's composer projection, from the shared input machine. */
+      composer: HostObservable<ConsoleComposerState>
     }
   } & ConsoleFaces>
   & PropsLocale<typeof NS>
@@ -93,6 +98,8 @@ export function ConsoleButton(props: ConsoleButtonProps) {
     defaultModel: props.defaultModel,
     prices,
     messages,
+    useComposer: props.useComposer,
+    composerActions: props.composerActions,
   }
   return (
     <>

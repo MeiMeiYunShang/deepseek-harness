@@ -2,7 +2,9 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent, SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -11,6 +13,8 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
 import type { SessionStatsTurnRoute } from '@deepseek-ai/dsh-session-stats/types'
+import { UNBOUND_COMPOSER } from '../src/client/composer.ts'
+import type { ConsoleComposerState } from '../src/client/composer.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
 import type { ConsoleStoreState, ConsoleStoreWrite } from '../src/client/consoleStore.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
@@ -19,6 +23,21 @@ import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 const stabilize = async (fn: () => void): Promise<void> => {
   fn()
 }
+
+/** One fake per-session input machine, over the fields the console reads. */
+function inputMachine() {
+  const state = createSnapshotStore<InputState>({
+    draft: '', attachmentIds: [], draftRev: 0, phase: 'plain', occurrences: [], queue: [],
+  })
+  return {
+    state,
+    setDraft: vi.fn((text: string) => { state.set({ ...state.getSnapshot(), draft: text }) }),
+    submit: vi.fn(),
+  }
+}
+
+/** One fake machine per session id, minted on first resolution. */
+type Machines = Map<string, ReturnType<typeof inputMachine>>
 
 /** One operator price row, adopted by the console-pricing namespace under test. */
 const FLASH: ModelPrice = {
@@ -39,6 +58,23 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
   const workspaces = new TestWorkspaces(stabilize)
   ctx.provide('sessions', sessions)
   ctx.provide('workspaces', workspaces)
+  // The shared input machine the console composer drives, resolved per Agent
+  // scope: the fake answers the same `input.for(scope)` registry the real
+  // Conversation service exposes, keyed by the scope's own session tag.
+  const machines: Machines = new Map()
+  ctx.provide('conversation', {
+    input: {
+      for: (actx: Context) => {
+        const id = sessions.scopeOf(actx) as string
+        let machine = machines.get(id)
+        if (machine === undefined) {
+          machine = inputMachine()
+          machines.set(id, machine)
+        }
+        return machine
+      },
+    },
+  })
   const chat = vi.fn(async function* () { /* no chunks */ })
   const remoteResult = async <T>(value: T): Promise<{ ok: true; value: T }> => ({ ok: true, value })
   const remoteError = { message: 'boom' }
@@ -57,7 +93,7 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
   ctx.provide('settingsScope', {
     bind: ({ namespace }: { namespace: string }) => namespace === 'console-pricing' ? pricing.scope : bridge.scope,
   } as never)
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, agentPresets, directoryPicker, chat, pricing }
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, agentPresets, directoryPicker, chat, pricing, machines }
 }
 
 function declareSidebar(slots: SlotRegistry): () => void {
@@ -72,15 +108,19 @@ function consoleFace(slots: SlotRegistry): {
   hooks: {
     console: { getSnapshot: () => ConsoleStoreState }
     messages: { getSnapshot: () => readonly TimelineMessage[] }
+    composer: { getSnapshot: () => ConsoleComposerState }
   }
   store: ConsoleStoreWrite
+  composerActions: { setDraft: (text: string) => void; submit: () => void }
 } {
   return (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
     hooks: {
       console: { getSnapshot: () => ConsoleStoreState }
       messages: { getSnapshot: () => readonly TimelineMessage[] }
+      composer: { getSnapshot: () => ConsoleComposerState }
     }
     store: ConsoleStoreWrite
+    composerActions: { setDraft: (text: string) => void; submit: () => void }
   })()
 }
 
@@ -403,6 +443,136 @@ describe('ui-console apply', () => {
     expect(face.hooks.messages.getSnapshot()).toBe(published)
 
     await fiber.dispose()
+  })
+
+  it('drives the shared input machine for the console scope and publishes its draft', async () => {
+    const { ctx, slots, sessions, machines } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    await sessions.add({ id: 's2', summary: { updatedAt: 200 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // Nothing is scoped, so nothing resolves a machine and a write reaches none.
+    expect(face.hooks.composer.getSnapshot()).toEqual(UNBOUND_COMPOSER)
+    face.composerActions.setDraft('unscoped')
+    face.composerActions.submit()
+    expect(machines.size).toBe(0)
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.composer.getSnapshot()).toEqual({ ready: true, draft: '', failed: false })
+
+    // Typing goes into the machine, and what the machine holds is what the field
+    // renders back: the console keeps no draft of its own.
+    face.composerActions.setDraft('Repair the composer')
+    expect(machines.get('s1')!.setDraft).toHaveBeenCalledWith('Repair the composer')
+    expect(face.hooks.composer.getSnapshot().draft).toBe('Repair the composer')
+
+    // The other session has its own machine and its own draft, and coming back
+    // to the first reads that machine again rather than a private copy.
+    face.store.setSelectedSession('s2')
+    expect(face.hooks.composer.getSnapshot().draft).toBe('')
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.composer.getSnapshot().draft).toBe('Repair the composer')
+
+    // A scoped session that resolves nothing leaves the composer unbound, and no
+    // write lands on the machine the console left behind.
+    face.store.setSelectedSession('missing')
+    expect(face.hooks.composer.getSnapshot()).toEqual(UNBOUND_COMPOSER)
+    face.composerActions.setDraft('nowhere')
+    face.composerActions.submit()
+    expect(machines.get('s1')!.setDraft).toHaveBeenCalledTimes(1)
+    expect(machines.get('s1')!.submit).not.toHaveBeenCalled()
+
+    await fiber.dispose()
+  })
+
+  it('submits the composed draft through the machine once, multi-line text included', async () => {
+    const { ctx, slots, sessions, machines } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    face.composerActions.setDraft('line one\nline two')
+    face.composerActions.submit()
+
+    // The machine owns both the text and the submission, so one send carries the
+    // whole multi-line draft through the chat composer's own path.
+    const machine = machines.get('s1')!
+    expect(machine.submit).toHaveBeenCalledTimes(1)
+    expect(machine.state.getSnapshot().draft).toBe('line one\nline two')
+
+    await fiber.dispose()
+  })
+
+  it('republishes only when a projected fact moves, and follows the session send failure', async () => {
+    const { ctx, slots, sessions, machines } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    await sessions.add({ id: 's2', summary: { updatedAt: 200 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    const published = face.hooks.composer.getSnapshot()
+
+    // A machine revision that moves neither the draft nor the failure publishes
+    // nothing, so the bound hook keeps one snapshot reference.
+    await stabilize(() => {
+      const machine = machines.get('s1')!
+      machine.state.set({ ...machine.state.getSnapshot(), phase: 'submitting' })
+    })
+    expect(face.hooks.composer.getSnapshot()).toBe(published)
+
+    // The session's own prompt failure is the composer's error fact — the same
+    // object-layer value the chat composer announces for the same draft.
+    await sessions.updateSessionSnapshot('s1', (draft) => {
+      draft.promptError = { op: 'send', error: { code: 'session/prompt-failed', message: 'boom' } } as never
+    })
+    const errored = face.hooks.composer.getSnapshot()
+    expect(errored.failed).toBe(true)
+    expect(errored.draft).toBe('')
+
+    // A session revision that moves no projected fact publishes nothing either.
+    await sessions.updateSessionSnapshot('s1', (draft) => { draft.running = true })
+    expect(face.hooks.composer.getSnapshot()).toBe(errored)
+
+    // Another session's composer carries that session's own facts.
+    face.store.setSelectedSession('s2')
+    expect(face.hooks.composer.getSnapshot()).toEqual({ ready: true, draft: '', failed: false })
+
+    await fiber.dispose()
+  })
+
+  it('stops following the scoped machine when the fiber is disposed', async () => {
+    const { ctx, slots, sessions, machines } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    face.composerActions.setDraft('scoped')
+    expect(face.hooks.composer.getSnapshot().draft).toBe('scoped')
+
+    await fiber.dispose()
+    await stabilize(() => {
+      const machine = machines.get('s1')!
+      machine.state.set({ ...machine.state.getSnapshot(), draft: 'after disposal' })
+    })
+    expect(face.hooks.composer.getSnapshot().draft).toBe('scoped')
+
+    // The writers no longer address any machine.
+    face.composerActions.setDraft('nowhere')
+    face.composerActions.submit()
+    expect(machines.get('s1')!.setDraft).toHaveBeenCalledTimes(1)
+    expect(machines.get('s1')!.submit).not.toHaveBeenCalled()
   })
 
   it('wires the remote-backed verbs over their namespaces', async () => {

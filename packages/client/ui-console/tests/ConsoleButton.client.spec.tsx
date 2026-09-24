@@ -9,6 +9,7 @@ import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import { ConsoleButton } from '../src/client/ConsoleButton.tsx'
 import type { ConsoleButtonProps, ConsoleQaModel } from '../src/client/ConsoleButton.tsx'
+import type { ConsoleComposerActions, ConsoleComposerState } from '../src/client/composer.ts'
 import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
@@ -97,6 +98,19 @@ function renderConsole(overrides: {
   const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? makeStore())
   const prices = createSnapshotStore<readonly ModelPrice[]>(overrides.prices ?? [])
   const messages = createSnapshotStore<readonly TimelineMessage[]>(overrides.messages ?? [])
+  // The composer projection follows the console's one scope, exactly as the
+  // apply closure resolves the scoped input machine.
+  const composerSnap = createSnapshotStore<ConsoleComposerState>({
+    ready: (overrides.store ?? makeStore()).selectedSession !== undefined,
+    draft: '',
+    failed: false,
+  })
+  const composerActions: ConsoleComposerActions = {
+    setDraft: vi.fn((text: string) => {
+      composerSnap.set({ ...composerSnap.getSnapshot(), draft: text })
+    }),
+    submit: vi.fn(),
+  }
   const chat = vi.fn(async function* () { /* no chunks */ })
   const srv = overrides.services === undefined ? services() : services(overrides.services)
   const writers = {
@@ -104,7 +118,10 @@ function renderConsole(overrides: {
     setSessionView: vi.fn(),
     // The console holds one scope: a grid square and the all-sessions pill
     // drive the same snapshot the cards read.
-    setSelectedSession: vi.fn((sessionId: string | undefined) => { snap.update((draft) => { draft.selectedSession = sessionId }) }),
+    setSelectedSession: vi.fn((sessionId: string | undefined) => {
+      snap.update((draft) => { draft.selectedSession = sessionId })
+      composerSnap.set({ ...composerSnap.getSnapshot(), ready: sessionId !== undefined })
+    }),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
     // The open state lives in the store, so the writers drive the same
@@ -134,13 +151,15 @@ function renderConsole(overrides: {
     useConsole: bindSnapshotSelector(snap),
     usePrices: bindSnapshotSelector(prices),
     useMessages: bindSnapshotSelector(messages),
+    useComposer: bindSnapshotSelector(composerSnap),
     store: writers,
     services: srv,
+    composerActions,
     chat,
     defaultModel: overrides.defaultModel ?? null,
   } as unknown as ConsoleButtonProps
   render(<ConsoleButton {...props} />)
-  return { snap, prices, messages, chat, srv, writers }
+  return { snap, prices, messages, composerSnap, composerActions, chat, srv, writers }
 }
 
 describe('ConsoleButton', () => {

@@ -6,6 +6,7 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import { Workbench } from '../src/client/Workbench.tsx'
+import type { ConsoleComposerActions, ConsoleComposerState } from '../src/client/composer.ts'
 import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
@@ -68,13 +69,30 @@ function renderWorkbench(overrides: {
   messages?: readonly TimelineMessage[]
   onClose?: () => void
 } = {}) {
-  const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? baseStore())
+  const state = overrides.store ?? baseStore()
+  const snap = createSnapshotStore<ConsoleStoreState>(state)
+  // The composer mirrors the console's one scope, exactly as the apply closure
+  // resolves the scoped machine: no scope, no machine.
+  const composerSnap = createSnapshotStore<ConsoleComposerState>({
+    ready: state.selectedSession !== undefined,
+    draft: '',
+    failed: false,
+  })
+  const composerActions: ConsoleComposerActions = {
+    setDraft: vi.fn((text: string) => {
+      composerSnap.set({ ...composerSnap.getSnapshot(), draft: text })
+    }),
+    submit: vi.fn(),
+  }
   const store = {
     setTimelineMode: vi.fn(),
     setSessionView: vi.fn(),
     // The console holds one scope, so a grid square and the all-sessions pill
     // move the same snapshot value every card reads.
-    setSelectedSession: vi.fn((sessionId: string | undefined) => { snap.update((draft) => { draft.selectedSession = sessionId }) }),
+    setSelectedSession: vi.fn((sessionId: string | undefined) => {
+      snap.update((draft) => { draft.selectedSession = sessionId })
+      composerSnap.set({ ...composerSnap.getSnapshot(), ready: sessionId !== undefined })
+    }),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
     setOpen: vi.fn(),
@@ -98,8 +116,10 @@ function renderWorkbench(overrides: {
     defaultModel={null}
     prices={[]}
     messages={overrides.messages ?? []}
+    useComposer={bindSnapshotSelector(composerSnap)}
+    composerActions={composerActions}
   />)
-  return { container: view.container, snap, store, srv }
+  return { container: view.container, snap, store, srv, composerSnap, composerActions }
 }
 
 describe('Workbench', () => {
@@ -135,7 +155,8 @@ describe('Workbench', () => {
     fireEvent.click(screen.getByRole('button', { name: en.newSession }))
     await waitFor(() =>{  expect(screen.getByRole('heading', { name: en.newSessionTitle })).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: 'Workspace' }))
-    fireEvent.click(screen.getAllByRole('button', { name: en.send })[0]!)
+    const modal = screen.getAllByRole('dialog').find(dialog => within(dialog).queryByLabelText(en.instructionLabel) !== null)!
+    fireEvent.click(within(modal).getByRole('button', { name: en.send }))
     await waitFor(() =>{  expect(srv.selectPreset).not.toHaveBeenCalled() })
   })
 
@@ -190,7 +211,7 @@ describe('Workbench', () => {
   })
 
   it('scopes the timeline and the composer to a grid session', async () => {
-    const { store, srv } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: undefined } })
+    const { store, srv, composerActions } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: undefined } })
     // Unscoped: every session's coarse rows are listed and the composer has no target.
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
@@ -209,12 +230,18 @@ describe('Workbench', () => {
     expect(screen.getByText(en.timelineNoMessages)).toBeTruthy()
     expect(screen.getAllByText(`${en.taskScope}: s2`)).toHaveLength(2)
 
-    // composer input is the enabled textbox; SmartQA input is disabled (model null).
-    const composer = screen.getByPlaceholderText(en.composerPlaceholder) as HTMLInputElement
+    // The composer now targets that same scope: typing reaches the machine the
+    // console resolved for it, and the send rides that machine's submit path.
+    const composer = screen.getByPlaceholderText(en.composerPlaceholder) as HTMLTextAreaElement
     fireEvent.change(composer, { target: { value: 'instruct' } })
-    const dialog = screen.getByRole('dialog')
-    fireEvent.click(within(dialog).getAllByRole('button', { name: en.send }).find(button => !(button as HTMLButtonElement).disabled)!)
-    await waitFor(() =>{  expect(srv.sendInstruction).toHaveBeenCalledWith('s2', 'instruct') })
+    expect(composerActions.setDraft).toHaveBeenCalledWith('instruct')
+    // The composer's own send action is the enabled one; Smart Q&A's stays
+    // disabled without a configured model.
+    fireEvent.click(screen.getAllByRole('button', { name: en.send })
+      .find(button => !(button as HTMLButtonElement).disabled)!)
+    expect(composerActions.submit).toHaveBeenCalledTimes(1)
+    // The composer no longer rides the service verb: the new-session modal owns it.
+    expect(srv.sendInstruction).not.toHaveBeenCalled()
   })
 
   it('returns the timeline, the statistics line, and the composer to the whole list in one action', () => {

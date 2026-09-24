@@ -878,6 +878,11 @@
   cursor: not-allowed;
 }
 
+/* --- Instruction composer ---
+   The chat composer's shape, rebuilt from tokens: one rounded capsule on the
+   input surface (22px radius, 8px top pad, soft elevation carrying the
+   hairline), the draft surface above a control row, and the send circle at the
+   field's bottom-right. */
 .composer {
   flex: none;
   display: flex;
@@ -888,26 +893,83 @@
   margin-top: 8px;
 }
 
+.composerCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-radius: 22px;
+  background: var(--dsw-specific-input-major);
+  /* The chat card's hairline is drawn as the elevation stroke so it costs no
+     layout; the thumb pair follows the elevated surface the field scrolls on. */
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  box-shadow: var(--dsw-elevation-soft);
+}
+
+/* The draft surface: one line's floor, growing with its content up to the chat
+   composer's 14-line cap, and scrolling past it instead of clipping. */
+.composerInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  max-height: 336px;
+  padding: 4px 14px 0;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  caret-color: var(--dsw-alias-state-business-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  line-height: 24px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.composerInput::placeholder {
+  color: var(--dsw-alias-label-caption);
+}
+
+.composerInput:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: not-allowed;
+}
+
 .composerRow {
   display: flex;
-  gap: 8px;
+  justify-content: flex-end;
+  padding: 0 8px 6px;
 }
 
-.composerInput {
-  flex: 1;
-  height: 32px;
-  box-sizing: border-box;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  padding: 0 8px;
-  font: inherit;
-  font-size: 13px;
-  background: var(--dsw-alias-bg-layer-2);
-  color: var(--dsw-alias-label-primary);
+/* Primary send: the chat composer's 34px info-fill circle. The glyph stays the
+   static light neutral on that blue in both themes, which is why it is not the
+   foreground alias. */
+.composerSend {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--dsw-alias-button-info-fill);
+  color: var(--dsw-static-neutral-bluish-00);
+  cursor: pointer;
+  transition: background-color 100ms ease;
 }
 
-.composerInput:focus {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+.composerSend:hover:not(:disabled) {
+  background: var(--dsw-alias-button-info-hover);
+}
+
+.composerSend:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .composerError {

@@ -21,6 +21,9 @@
       "path": "../../test-support/client-runtime"
     },
     {
+      "path": "../ui-conversation"
+    },
+    {
       "path": "../ui-primitives"
     },
     {

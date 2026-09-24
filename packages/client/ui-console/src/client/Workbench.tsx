@@ -13,6 +13,7 @@ import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/cli
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { contextMenuItems, contextAnchorRect } from './ContextMenu.tsx'
 import type { ConsoleCardKey, ConsoleStoreState, ConsoleStoreWrite, LayoutPreset } from './consoleStore.ts'
+import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
 import type { TimelineMessage } from './timelineMessages.ts'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS, type ConsoleKey } from './locales.ts'
@@ -72,6 +73,10 @@ export interface WorkbenchProps {
   prices: readonly ModelPrice[]
   /** The selected session's conversation, in log order; empty while nothing is scoped. */
   messages: readonly TimelineMessage[]
+  /** Bound hook over the scoped session's composer projection. */
+  useComposer: SnapshotSelectorHook<ConsoleComposerState>
+  /** The scoped input machine's writers. */
+  composerActions: ConsoleComposerActions
 }
 
 /** One open context-menu invocation. */
@@ -86,6 +91,7 @@ interface OpenContextMenu {
 export function Workbench({
   t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces,
   useConsole, store, services, chat, defaultModel, prices, messages,
+  useComposer, composerActions,
 }: WorkbenchProps) {
   const timeline = useConsole(value => value.timeline)
   const timelineMode = useConsole(value => value.timelineMode)
@@ -94,6 +100,7 @@ export function Workbench({
   const systemStatus = useConsole(value => value.systemStatus)
   const layout = useConsole(value => value.layout)
   const collapsed = useConsole(value => value.collapsed)
+  const composer = useComposer(value => value)
 
   const isCollapsed = (card: ConsoleCardKey): boolean => collapsed[card] === true
   const toggleCard = (card: ConsoleCardKey): (() => void) => () => { store.toggleCollapsed(card) }
@@ -189,7 +196,8 @@ export function Workbench({
               prices={prices}
               titleOf={titleOf}
               setTimelineMode={store.setTimelineMode}
-              sendInstruction={text => sendToSession(services, selectedSession, text)}
+              composer={composer}
+              composerActions={composerActions}
             />
           </div>
           <div className={css.column}>
@@ -232,14 +240,6 @@ export function Workbench({
       </div>
     </div>
   )
-}
-
-/** Send an instruction to the selected session through the services face. */
-async function sendToSession(services: ConsoleServices, selected: string | undefined, text: string): Promise<unknown> {
-  /* v8 ignore next -- the composer disables itself when no session is selected,
-   * so this guard only protects the inline call path the UI never reaches. */
-  if (selected === undefined) throw new Error('no session selected')
-  return await services.sendInstruction(selected as SessionId, text)
 }
 
 /** Dispatch a context-menu action and close the menu first. */

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionStatsTurnRoute } from '@deepseek-ai/dsh-session-stats/types'
 import { AskCardBody, Composer, MessageStream, rowTone, TimelineCard, TimelineList, TimelineRow } from '../src/client/TimelineCard.tsx'
+import type { ConsoleComposerActions, ConsoleComposerState } from '../src/client/composer.ts'
+import { UNBOUND_COMPOSER } from '../src/client/composer.ts'
 import type { TimelineEntry, TimelineMode } from '../src/client/consoleStore.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 import { en, zh } from '../src/client/locales.ts'
@@ -52,6 +54,15 @@ const PEAK_TURN: readonly SessionStatsTurnRoute[] = [{
 const entry = (id: number, sessionId: string, kind: TimelineEntry['kind'], time: number): TimelineEntry =>
   ({ id, sessionId, time, kind })
 
+/** A composer projection with the scoped defaults one test varies. */
+const composerState = (overrides: Partial<ConsoleComposerState> = {}): ConsoleComposerState =>
+  ({ ready: true, draft: '', failed: false, ...overrides })
+
+/** The composer's machine writers, stubbed unless a test supplies its own. */
+function composerActions(overrides: Partial<ConsoleComposerActions> = {}): ConsoleComposerActions {
+  return { setDraft: vi.fn(), submit: vi.fn(), ...overrides }
+}
+
 /** Render the card with the props one test varies; the rest stay at their default. */
 function renderCard(overrides: {
   timeline: readonly TimelineEntry[]
@@ -61,6 +72,8 @@ function renderCard(overrides: {
   prices?: readonly ModelPrice[]
   titleOf?: (id: string) => string | undefined
   setTimelineMode?: (mode: TimelineMode) => void
+  composer?: ConsoleComposerState
+  composerActions?: ConsoleComposerActions
 }) {
   const setTimelineMode = overrides.setTimelineMode ?? vi.fn()
   render(<TimelineCard
@@ -72,7 +85,8 @@ function renderCard(overrides: {
     prices={overrides.prices ?? []}
     titleOf={overrides.titleOf ?? (id => `Title of ${id}`)}
     setTimelineMode={setTimelineMode}
-    sendInstruction={vi.fn(async () => undefined)}
+    composer={overrides.composer ?? composerState()}
+    composerActions={overrides.composerActions ?? composerActions()}
   />)
   return { setTimelineMode }
 }
@@ -401,37 +415,97 @@ describe('AskCardBody', () => {
 })
 
 describe('Composer', () => {
-  it('disables the send button without a selected session', () => {
-    render(<Composer t={t} selectedSession={undefined} sendInstruction={vi.fn(async () => undefined)} />)
-    const input = screen.getByRole('textbox') as HTMLInputElement
-    expect(input.disabled).toBe(true)
-    expect(input.getAttribute('placeholder')).toBe(en.composerDisabled)
+  it('renders the draft the machine holds, so the card owns no draft of its own', () => {
+    render(<Composer
+      t={t}
+      composer={composerState({ draft: 'typed in the chat' })}
+      composerActions={composerActions()}
+    />)
+    expect((screen.getByRole('textbox') as unknown as HTMLTextAreaElement).value).toBe('typed in the chat')
   })
 
-  it('does not send while the draft is empty', async () => {
-    const send = vi.fn(async () => undefined)
-    render(<Composer t={t} selectedSession="s1" sendInstruction={send} />)
-    fireEvent.click(screen.getByRole('button', { name: en.send }))
-    expect(send).not.toHaveBeenCalled()
+  it('disables the field and the send action without a resolved machine', () => {
+    const actions = composerActions()
+    render(<Composer t={t} composer={UNBOUND_COMPOSER} composerActions={actions} />)
+
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement
+    expect(field.disabled).toBe(true)
+    expect(field.getAttribute('placeholder')).toBe(en.composerDisabled)
+    // The draft the machine would carry is empty, so the action has no target.
+    expect((screen.getByRole('button', { name: en.send }) as unknown as HTMLButtonElement).disabled).toBe(true)
+    expect(actions.submit).not.toHaveBeenCalled()
   })
 
-  it('sends an instruction and clears the draft on success', async () => {
-    const send = vi.fn(async () => undefined)
-    render(<Composer t={t} selectedSession="s1" sendInstruction={send} />)
-    const input = screen.getByRole('textbox') as HTMLInputElement
-    fireEvent.change(input, { target: { value: 'hello' } })
-    fireEvent.click(screen.getByRole('button', { name: en.send }))
-    await waitFor(() => { expect(send).toHaveBeenCalledWith('hello') })
-    await waitFor(() => { expect((screen.getByRole('textbox') as unknown as HTMLInputElement).value).toBe('') })
+  it('withholds the send action until the draft carries something', () => {
+    const actions = composerActions()
+    render(<Composer t={t} composer={composerState({ draft: '   ' })} composerActions={actions} />)
+
+    const send = screen.getByRole('button', { name: en.send }) as HTMLButtonElement
+    expect(send.disabled).toBe(true)
+    fireEvent.click(send)
+    expect(actions.submit).not.toHaveBeenCalled()
   })
 
-  it('shows an alert on a failed send', async () => {
-    const send = vi.fn(async () => { throw new Error('boom') })
-    render(<Composer t={t} selectedSession="s1" sendInstruction={send} />)
-    const input = screen.getByRole('textbox') as HTMLInputElement
-    fireEvent.change(input, { target: { value: 'hello' } })
+  it('publishes every keystroke to the machine and submits the composed draft once', () => {
+    const actions = composerActions()
+    const { rerender } = render(<Composer t={t} composer={composerState()} composerActions={actions} />)
+
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(field, { target: { value: 'line one\nline two' } })
+    expect(actions.setDraft).toHaveBeenCalledWith('line one\nline two')
+
+    // The machine is the draft's owner, so the field renders what it publishes
+    // back; submitting then rides that one value, multi-line and all.
+    rerender(<Composer
+      t={t}
+      composer={composerState({ draft: 'line one\nline two' })}
+      composerActions={actions}
+    />)
     fireEvent.click(screen.getByRole('button', { name: en.send }))
-    await waitFor(() =>{  expect(screen.getByRole('alert')).toBeTruthy() })
+    expect(actions.submit).toHaveBeenCalledTimes(1)
+  })
+
+  it('submits on Enter while Shift+Enter breaks the line, as the chat keymap does', () => {
+    const actions = composerActions()
+    render(<Composer t={t} composer={composerState({ draft: 'hello' })} composerActions={actions} />)
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement
+
+    fireEvent.keyDown(field, { key: 'Enter', shiftKey: true })
+    expect(actions.submit).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(field, { key: 'a' })
+    expect(actions.submit).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(actions.submit).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a composing Enter to the input method', () => {
+    const actions = composerActions()
+    render(<Composer t={t} composer={composerState({ draft: 'hello' })} composerActions={actions} />)
+
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement
+    const composing = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, isComposing: true })
+    fireEvent(field, composing)
+
+    expect(actions.submit).not.toHaveBeenCalled()
+    expect(composing.defaultPrevented).toBe(false)
+  })
+
+  it('announces the session send failure the machine reports for the same draft', () => {
+    const { rerender } = render(<Composer
+      t={t}
+      composer={composerState({ draft: 'hello' })}
+      composerActions={composerActions()}
+    />)
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    rerender(<Composer
+      t={t}
+      composer={composerState({ draft: 'hello', failed: true })}
+      composerActions={composerActions()}
+    />)
+    expect(screen.getByRole('alert').textContent).toBe(en.composerError)
   })
 })
 

@@ -6,9 +6,11 @@
  * apply closure owns, with the timeline backfilled from the session list on the
  * first open; the console's selected session contributes its own conversation
  * from that session's event feed, with each reply's own token counts and its
- * turn's charge read from the same session's `sessionStats` projection; session
- * verbs (rename/fork/archive/create) and the workspace/preset options ride the
- * real service faces; Smart Q&A streams over `ctx.remote.llm.chat`.
+ * turn's charge read from the same session's `sessionStats` projection; the
+ * card's composer drives that same session's input machine, so one draft and
+ * one submission path serve the console and the chat; session verbs
+ * (rename/fork/archive/create) and the workspace/preset options ride the real
+ * service faces; Smart Q&A streams over `ctx.remote.llm.chat`.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -17,12 +19,19 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the sidebar SlotMap merge (the 'sidebar.footer.action' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+// Type-only: pulls the Conversation Context merge (ctx.conversation) and the
+// per-session input machine contract the console composer drives.
+import type { SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: pulls the settingsScope Context merge so the console-bridge setting can be read.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { CONSOLE_PRICING_NAMESPACE, PriceTablePolicy } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { ConsoleButton } from './ConsoleButton.tsx'
+import {
+  sameComposerState, UNBOUND_COMPOSER,
+} from './composer.ts'
+import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
 import { createConsoleStore, historyEntries } from './consoleStore.ts'
 import type { ConsoleStoreWrite } from './consoleStore.ts'
 import { deriveTimelineMessages, sameTimelineMessages } from './timelineMessages.ts'
@@ -30,6 +39,7 @@ import type { TimelineMessage } from './timelineMessages.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { LlmChatRequest } from '@deepseek-ai/dsh-llm/types'
+import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionStatsProjection } from '@deepseek-ai/dsh-session-stats/types'
 import { en, zh, type ConsoleKey, NS } from './locales.ts'
@@ -149,6 +159,76 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'ui-console: selected session conversation')
 
+  // The console composer drives the chat's own per-session input machine — the
+  // one source of truth for the draft and the submission path — instead of
+  // holding a draft of its own. Resolution goes through that session's Agent
+  // scope: the machine is the `conversation` service read off the scope, and its
+  // `input` registry answers the facade for that scope. The apply closure owns
+  // the scope swap, the machine's published state, and that session's own prompt
+  // failure, and republishes the narrow projection the card reads; the writers
+  // below address whatever machine the swap last resolved.
+  const composer = createSnapshotStore<ConsoleComposerState>(UNBOUND_COMPOSER)
+  let composerMachine: SessionInput | undefined
+  const composerActions: ConsoleComposerActions = {
+    setDraft: (text) => { composerMachine?.setDraft(text) },
+    submit: () => { composerMachine?.submit() },
+  }
+  ctx.effect(() => {
+    let scoped: string | undefined
+    let machine: SessionInput | undefined
+    let session: SessionFace | undefined
+    let stopState: (() => void) | undefined
+    let stopSession: (() => void) | undefined
+    const publish = (): void => {
+      const next: ConsoleComposerState = machine === undefined || session === undefined
+        ? UNBOUND_COMPOSER
+        : {
+          ready: true,
+          draft: machine.state.getSnapshot().draft,
+          // The machine reports a failed plain send through this object-layer
+          // fact alone: its settlement carries no message, and the chat composer
+          // announces the same field in its banner.
+          failed: session.getSnapshot().promptError !== null,
+        }
+      if (!sameComposerState(composer.getSnapshot(), next)) composer.set(next)
+    }
+    // Swapping the console's scope disposes the previous session's subscriptions
+    // before the new machine is read, so exactly one session is ever followed.
+    const following = (): void => {
+      const sessionId = store.getSnapshot().selectedSession
+      if (sessionId === scoped) return
+      scoped = sessionId
+      stopState?.()
+      stopSession?.()
+      stopState = undefined
+      stopSession = undefined
+      machine = undefined
+      session = undefined
+      const scope = sessionId === undefined ? undefined : ctx.sessions.scope(sessionId as SessionId)
+      const binding = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId as SessionId)
+      const input = scope?.get('conversation')?.input
+      if (scope === undefined || input === undefined || binding === undefined) {
+        composerMachine = undefined
+        publish()
+        return
+      }
+      machine = input.for(scope)
+      session = binding.session
+      composerMachine = machine
+      stopState = machine.state.subscribe(publish)
+      stopSession = session.subscribe(publish)
+      publish()
+    }
+    const stopStore = store.subscribe(following)
+    following()
+    return () => {
+      stopStore()
+      stopState?.()
+      stopSession?.()
+      composerMachine = undefined
+    }
+  }, 'ui-console: selected session composer')
+
   // Resolve the Smart Q&A default model once at load from the console-bridge
   // setting (`provider/model`); an unset or malformed override leaves it null,
   // so the panel stays disabled until the operator configures a model.
@@ -212,9 +292,10 @@ export function apply(ctx: ClientContext): void {
       label: () => t('console'),
       locale: NS,
       inject: () => ({
-        hooks: { console: store.store, prices: priceTable.prices, messages },
+        hooks: { console: store.store, prices: priceTable.prices, messages, composer },
         store: write,
         services,
+        composerActions,
         chat: ((request: LlmChatRequest, signal: AbortSignal) => ctx.remote.llm.chat(request, signal)) as ChatFetcher,
         defaultModel,
       }),
