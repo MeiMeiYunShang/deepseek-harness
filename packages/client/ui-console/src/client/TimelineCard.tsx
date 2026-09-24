@@ -51,7 +51,9 @@ export interface TimelineCardProps {
 
 /** Dot tone for a timeline entry kind. */
 export function rowTone(kind: string): RowTone {
-  return kind === 'status' ? 'action' : 'info'
+  if (kind === 'status') return 'action'
+  if (kind === 'history') return 'neutral'
+  return 'info'
 }
 
 /** Props for the timeline list body. */

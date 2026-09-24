@@ -11,9 +11,9 @@ afterEach(cleanup)
 const t = (key: string): string => (en as Record<string, string>)[key] ?? key
 
 describe('contextMenuItems', () => {
-  it('builds rename, fork, and archive rows', () => {
+  it('builds open, rename, fork, and archive rows in that order', () => {
     const items = contextMenuItems(t, false)
-    expect(items.map(item => ('id' in item ? item.id : null))).toEqual(['rename', 'fork', 'archive'])
+    expect(items.map(item => ('id' in item ? item.id : null))).toEqual(['open', 'rename', 'fork', 'archive'])
   })
 })
 
@@ -36,6 +36,7 @@ describe('ContextMenu rendering through Menu', () => {
       onClose={() => {}}
     />)
     expect(screen.getByRole('menu')).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /open/i })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /rename/i })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /fork/i })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /archive/i })).toBeTruthy()

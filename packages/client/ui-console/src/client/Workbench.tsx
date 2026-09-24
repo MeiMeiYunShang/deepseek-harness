@@ -166,7 +166,8 @@ export function Workbench({
               isArchived={id => archived.has(id)}
               pendingKindOf={pendingKindOf}
               setSessionView={store.setSessionView}
-              selectSession={(id) => { services.open(id as SessionId) }}
+              selectSession={(id) => { store.setSelectedSession(id) }}
+              clearScope={() => { store.setSelectedSession(undefined) }}
               onContextMenu={(id, x, y) => { setContextMenu({ id, x, y, archived: archived.has(id) }) }}
               onNewSession={() => { void openNewSession() }}
               collapsed={isCollapsed('session')}
@@ -245,6 +246,9 @@ function dispatchContext(
 ): void {
   host.closeContextMenu()
   switch (action) {
+    case 'open':
+      host.services.open(id as SessionId)
+      break
     case 'rename':
       host.setRenameTarget(id)
       break
@@ -254,7 +258,7 @@ function dispatchContext(
     case 'archive':
       void host.services.archive(id as SessionId)
       break
-    /* v8 ignore next -- the menu only emits the rename/fork/archive ids above */
+    /* v8 ignore next -- the menu only emits the open/rename/fork/archive ids above */
     default:
       break
   }

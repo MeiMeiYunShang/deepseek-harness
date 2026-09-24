@@ -1,12 +1,17 @@
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 
 /** Session-status card view: the stats counters or the per-session grid. */
 export type SessionView = 'stats' | 'grid'
 
-/** A timeline row's coarse kind (drives its label and tone). */
-export type TimelineKind = 'activity' | 'status'
+/**
+ * A timeline row's coarse kind (drives its label and tone): a forwarded
+ * `activity` or `status` event, or the `history` row backfilled from the
+ * session list when the workbench opens.
+ */
+export type TimelineKind = 'activity' | 'status' | 'history'
 
-/** Whether the timeline renders every event or only status/activity rows. */
+/** Whether the timeline renders every row or only status rows. */
 export type TimelineMode = 'all' | 'brief'
 
 /** A preset column layout for the workbench grid. */
@@ -15,7 +20,7 @@ export type LayoutPreset = 'balanced' | 'timeline' | 'compact'
 /** The foldable workbench cards, keyed for per-card collapse state. */
 export type ConsoleCardKey = 'session' | 'task' | 'system' | 'knowledge' | 'qa'
 
-/** One derived timeline entry from a forwarded `api-session/*` event. */
+/** One derived timeline entry: a forwarded `api-session/*` event or a backfilled history row. */
 export interface TimelineEntry {
   /** Monotonic insertion id (store-owned; not the session event seq). */
   id: number
@@ -102,7 +107,7 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       timeline: [],
       seq: 0,
       systemStatus: null,
-      timelineMode: 'brief',
+      timelineMode: 'all',
       sessionView: 'stats',
       selectedSession: undefined,
       timelineScope: undefined,
@@ -143,4 +148,23 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       },
     },
   })
+}
+
+/**
+ * Project the client's session list into one history row per listed session,
+ * ordered by ascending update time. The store appends in insertion order and
+ * the timeline list renders the array reversed, so ascending input makes the
+ * most recently updated session render first.
+ * @param list - current session-list snapshot; a listed id without a row is skipped.
+ * @returns one `history` row per listed session, oldest first.
+ */
+export function historyEntries(list: SessionListState): Omit<TimelineEntry, 'id'>[] {
+  const rows: Omit<TimelineEntry, 'id'>[] = []
+  for (const id of list.ids) {
+    const summary = list.byId[id]
+    if (summary === undefined) continue
+    rows.push({ sessionId: summary.id, time: summary.updatedAt, kind: 'history' })
+  }
+  rows.sort((left, right) => left.time - right.time)
+  return rows
 }

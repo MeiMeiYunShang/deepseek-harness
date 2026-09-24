@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-01-ui-console-workbench-seams.md
-2026-09-01-ui-console-workbench-seams.md: e0b592e47a38042a3d96c4fef2ec1609157aebf3
-2026-09-01-ui-console-workbench-seams.zh.md: 4b1b72a2d448cb032b381d66b9357f6529541e7b
+2026-09-01-ui-console-workbench-seams.md: a2131905f6dcf9f784d0a3d511cb20bcbf8017ff
+2026-09-01-ui-console-workbench-seams.zh.md: 89fdd2fb0dbc56be568e3559d8d7f2dd2ac55073

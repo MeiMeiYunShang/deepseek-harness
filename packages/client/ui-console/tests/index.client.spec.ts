@@ -10,7 +10,7 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
 import type { ConsoleServices } from '../src/client/services.ts'
-import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
+import type { ConsoleStoreState, ConsoleStoreWrite } from '../src/client/consoleStore.ts'
 
 /** Stabilizer that lets TestSessions/TestWorkspaces write outside React act. */
 const stabilize = async (fn: () => void): Promise<void> => {
@@ -62,6 +62,17 @@ function declareSidebar(slots: SlotRegistry): () => void {
     name: 'root',
     children: { 'sidebar.footer.action': { kind: 'list', scope: 'root' } },
   } as never, () => null)
+}
+
+/** The console sidebar action's registered inject face: store hook plus its write set. */
+function consoleFace(slots: SlotRegistry): {
+  hooks: { console: { getSnapshot: () => ConsoleStoreState } }
+  store: ConsoleStoreWrite
+} {
+  return (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
+    hooks: { console: { getSnapshot: () => ConsoleStoreState } }
+    store: ConsoleStoreWrite
+  })()
 }
 
 describe('ui-console apply', () => {
@@ -136,6 +147,73 @@ describe('ui-console apply', () => {
     expect(slots.entries('sidebar.footer.action')).toHaveLength(0)
     remote.emit('api-session/activity', ['s2', 2000])
     expect(face.hooks.console.getSnapshot().timeline).toHaveLength(2)
+  })
+
+  it('backfills one history row per known session when the workbench first opens', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's-newer', summary: { updatedAt: 300 } }, { current: false })
+    await sessions.add({ id: 's-older', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setOpen(true)
+
+    // Ascending insertion order, because the list renders the array reversed:
+    // the last seeded row is the newest snapshot.
+    expect(face.hooks.console.getSnapshot().timeline.map(row => [row.sessionId, row.time, row.kind])).toEqual([
+      ['s-older', 100, 'history'],
+      ['s-newer', 300, 'history'],
+    ])
+    await fiber.dispose()
+  })
+
+  it('does not backfill again when the workbench is reopened', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setOpen(true)
+    face.store.setOpen(false)
+    face.store.setOpen(true)
+
+    expect(face.hooks.console.getSnapshot().timeline).toHaveLength(1)
+    await fiber.dispose()
+  })
+
+  it('leaves a timeline that already holds a live row alone', async () => {
+    const { ctx, slots, sessions, remote } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    remote.emit('api-session/activity', ['s1', 5000])
+    face.store.setOpen(true)
+
+    expect(face.hooks.console.getSnapshot().timeline.map(row => row.kind)).toEqual(['activity'])
+    await fiber.dispose()
+  })
+
+  it('seeds nothing while the client holds no sessions', async () => {
+    const { ctx, slots, remote } = await bench()
+    declareSidebar(slots)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setOpen(true)
+    expect(face.hooks.console.getSnapshot().timeline).toEqual([])
+
+    // A live row still lands, and never triggers a backfill over it.
+    remote.emit('api-session/activity', ['s1', 1000])
+    expect(face.hooks.console.getSnapshot().timeline.map(row => row.kind)).toEqual(['activity'])
+    await fiber.dispose()
   })
 
   it('wires the remote-backed verbs over their namespaces', async () => {

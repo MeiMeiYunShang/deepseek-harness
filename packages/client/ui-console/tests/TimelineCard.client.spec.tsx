@@ -10,12 +10,13 @@ afterEach(cleanup)
 
 const t = (key: string): string => (en as Record<string, string>)[key] ?? key
 
-const entry = (id: number, sessionId: string, kind: 'activity' | 'status', time: number): TimelineEntry =>
+const entry = (id: number, sessionId: string, kind: TimelineEntry['kind'], time: number): TimelineEntry =>
   ({ id, sessionId, time, kind })
 
 describe('rowTone', () => {
-  it('maps status to action and everything else to info', () => {
+  it('maps status to action, a history snapshot to neutral, and everything else to info', () => {
     expect(rowTone('status')).toBe('action')
+    expect(rowTone('history')).toBe('neutral')
     expect(rowTone('activity')).toBe('info')
     expect(rowTone('other')).toBe('info')
   })
@@ -89,6 +90,43 @@ describe('TimelineCard', () => {
       sendInstruction={vi.fn(async () => undefined)}
     />)
     expect(screen.getByText(en.timelineEmpty)).toBeTruthy()
+  })
+
+  it('renders backfilled history rows newest snapshot first and labelled apart from live events', () => {
+    render(<TimelineCard
+      t={t}
+      timeline={[
+        entry(1, 'older', 'history', 1000),
+        entry(2, 'newer', 'history', 3000),
+        entry(3, 'live', 'activity', 4000),
+      ]}
+      timelineMode="all"
+      scope={undefined}
+      selected={undefined}
+      setTimelineMode={() => {}}
+      clearScope={() => {}}
+      sendInstruction={vi.fn(async () => undefined)}
+    />)
+    expect(screen.getAllByText(new RegExp(`^${en.sessionPrefix} `)).map(node => node.textContent)).toEqual([
+      `${en.sessionPrefix} live ${en.timelineActivity}`,
+      `${en.sessionPrefix} newer ${en.timelineHistory}`,
+      `${en.sessionPrefix} older ${en.timelineHistory}`,
+    ])
+  })
+
+  it('hides a history row in brief mode, which filters to status rows', () => {
+    render(<TimelineCard
+      t={t}
+      timeline={[entry(1, 'older', 'history', 1000), entry(2, 'live', 'status', 2000)]}
+      timelineMode="brief"
+      scope={undefined}
+      selected={undefined}
+      setTimelineMode={() => {}}
+      clearScope={() => {}}
+      sendInstruction={vi.fn(async () => undefined)}
+    />)
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} live`))).toBeTruthy()
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} older`))).toBeNull()
   })
 
   it('always renders its body: the card offers no fold control', () => {

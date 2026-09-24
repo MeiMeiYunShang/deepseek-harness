@@ -48,6 +48,7 @@ export type ConsoleKey = 'console'
   | 'timelineClear'
   | 'timelineStatus'
   | 'timelineActivity'
+  | 'timelineHistory'
   | 'timelineModeAria'
   | 'timelineEmpty'
   | 'timelineExpand'
@@ -67,6 +68,7 @@ export type ConsoleKey = 'console'
   | 'send'
   | 'stop'
   | 'qaError'
+  | 'open'
   | 'rename'
   | 'renameTitle'
   | 'renameInputAria'
@@ -99,6 +101,7 @@ export type ConsoleKey = 'console'
   | 'sessionStatus.archived'
   | 'na'
   | 'selectedSession'
+  | 'scopeAllSessions'
   | 'noSession'
   | 'updatedAt'
   | 'askUserTitle'
@@ -162,6 +165,7 @@ export const en: Record<ConsoleKey, string> = {
   timelineClear: 'Clear',
   timelineStatus: 'Status',
   timelineActivity: 'Activity',
+  timelineHistory: 'History',
   timelineModeAria: 'Timeline mode',
   timelineEmpty: 'No session activity yet.',
   timelineExpand: 'Expand',
@@ -181,6 +185,7 @@ export const en: Record<ConsoleKey, string> = {
   send: 'Send',
   stop: 'Stop',
   qaError: 'Request failed',
+  open: 'Open',
   rename: 'Rename',
   renameTitle: 'Rename session',
   renameInputAria: 'Session title',
@@ -213,6 +218,7 @@ export const en: Record<ConsoleKey, string> = {
   'sessionStatus.archived': 'Archived',
   na: 'N/A',
   selectedSession: 'selected',
+  scopeAllSessions: 'All sessions',
   noSession: 'No session selected',
   updatedAt: 'updated',
   askUserTitle: 'Question',
@@ -274,6 +280,7 @@ export const zh: Record<ConsoleKey, string> = {
   timelineClear: '清除',
   timelineStatus: '状态',
   timelineActivity: '活动',
+  timelineHistory: '历史',
   timelineModeAria: '时间线模式',
   timelineEmpty: '暂无会话活动。',
   timelineExpand: '展开',
@@ -293,6 +300,7 @@ export const zh: Record<ConsoleKey, string> = {
   send: '发送',
   stop: '停止',
   qaError: '请求失败',
+  open: '打开',
   rename: '重命名',
   renameTitle: '重命名会话',
   renameInputAria: '会话标题',
@@ -325,6 +333,7 @@ export const zh: Record<ConsoleKey, string> = {
   'sessionStatus.archived': '已归档',
   na: 'N/A',
   selectedSession: '已选',
+  scopeAllSessions: '全部会话',
   noSession: '未选择会话',
   updatedAt: '更新于',
   askUserTitle: '问题',

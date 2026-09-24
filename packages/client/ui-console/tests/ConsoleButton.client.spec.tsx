@@ -100,7 +100,9 @@ function renderConsole(overrides: {
   const writers = {
     setTimelineMode: vi.fn(),
     setSessionView: vi.fn(),
-    setSelectedSession: vi.fn(),
+    // The console scope lives in the store too: a grid square and the
+    // all-sessions pill drive the same snapshot the cards read.
+    setSelectedSession: vi.fn((sessionId: string | undefined) => { snap.update((draft) => { draft.selectedSession = sessionId }) }),
     setTimelineScope: vi.fn(),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
@@ -265,6 +267,25 @@ describe('ConsoleButton', () => {
     expect(screen.getByText('1m30s')).toBeTruthy()
     expect(screen.getByText('12%')).toBeTruthy()
     expect(screen.getByText(en.timelineEmpty)).toBeTruthy()
+  })
+
+  it('scopes the task statistics from a grid square and back through the pill', () => {
+    const { snap } = renderConsole({
+      byId: { s1: session('s1', { running: true }), s2: session('s2') },
+      store: makeStore({ sessionView: 'grid', selectedSession: undefined }),
+    })
+    fireEvent.click(screen.getByRole('button', { name: en.trigger }))
+    expect(screen.getByText(new RegExp(`${en.taskScope}: ${en.taskAllSessions}`))).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /s2/ }))
+
+    expect(snap.getSnapshot().selectedSession).toBe('s2')
+    expect(screen.getByText(new RegExp(`${en.taskScope}: s2`))).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: en.scopeAllSessions }))
+
+    expect(snap.getSnapshot().selectedSession).toBeUndefined()
+    expect(screen.getByText(new RegExp(`${en.taskScope}: ${en.taskAllSessions}`))).toBeTruthy()
   })
 
   it('charges the cost figure from a table adopted after the modal opened', () => {

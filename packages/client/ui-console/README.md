@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@deepseek-ai/dsh-client-ui-console` is the browser console workbench of the dsh web GUI. It contributes one sidebar footer action that opens a fullscreen three-column monitoring modal: session status, task statistics, host resource metrics, a scoped activity timeline with an instruction composer, a placeholder knowledge base, and Smart Q&A. Session state and verbs come from `ctx.sessions`, `ctx.workspaces`, and the `sessionStats` projection; host metrics and timeline entries arrive over forwarded `host/metrics` and `api-session/*` events. Use it to watch and steer sessions without leaving the web GUI.
+`@deepseek-ai/dsh-client-ui-console` is the browser console workbench of the dsh web GUI. It contributes one sidebar footer action that opens a fullscreen three-column monitoring modal: session status, task statistics, host resource metrics, a scoped activity timeline with an instruction composer, a placeholder knowledge base, and Smart Q&A. Session state and verbs come from `ctx.sessions`, `ctx.workspaces`, and the `sessionStats` projection; host metrics arrive over the forwarded `host/metrics` event, and timeline rows come from the forwarded `api-session/*` events plus a one-time backfill from the session list. Use it to watch and steer sessions without leaving the web GUI.
 
 ## Table of Contents
 
@@ -27,10 +27,10 @@ English | [中文](README.zh.md)
 
 The modal is a custom `role="dialog"` panel, not the boxed primitive `Modal`, laid out as three columns:
 
-- **Session status** — a stats/grid toggle. The stats view counts total, running, awaiting-input, completed, and archived sessions; the grid view tiles one status-colored square per session (green running, amber waiting, red planning/pending, brand-blue available, grey archived) with current/selection outlines and a right-click context menu for rename, fork, and archive.
+- **Session status** — a stats/grid toggle. The stats view counts total, running, awaiting-input, completed, and archived sessions; the grid view tiles one status-colored square per session (green running, amber waiting, red planning/pending, brand-blue available, grey archived) with current/selection outlines and a right-click context menu for open, rename, fork, and archive.
 - **Task statistics** — a scope line (the whole list or the selected session) plus running, turns, steps, LLM time, and tool-time counts from the `sessionStats` projection. Over the whole list it also shows what those tokens cost, priced from the operator's table.
 - **System status** — CPU / memory / GPU ring gauges from the forwarded `host/metrics` event.
-- **Timeline** — a coarse activity list in brief or all verbosity, scoped to one session or the whole list, with collapsible ask-question details, plus an instruction composer that sends a prompt to the selected session.
+- **Timeline** — a coarse activity list, scoped to one session or the whole list, with collapsible ask-question details, plus an instruction composer that sends a prompt to the selected session. Its default all view renders every row; the status-only brief view is a toggle. The first time the workbench opens while the timeline is still empty, it backfills one `history` row per session the client already lists, ordered oldest update first so the newest session renders at the top, and never backfills again.
 - **Knowledge base** — a source list that currently renders an empty/placeholder state (no backend seam exists yet).
 - **Smart Q&A** — streams one-shot completions over `ctx.remote.llm.chat`.
 
@@ -53,7 +53,7 @@ A price row is keyed by `(baseUrl, provider, model)`, while a reported bucket ca
 
 - **Smart Q&A requires a configured model** — the panel reads the model override from the `console-bridge` settings namespace (`smartQaModel`, `provider/model`). With no override it stays disabled; there is no client-side model catalog remote to fall back to.
 - **Cost is a whole-list figure, and one bucket names no endpoint** — the item is rendered only with the all-sessions scope, and a table that prices one model through two endpoints cannot be applied to a bucket that carries none, so that route is reported ambiguous rather than charged.
-- **The timeline is a coarse mirror** — it renders forwarded `api-session/activity` and `api-session/status` events as labels, not the full session event stream. Session-scoped event-window detail is intentionally left to the conversation surface.
+- **The timeline is a coarse mirror** — it renders forwarded `api-session/status` and `api-session/activity` rows plus one backfilled `history` row per known session, not the full session event stream. Those rows are forwarded events and a list snapshot, so a session carries no per-event detail and the backfill never repeats: it runs once, from the list the client holds at that moment. Session-scoped event-window detail is intentionally left to the conversation surface.
 - **The knowledge base has no backend seam** — the card renders an empty/placeholder state and a row type is exported so a future source can feed it.
 - **Pending interactions are a monitoring hint** — the console colors the session grid square by a pending question or plan review but does not answer them inline; answering belongs to the conversation composer.
 

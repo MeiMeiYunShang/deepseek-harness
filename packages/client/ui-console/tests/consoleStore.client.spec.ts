@@ -1,15 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import { createConsoleStore } from '../src/client/consoleStore.ts'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { createConsoleStore, historyEntries } from '../src/client/consoleStore.ts'
+
+/** One list row for the history projection. */
+function summary(id: string, updatedAt: number): SessionSummary {
+  return { id: id as SessionId, displayTitle: id, running: false, blank: false, updatedAt }
+}
+
+/** A session-list snapshot in host order. */
+function list(rows: readonly SessionSummary[]): SessionListState {
+  return {
+    ids: rows.map(row => row.id),
+    byId: Object.fromEntries(rows.map(row => [row.id, row])),
+    current: undefined,
+    phase: 'ready',
+    subagentsByParent: {},
+    jobsBySession: {},
+    currentAddress: undefined,
+  }
+}
 
 describe('createConsoleStore', () => {
-  it('starts empty with a bounded timeline and default views', () => {
+  it('starts empty with a bounded timeline, showing every kind by default', () => {
     const store = createConsoleStore().create()
     expect(store.getSnapshot()).toEqual({
       open: false,
       timeline: [],
       seq: 0,
       systemStatus: null,
-      timelineMode: 'brief',
+      timelineMode: 'all',
       sessionView: 'stats',
       selectedSession: undefined,
       timelineScope: undefined,
@@ -84,5 +104,26 @@ describe('createConsoleStore', () => {
     expect(store.getSnapshot().collapsed.session).toBe(true)
     store.actions.toggleCollapsed('session')
     expect(store.getSnapshot().collapsed.session).toBe(false)
+  })
+})
+
+describe('historyEntries', () => {
+  it('projects one history row per listed session, oldest update first', () => {
+    expect(historyEntries(list([summary('newer', 300), summary('older', 100)]))).toEqual([
+      { sessionId: 'older', time: 100, kind: 'history' },
+      { sessionId: 'newer', time: 300, kind: 'history' },
+    ])
+  })
+
+  it('seeds nothing from an empty list', () => {
+    expect(historyEntries(list([]))).toEqual([])
+  })
+
+  it('skips a listed id that carries no row', () => {
+    const orphaned: SessionListState = {
+      ...list([summary('listed', 100)]),
+      ids: ['listed' as SessionId, 'gone' as SessionId],
+    }
+    expect(historyEntries(orphaned)).toEqual([{ sessionId: 'listed', time: 100, kind: 'history' }])
   })
 })

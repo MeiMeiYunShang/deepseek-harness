@@ -3,7 +3,8 @@
  * that opens a fullscreen console modal. Session status and task stats come
  * from the standard `useSessions` feed; the timeline and host metrics are fed
  * from the forwarded `api-session/*` and `host/metrics` events into a store the
- * apply closure owns; session verbs (rename/fork/archive/create) and the
+ * apply closure owns, with the timeline backfilled from the session list on the
+ * first open; session verbs (rename/fork/archive/create) and the
  * workspace/preset options ride the real service faces; Smart Q&A streams over
  * `ctx.remote.llm.chat`.
  */
@@ -19,7 +20,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { CONSOLE_PRICING_NAMESPACE, PriceTablePolicy } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ConsoleButton } from './ConsoleButton.tsx'
-import { createConsoleStore } from './consoleStore.ts'
+import { createConsoleStore, historyEntries } from './consoleStore.ts'
 import type { ConsoleStoreWrite } from './consoleStore.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
@@ -44,7 +45,8 @@ export const inject = ['slots', 'locale', 'remote', 'sessions', 'workspaces', 's
 
 /**
  * Client plugin body: register the dictionaries and the sidebar footer action,
- * and own the timeline store fed from the forwarded Remote events.
+ * and own the timeline store fed from the forwarded Remote events and
+ * backfilled from the session list on the workbench's first open.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
@@ -75,6 +77,23 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.remote.$on('host/metrics', (metrics: { cpu: number; memory: number; gpu: number | null }) => {
     store.actions.updateSystemStatus({ cpu: metrics.cpu, memory: metrics.memory, gpu: metrics.gpu })
   }), 'ui-console: host metrics')
+
+  // Forwarded events are rare and only accumulate from page load, so the
+  // workbench would otherwise open on an empty timeline. The first open with an
+  // empty timeline backfills one recorded row per session the client already
+  // lists — no second fetch, and an empty list seeds nothing. Rows append in
+  // insertion order while the list renders reversed, so a later backfill would
+  // render older sessions as the newest events; the seed therefore runs once,
+  // and never over a timeline that already holds a row.
+  let historySeeded = false
+  ctx.effect(() => store.subscribe(() => {
+    const snapshot = store.getSnapshot()
+    if (historySeeded || !snapshot.open || snapshot.timeline.length > 0) return
+    const rows = historyEntries(ctx.sessions.list.getSnapshot())
+    if (rows.length === 0) return
+    historySeeded = true
+    for (const row of rows) store.actions.pushTimeline(row)
+  }), 'ui-console: timeline history seed')
 
   // Resolve the Smart Q&A default model once at load from the console-bridge
   // setting (`provider/model`); an unset or malformed override leaves it null,

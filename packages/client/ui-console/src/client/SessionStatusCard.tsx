@@ -70,7 +70,13 @@ export function GridCell({ summary, tone, aria, active, selected, onClick, onCon
       aria-pressed={selected}
       title={title}
       onClick={onClick}
-      onContextMenu={(event) => { onContextMenu?.(event.clientX, event.clientY) }}
+      onContextMenu={(event) => {
+        // The square replaces the browser's page menu with the session menu the
+        // workbench renders at these coordinates; without this the native menu
+        // opens over it.
+        event.preventDefault()
+        onContextMenu?.(event.clientX, event.clientY)
+      }}
     />
   )
 }
@@ -93,8 +99,10 @@ export interface SessionStatusCardProps {
   pendingKindOf: (id: string) => string | undefined
   /** Switch the stats/grid view. */
   setSessionView: (view: SessionView) => void
-  /** Grid-square click (select the session). */
+  /** Grid-square click: scope the console to that session. */
   selectSession: (id: string) => void
+  /** Return the console scope to the whole session list. */
+  clearScope: () => void
   /** Grid-square right-click (open the context menu at x/y). */
   onContextMenu: (id: string, x: number, y: number) => void
   /** New-session action. */
@@ -108,7 +116,7 @@ export interface SessionStatusCardProps {
 /** Session status card: the header row plus the selected view body. */
 export function SessionStatusCard({
   t, byId, current, sessionView, selected, isArchived, pendingKindOf,
-  setSessionView, selectSession, onContextMenu, onNewSession, collapsed, onToggleCollapse,
+  setSessionView, selectSession, clearScope, onContextMenu, onNewSession, collapsed, onToggleCollapse,
 }: SessionStatusCardProps) {
   const sessions = Object.values(byId)
   const running = sessions.filter(session => session.running).length
@@ -143,10 +151,17 @@ export function SessionStatusCard({
           </div>
         )}
         actions={(
-          <button type="button" className={css.newSessionButton} onClick={onNewSession}>
-            <IconPlusOutline16 size={14} />
-            <span>{t('newSession')}</span>
-          </button>
+          <>
+            {selected !== undefined && (
+              <button type="button" className={css.scopePill} onClick={clearScope}>
+                {t('scopeAllSessions')}
+              </button>
+            )}
+            <button type="button" className={css.newSessionButton} onClick={onNewSession}>
+              <IconPlusOutline16 size={14} />
+              <span>{t('newSession')}</span>
+            </button>
+          </>
         )}
       />
       {!collapsed && (

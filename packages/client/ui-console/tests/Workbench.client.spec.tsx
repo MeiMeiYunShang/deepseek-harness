@@ -61,6 +61,7 @@ function renderWorkbench(overrides: {
   archived?: readonly string[]
   workspaces?: readonly { id: string; label: string }[]
   titleOf?: (id: string) => string | undefined
+  onClose?: () => void
 } = {}) {
   const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? baseStore())
   const store = {
@@ -75,7 +76,7 @@ function renderWorkbench(overrides: {
   const srv = services(overrides.services)
   render(<Workbench
     t={t}
-    onClose={() => {}}
+    onClose={overrides.onClose ?? (() => {})}
     byId={overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }}
     current="s1"
     archived={new Set(overrides.archived ?? [])}
@@ -156,6 +157,20 @@ describe('Workbench', () => {
     await waitFor(() =>{  expect(srv.archive).toHaveBeenCalledWith('s1') })
   })
 
+  it('opens the right-clicked session from the first menu entry, closing the menu without scoping the console', async () => {
+    const { srv, store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid' } })
+    const cell = screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes('s2'))
+    expect(cell).toBeTruthy()
+    if (cell !== undefined) fireEvent.contextMenu(cell, { clientX: 10, clientY: 20 })
+    await waitFor(() =>{  expect(screen.getByRole('menu')).toBeTruthy() })
+    const entries = screen.getAllByRole('menuitem')
+    expect(entries.map(entry => entry.textContent)).toEqual([en.open, en.rename, en.fork, en.archive])
+    fireEvent.click(entries[0]!)
+    await waitFor(() =>{  expect(srv.open).toHaveBeenCalledWith('s2') })
+    await waitFor(() =>{  expect(screen.queryByRole('menu')).toBeNull() })
+    expect(store.setSelectedSession).not.toHaveBeenCalled()
+  })
+
   it('has a context-menu selection on an unknown action that only closes', async () => {
     const { store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid' } })
     const cell = screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes('s1'))
@@ -165,17 +180,23 @@ describe('Workbench', () => {
     await waitFor(() =>{  expect(store.setSessionView).not.toHaveBeenCalled() })
   })
 
-  it('selects a grid session and sends an instruction through the composer', async () => {
-    const { srv } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid' } })
+  it('scopes the console to a grid session and sends an instruction through the composer', async () => {
+    const { store, srv } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid' } })
     const cell = screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes('s2'))
     if (cell !== undefined) fireEvent.click(cell)
-    await waitFor(() =>{  expect(srv.open).toHaveBeenCalledWith('s2') })
+    await waitFor(() =>{  expect(store.setSelectedSession).toHaveBeenCalledWith('s2') })
     // composer input is the enabled textbox; SmartQA input is disabled (model null).
     const composer = screen.getByPlaceholderText(en.composerPlaceholder) as HTMLInputElement
     fireEvent.change(composer, { target: { value: 'instruct' } })
     const dialog = screen.getByRole('dialog')
     fireEvent.click(within(dialog).getAllByRole('button', { name: en.send }).find(button => !(button as HTMLButtonElement).disabled)!)
     await waitFor(() =>{  expect(srv.sendInstruction).toHaveBeenCalledWith('s1', 'instruct') })
+  })
+
+  it('returns the scope to all sessions through the header pill', () => {
+    const { store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: 's2' } })
+    fireEvent.click(screen.getByRole('button', { name: en.scopeAllSessions }))
+    expect(store.setSelectedSession).toHaveBeenCalledWith(undefined)
   })
 
   it('renames a session whose title cannot be resolved, falling back to the id', async () => {
@@ -223,8 +244,25 @@ describe('Workbench', () => {
     expect(store.toggleCollapsed).toHaveBeenCalled()
   })
 
+  it('closes the panel on Escape and ignores every other key', () => {
+    const onClose = vi.fn()
+    renderWorkbench({ onClose })
+    fireEvent.keyDown(document, { key: 'a' })
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('folds the Smart Q&A body away with its own fold state', () => {
+    renderWorkbench({ store: { ...baseStore(), collapsed: { qa: true } } })
+    expect(screen.getByText(en.smartQA)).toBeTruthy()
+    expect(screen.queryByPlaceholderText(en.inputPlaceholder)).toBeNull()
+  })
+
   it('clears the timeline scope through the pill', () => {
-    const { store } = renderWorkbench({ store: { ...baseStore(), timelineScope: 's1' } })
+    // The console scope stays unset: the session card then renders no
+    // all-sessions pill of its own, and the timeline's is the only one.
+    const { store } = renderWorkbench({ store: { ...baseStore(), selectedSession: undefined, timelineScope: 's1' } })
     fireEvent.click(screen.getByRole('button', { name: en.timelineScopeAll }))
     expect(store.setTimelineScope).toHaveBeenCalledWith(undefined)
   })

@@ -16,6 +16,7 @@ The console-bridge migration needed a browser workbench the old apiproxy surface
 | --- | --- |
 | session list / status / current | `useSessions` over `ctx.sessions.list` |
 | forwarded session activity | `ctx.remote.$on('api-session/activity' \| 'status')` |
+| timeline backfill on first open | one-shot `ctx.sessions.list.getSnapshot()` read in `apply` |
 | host resource metrics | `ctx.remote.$on('host/metrics')` |
 | pending `ask_user_question` / `plan-review` | `useSessionPendingInteraction` over `ctx.uiSession.pendingInteractions` |
 | cumulative task statistics | `sessionStats` projection on `SessionSummary.projectionValues` |
@@ -24,7 +25,7 @@ The console-bridge migration needed a browser workbench the old apiproxy surface
 | fullscreen overlay | `Modal` from `dsh-client-ui-primitives` |
 | Smart Q&A completions | `ctx.remote.llm.chat(request)` -> `AsyncIterable<LlmChatChunk>` |
 
-The store is fed in `apply` by the forwarded `api-session/*` and `host/metrics` events and exposed to the component through the register `hooks` compartment (the renderer binds `useConsole`), so no cross-plugin value import crosses the client-bundle purity gate. Registration is the standard three surfaces (`tsconfig.client.json`, the `dsh.client` row in web-app `cordis.patch.yml`, and the web-app dependency) plus the hand-written `tsconfig.base.json` paths alias the source-launch resolver requires.
+The store is fed in `apply` by the forwarded `api-session/*` and `host/metrics` events — all three subscriptions install unconditionally for the life of the page — and backfilled once from `ctx.sessions.list` when the workbench first opens on an empty timeline. It is exposed to the component through the register `hooks` compartment (the renderer binds `useConsole`), so no cross-plugin value import crosses the client-bundle purity gate. Registration is the standard three surfaces (`tsconfig.client.json`, the `dsh.client` row in web-app `cordis.patch.yml`, and the web-app dependency) plus the hand-written `tsconfig.base.json` paths alias the source-launch resolver requires.
 
 ## Alternatives considered
 
@@ -47,6 +48,7 @@ Rejected. The operator's `console-pricing` table is the only price source, so a 
 ## Consequences
 
 - Cost is a whole-list figure: the card renders it only in the all-sessions scope, because one session's share of a shared price table is not what scoping to a conversation asks for.
-- The console is a monitoring mirror, not a full conversation surface: pending interactions are listed, not answered; the timeline is a coarse label over forwarded `api-session/*` events rather than the full session event window.
+- A session square carries one gesture per intent. The left click sets the console's own scope — the task-statistics `作用域` line and the instruction composer's target — and the header's all-sessions pill clears it. The right-click menu carries the verbs that act on that session: open switches the application's current session, while rename, fork, and archive change it. Opening is a menu verb rather than the click because the workbench is fullscreen, so a click that switched the application's session would show no effect until the panel closed.
+- The console is a monitoring mirror, not a full conversation surface: pending interactions are listed, not answered; the timeline is a coarse label over the forwarded `api-session/*` events plus one backfilled `history` row per session the list already held at the first open, rather than the full session event window.
 - Smart Q&A is disabled until the `console-bridge.smartQaModel` setting (`provider/model`) is configured; there is no client model-catalog remote to seed a default.
 - `ctx.remote.llm.chat` is covered end to end by the console's Smart Q&A panel (see the `chat` Remote Agent Note for the wire shape).

@@ -532,7 +532,10 @@
   gap: 6px;
 }
 
-.timelineScopePill {
+/* The scope pill: one control, shared by the timeline toolbar and the session
+   card header, that names the scope a card's contents are limited to. */
+.timelineScopePill,
+.scopePill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -546,7 +549,8 @@
   cursor: pointer;
 }
 
-.timelineScopePill:hover {
+.timelineScopePill:hover,
+.scopePill:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 

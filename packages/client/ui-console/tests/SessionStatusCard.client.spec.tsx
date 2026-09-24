@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cellPhase, GridCell, SessionStatusCard } from '../src/client/SessionStatusCard.tsx'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -30,6 +30,7 @@ function renderCard(overrides: {
   pendingKindOf?: (id: string) => string | undefined
   setSessionView?: (view: 'stats' | 'grid') => void
   selectSession?: (id: string) => void
+  clearScope?: () => void
   onContextMenu?: (id: string, x: number, y: number) => void
   onNewSession?: () => void
   collapsed?: boolean
@@ -37,6 +38,7 @@ function renderCard(overrides: {
 } = {}) {
   const setSessionView = overrides.setSessionView ?? vi.fn()
   const selectSession = overrides.selectSession ?? vi.fn()
+  const clearScope = overrides.clearScope ?? vi.fn()
   const onContextMenu = overrides.onContextMenu ?? vi.fn()
   const onNewSession = overrides.onNewSession ?? vi.fn()
   const onToggleCollapse = overrides.onToggleCollapse ?? vi.fn()
@@ -50,12 +52,13 @@ function renderCard(overrides: {
     pendingKindOf={overrides.pendingKindOf ?? (() => undefined)}
     setSessionView={setSessionView}
     selectSession={selectSession}
+    clearScope={clearScope}
     onContextMenu={onContextMenu}
     onNewSession={onNewSession}
     collapsed={overrides.collapsed ?? false}
     onToggleCollapse={onToggleCollapse}
   />)
-  return { setSessionView, selectSession, onContextMenu, onNewSession, onToggleCollapse }
+  return { setSessionView, selectSession, clearScope, onContextMenu, onNewSession, onToggleCollapse }
 }
 
 describe('cellPhase', () => {
@@ -79,6 +82,16 @@ describe('GridCell', () => {
     const onContextMenu = vi.fn()
     render(<GridCell summary={session('s')} tone="available" aria={en['sessionStatus.available']} active={false} selected={false} onClick={() => {}} onContextMenu={onContextMenu} />)
     fireEvent.contextMenu(screen.getByRole('button'), { clientX: 10, clientY: 20 })
+    expect(onContextMenu).toHaveBeenCalledWith(10, 20)
+  })
+
+  it('suppresses the browser menu on a right-click', () => {
+    const onContextMenu = vi.fn()
+    render(<GridCell summary={session('s')} tone="available" aria={en['sessionStatus.available']} active={false} selected={false} onClick={() => {}} onContextMenu={onContextMenu} />)
+    const event = createEvent.contextMenu(screen.getByRole('button'), { clientX: 10, clientY: 20 })
+    fireEvent(screen.getByRole('button'), event)
+    // jsdom opens no native menu, so the suppression is read off the event.
+    expect(event.defaultPrevented).toBe(true)
     expect(onContextMenu).toHaveBeenCalledWith(10, 20)
   })
 })
@@ -108,11 +121,22 @@ describe('SessionStatusCard', () => {
     expect(screen.queryByText(en.sessionStatsView)).toBeNull()
   })
 
-  it('renders the grid square view and selects a session', () => {
+  it('renders the grid square view and scopes the console to the clicked session', () => {
     const { selectSession } = renderCard({ sessionView: 'grid', byId: { s1: session('s1'), s2: session('s2') } })
     const cell = screen.getByRole('button', { name: /s1/ })
     fireEvent.click(cell)
     expect(selectSession).toHaveBeenCalledWith('s1')
+  })
+
+  it('returns the scope to the whole list through the header pill', () => {
+    const { clearScope } = renderCard({ sessionView: 'grid', selected: 's1' })
+    fireEvent.click(screen.getByRole('button', { name: en.scopeAllSessions }))
+    expect(clearScope).toHaveBeenCalled()
+  })
+
+  it('offers no scope pill while the whole list is in scope', () => {
+    renderCard({ sessionView: 'grid' })
+    expect(screen.queryByRole('button', { name: en.scopeAllSessions })).toBeNull()
   })
 
   it('opens the new-session action', () => {
