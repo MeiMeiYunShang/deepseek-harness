@@ -8,6 +8,8 @@ import type {} from '@deepseek-ai/dsh-session-stats/types'
 import { Workbench } from '../src/client/Workbench.tsx'
 import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
+import type { TimelineMessage } from '../src/client/timelineMessages.ts'
+import { formatTime } from '../src/client/format.ts'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { en } from '../src/client/locales.ts'
 
@@ -63,6 +65,7 @@ function renderWorkbench(overrides: {
   archived?: readonly string[]
   workspaces?: readonly { id: string; label: string }[]
   titleOf?: (id: string) => string | undefined
+  messages?: readonly TimelineMessage[]
   onClose?: () => void
 } = {}) {
   const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? baseStore())
@@ -79,7 +82,7 @@ function renderWorkbench(overrides: {
   const srv = services(overrides.services)
   // One row set: the cards and the title resolver read the same sessions.
   const byId = overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }
-  render(<Workbench
+  const view = render(<Workbench
     t={t}
     onClose={overrides.onClose ?? (() => {})}
     byId={byId}
@@ -94,8 +97,9 @@ function renderWorkbench(overrides: {
     chat={vi.fn(async function* () { /* no chunks */ })}
     defaultModel={null}
     prices={[]}
+    messages={overrides.messages ?? []}
   />)
-  return { snap, store, srv }
+  return { container: view.container, snap, store, srv }
 }
 
 describe('Workbench', () => {
@@ -187,7 +191,7 @@ describe('Workbench', () => {
 
   it('scopes the timeline and the composer to a grid session', async () => {
     const { store, srv } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: undefined } })
-    // Unscoped: every session is listed and the composer has no target.
+    // Unscoped: every session's coarse rows are listed and the composer has no target.
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
     expect(screen.getByPlaceholderText(en.composerDisabled)).toBeTruthy()
@@ -197,9 +201,12 @@ describe('Workbench', () => {
     await waitFor(() =>{  expect(store.setSelectedSession).toHaveBeenCalledWith('s2') })
 
     // One click moves the one scope the timeline, the statistics card, and the
-    // composer all read.
+    // composer all read: the card now renders s2's conversation, so the coarse
+    // rows leave and the scope label names it.
     expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
-    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
+    expect(screen.getAllByText(`${en.timelineScopeLabel}: s2`)).toHaveLength(2)
+    expect(screen.getByText(en.timelineNoMessages)).toBeTruthy()
     expect(screen.getAllByText(`${en.taskScope}: s2`)).toHaveLength(2)
 
     // composer input is the enabled textbox; SmartQA input is disabled (model null).
@@ -212,10 +219,11 @@ describe('Workbench', () => {
 
   it('returns the timeline, the statistics line, and the composer to the whole list in one action', () => {
     const { store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: 's2' } })
-    // Scoped: the timeline lists s2 alone, and both it and the statistics card
-    // name that session with the same scope label.
+    // Scoped: the timeline renders s2's conversation, and both it and the
+    // statistics card name that session with the same scope label.
     expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
-    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
+    expect(screen.getAllByText(`${en.timelineScopeLabel}: s2`)).toHaveLength(2)
     expect(screen.getAllByText(`${en.taskScope}: s2`)).toHaveLength(2)
 
     fireEvent.click(screen.getByRole('button', { name: en.scopeAllSessions }))
@@ -227,6 +235,20 @@ describe('Workbench', () => {
     expect(screen.getAllByText(new RegExp(`^${en.timelineScopeLabel}: `))).toHaveLength(1)
     expect(screen.getByText(`${en.taskScope}: ${en.taskAllSessions}`)).toBeTruthy()
     expect(screen.getByPlaceholderText(en.composerDisabled)).toBeTruthy()
+  })
+
+  it('renders the scoped session conversation as an operator bubble and an assistant block', () => {
+    const { container } = renderWorkbench({
+      messages: [
+        { key: 1, role: 'user', text: 'Repair the composer', time: 1_000 },
+        { key: 2, role: 'assistant', text: 'Done.', time: 2_000 },
+      ],
+    })
+
+    expect(container.querySelector('[data-role="user"]')?.textContent).toBe('Repair the composer')
+    // Only the assistant block carries the metadata row, and it is that
+    // event's own time.
+    expect(container.querySelector('[data-role="assistant"]')?.textContent).toBe(`Done.${formatTime(2_000)}`)
   })
 
   it('renames a session whose title cannot be resolved, falling back to the id', async () => {
@@ -251,7 +273,8 @@ describe('Workbench', () => {
   })
 
   it('switches the session view and timeline mode through the store writers', () => {
-    const { store } = renderWorkbench()
+    // The row-verbosity toggle belongs to the unscoped row list.
+    const { store } = renderWorkbench({ store: { ...baseStore(), selectedSession: undefined } })
     fireEvent.click(screen.getByRole('button', { name: en.sessionGridView }))
     expect(store.setSessionView).toHaveBeenCalledWith('grid')
     fireEvent.click(screen.getByRole('button', { name: en.timelineActivity }))

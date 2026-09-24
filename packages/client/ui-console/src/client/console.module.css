@@ -701,6 +701,57 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* --- Scoped conversation stream ---
+   The scoped card renders the session's own conversation instead of the coarse
+   rows: the operator's messages take the chat view's bubble treatment through
+   the shared bubble token, and assistant replies are plain left-aligned text. */
+.messageStream {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.messageUser {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.messageUserBubble {
+  max-width: 82%;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 22px;
+  background: var(--dsw-specific-bubble);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.messageAssistant {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.messageAssistantText {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* The assistant metadata row: the reply's own event time, and nothing the
+   console cannot source (per-message tokens and cost do not exist here). */
+.messageMeta {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .readonlyMirror {
   border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;

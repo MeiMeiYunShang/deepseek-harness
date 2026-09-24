@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the useWorkspaces standard hook (GlobalStandardProps merge).
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { ConsoleStoreState, ConsoleStoreWrite } from './consoleStore.ts'
+import type { TimelineMessage } from './timelineMessages.ts'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS } from './locales.ts'
 import type { ConsoleServices } from './services.ts'
@@ -48,6 +49,8 @@ export type ConsoleButtonProps =
       console: HostObservable<ConsoleStoreState>
       /** The operator's model price table for the task-statistics cost figure. */
       prices: HostObservable<readonly ModelPrice[]>
+      /** The selected session's conversation, in log order; empty while nothing is scoped. */
+      messages: HostObservable<readonly TimelineMessage[]>
     }
   } & ConsoleFaces>
   & PropsLocale<typeof NS>
@@ -64,6 +67,7 @@ export function ConsoleButton(props: ConsoleButtonProps) {
   // The operator's table is read through its bound hook, so a section the
   // settings mirror accepts after this plugin mounted still prices the card.
   const prices = props.usePrices(value => value)
+  const messages = props.useMessages(value => value)
   const byId = props.useSessions(value => value.byId)
   const current = props.useSessions(value => value.current)
   const workspace = props.useWorkspaces(value => value)
@@ -88,6 +92,7 @@ export function ConsoleButton(props: ConsoleButtonProps) {
     chat: props.chat,
     defaultModel: props.defaultModel,
     prices,
+    messages,
   }
   return (
     <>

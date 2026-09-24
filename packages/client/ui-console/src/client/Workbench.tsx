@@ -13,6 +13,7 @@ import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/cli
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { contextMenuItems, contextAnchorRect } from './ContextMenu.tsx'
 import type { ConsoleCardKey, ConsoleStoreState, ConsoleStoreWrite, LayoutPreset } from './consoleStore.ts'
+import type { TimelineMessage } from './timelineMessages.ts'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS, type ConsoleKey } from './locales.ts'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
@@ -69,6 +70,8 @@ export interface WorkbenchProps {
   defaultModel: { provider: string; model: string } | null
   /** The operator's model price table, for the task-statistics cost figure. */
   prices: readonly ModelPrice[]
+  /** The selected session's conversation, in log order; empty while nothing is scoped. */
+  messages: readonly TimelineMessage[]
 }
 
 /** One open context-menu invocation. */
@@ -81,7 +84,8 @@ interface OpenContextMenu {
 
 /** The fullscreen workbench panel. */
 export function Workbench({
-  t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces, useConsole, store, services, chat, defaultModel, prices,
+  t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces,
+  useConsole, store, services, chat, defaultModel, prices, messages,
 }: WorkbenchProps) {
   const timeline = useConsole(value => value.timeline)
   const timelineMode = useConsole(value => value.timelineMode)
@@ -181,6 +185,7 @@ export function Workbench({
               timeline={timeline}
               timelineMode={timelineMode}
               selectedSession={selectedSession}
+              messages={messages}
               titleOf={titleOf}
               setTimelineMode={store.setTimelineMode}
               sendInstruction={text => sendToSession(services, selectedSession, text)}

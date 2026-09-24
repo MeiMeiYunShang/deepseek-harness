@@ -7,6 +7,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import type { TimelineEntry, TimelineMode } from './consoleStore.ts'
+import type { TimelineMessage } from './timelineMessages.ts'
 import type { ConsoleKey } from './locales.ts'
 import { FOLD_LIMIT, foldText, shortId, timelineLabelKey } from './timelineText.ts'
 import { formatTime } from './format.ts'
@@ -38,11 +39,16 @@ export interface TimelineCardProps {
   /** Selected verbosity. */
   timelineMode: TimelineMode
   /**
-   * The console's selected session: the card lists only its entries and the
-   * composer sends to it, while `undefined` lists every session and leaves the
-   * composer disabled.
+   * The console's selected session: the card renders its conversation and the
+   * composer sends to it, while `undefined` lists every session's coarse rows
+   * and leaves the composer disabled.
    */
   selectedSession: string | undefined
+  /**
+   * The selected session's conversation, in log order. The apply closure owns
+   * the subscription behind it, so the card only renders what it is handed.
+   */
+  messages: readonly TimelineMessage[]
   /** Resolve a session's display title for the scope label. */
   titleOf: (id: string) => string | undefined
   /** Set the verbosity. */
@@ -62,22 +68,17 @@ export function rowTone(kind: string): RowTone {
 export interface TimelineListProps {
   t: (key: ConsoleKey, params?: Record<string, unknown>) => string
   timeline: readonly TimelineEntry[]
-  /** The console's selected session; `undefined` lists every entry. */
-  selectedSession: string | undefined
   detailOf: (entry: TimelineEntry) => TimelineDetail | undefined
 }
 
-/** The event list with per-row folding, a newest-first page window, and optional ask-card detail. */
-export function TimelineList({ t, timeline, selectedSession, detailOf }: TimelineListProps) {
+/** The cross-session event list with per-row folding, a newest-first page window, and optional ask-card detail. */
+export function TimelineList({ t, timeline, detailOf }: TimelineListProps) {
   const [expandedSeq, setExpandedSeq] = useState<number | null>(null)
   const [visible, setVisible] = useState(TIMELINE_PAGE)
-  const scoped = selectedSession === undefined
-    ? [...timeline]
-    : timeline.filter(entry => entry.sessionId === selectedSession)
-  if (scoped.length === 0) return <span className={css.emptyHint}>{t('timelineEmpty')}</span>
+  if (timeline.length === 0) return <span className={css.emptyHint}>{t('timelineEmpty')}</span>
   // Newest first, but only one page in the DOM: the store keeps a 200-entry
   // window, and rendering all of it costs a row per event on every push.
-  const reversed = scoped.reverse()
+  const reversed = [...timeline].reverse()
   const shown = reversed.slice(0, visible)
   const hidden = reversed.length - shown.length
   return (
@@ -119,6 +120,40 @@ export function TimelineList({ t, timeline, selectedSession, detailOf }: Timelin
         </button>
       )}
     </>
+  )
+}
+
+/** Props for the scoped conversation stream. */
+export interface MessageStreamProps {
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
+  /** The selected session's conversation, in log order. */
+  messages: readonly TimelineMessage[]
+}
+
+/**
+ * The scoped session's conversation: a right-aligned bubble per operator
+ * message and left-aligned text per assistant reply, with the reply's own
+ * timestamp beneath it. Per-message token counts and cost are not available to
+ * the console — cost is reported per session — so the row carries no such
+ * figure.
+ */
+export function MessageStream({ t, messages }: MessageStreamProps) {
+  if (messages.length === 0) return <span className={css.emptyHint}>{t('timelineNoMessages')}</span>
+  return (
+    <div className={css.messageStream}>
+      {messages.map(message => message.role === 'user'
+        ? (
+          <div key={message.key} className={css.messageUser} data-role="user">
+            <p className={css.messageUserBubble}>{message.text}</p>
+          </div>
+        )
+        : (
+          <div key={message.key} className={css.messageAssistant} data-role="assistant">
+            <p className={css.messageAssistantText}>{message.text}</p>
+            <span className={css.messageMeta}>{formatTime(message.time)}</span>
+          </div>
+        ))}
+    </div>
   )
 }
 
@@ -270,7 +305,8 @@ export function Composer({ t, selectedSession, sendInstruction }: ComposerProps)
  * only card, so folding it would leave an empty column rather than free room;
  * it renders no fold control and is always expanded. */
 export function TimelineCard(props: TimelineCardProps) {
-  const { t, timeline, timelineMode, selectedSession, titleOf, setTimelineMode, sendInstruction } = props
+  const { t, timeline, timelineMode, selectedSession, messages, titleOf, setTimelineMode, sendInstruction } = props
+  const scoped = selectedSession !== undefined
   const byMode = timelineMode === 'all'
     ? timeline
     : timeline.filter(entry => entry.kind === 'status')
@@ -279,14 +315,16 @@ export function TimelineCard(props: TimelineCardProps) {
       <CardHeader
         t={t}
         title={t('timeline')}
-        /* The scope the rows below are limited to, named where they are read.
+        /* The scope the stream below belongs to, named where it is read.
            Clearing it is the session card header's single all-sessions pill. */
-        afterTitle={selectedSession !== undefined && (
+        afterTitle={scoped && (
           <span className={css.timelineScopeLabel}>
             {t('timelineScopeLabel')}: {titleOf(selectedSession) ?? shortId(selectedSession)}
           </span>
         )}
-        actions={(
+        /* The verbosity toggle filters the coarse rows, which only the unscoped
+           view renders; a scoped card shows the conversation itself. */
+        actions={!scoped && (
           <div className={css.timelineMode} role="group" aria-label={t('timelineModeAria')}>
             <button
               type="button"
@@ -308,7 +346,9 @@ export function TimelineCard(props: TimelineCardProps) {
         )}
       />
       <div className={css.timeline}>
-        <TimelineList t={t} timeline={byMode} selectedSession={selectedSession} detailOf={() => undefined} />
+        {scoped
+          ? <MessageStream t={t} messages={messages} />
+          : <TimelineList t={t} timeline={byMode} detailOf={() => undefined} />}
       </div>
       <Composer t={t} selectedSession={selectedSession} sendInstruction={sendInstruction} />
     </div>

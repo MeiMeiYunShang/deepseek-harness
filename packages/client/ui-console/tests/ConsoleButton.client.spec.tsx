@@ -11,6 +11,7 @@ import { ConsoleButton } from '../src/client/ConsoleButton.tsx'
 import type { ConsoleButtonProps, ConsoleQaModel } from '../src/client/ConsoleButton.tsx'
 import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
+import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { en } from '../src/client/locales.ts'
 
@@ -90,10 +91,12 @@ function renderConsole(overrides: {
   workspaces?: readonly { id: string; label: string }[]
   services?: Partial<ConsoleServices>
   prices?: readonly ModelPrice[]
+  messages?: readonly TimelineMessage[]
   wide?: boolean
 } = {}) {
   const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? makeStore())
   const prices = createSnapshotStore<readonly ModelPrice[]>(overrides.prices ?? [])
+  const messages = createSnapshotStore<readonly TimelineMessage[]>(overrides.messages ?? [])
   const chat = vi.fn(async function* () { /* no chunks */ })
   const srv = overrides.services === undefined ? services() : services(overrides.services)
   const writers = {
@@ -130,13 +133,14 @@ function renderConsole(overrides: {
     }),
     useConsole: bindSnapshotSelector(snap),
     usePrices: bindSnapshotSelector(prices),
+    useMessages: bindSnapshotSelector(messages),
     store: writers,
     services: srv,
     chat,
     defaultModel: overrides.defaultModel ?? null,
   } as unknown as ConsoleButtonProps
   render(<ConsoleButton {...props} />)
-  return { snap, prices, chat, srv, writers }
+  return { snap, prices, messages, chat, srv, writers }
 }
 
 describe('ConsoleButton', () => {
@@ -290,10 +294,11 @@ describe('ConsoleButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /s2/ }))
 
     expect(snap.getSnapshot().selectedSession).toBe('s2')
-    // One scope: the square moves the timeline's filter, the scope line, and
-    // the composer's target together.
+    // One scope: the square moves the timeline's own conversation, the scope
+    // line, and the composer's target together.
     expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
-    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
+    expect(screen.getByText(en.timelineNoMessages)).toBeTruthy()
     expect(screen.getAllByText(`${en.timelineScopeLabel}: s2`)).toHaveLength(2)
     const scopedComposer = screen.getByPlaceholderText(en.composerPlaceholder) as HTMLInputElement
     expect(scopedComposer.disabled).toBe(false)

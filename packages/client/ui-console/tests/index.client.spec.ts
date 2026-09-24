@@ -2,7 +2,8 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
+import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionEvent, SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { TestRemote, TestSessions, TestWorkspaces, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
@@ -11,6 +12,7 @@ import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
 import type { ConsoleServices } from '../src/client/services.ts'
 import type { ConsoleStoreState, ConsoleStoreWrite } from '../src/client/consoleStore.ts'
+import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 
 /** Stabilizer that lets TestSessions/TestWorkspaces write outside React act. */
 const stabilize = async (fn: () => void): Promise<void> => {
@@ -66,13 +68,50 @@ function declareSidebar(slots: SlotRegistry): () => void {
 
 /** The console sidebar action's registered inject face: store hook plus its write set. */
 function consoleFace(slots: SlotRegistry): {
-  hooks: { console: { getSnapshot: () => ConsoleStoreState } }
+  hooks: {
+    console: { getSnapshot: () => ConsoleStoreState }
+    messages: { getSnapshot: () => readonly TimelineMessage[] }
+  }
   store: ConsoleStoreWrite
 } {
   return (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
-    hooks: { console: { getSnapshot: () => ConsoleStoreState } }
+    hooks: {
+      console: { getSnapshot: () => ConsoleStoreState }
+      messages: { getSnapshot: () => readonly TimelineMessage[] }
+    }
     store: ConsoleStoreWrite
   })()
+}
+
+/** One operator prompt event. */
+function promptEntry(seq: number, text: string): SessionLiveEventEntry {
+  return {
+    type: 'event',
+    event: {
+      seq,
+      time: seq * 100,
+      type: 'user/message',
+      data: { id: `u${seq}`, role: 'user', content: [{ type: 'text', text }], source: { kind: 'user' } },
+    },
+  } as unknown as SessionLiveEventEntry
+}
+
+/** One assembled assistant reply event. */
+function replyEntry(seq: number, text: string): SessionLiveEventEntry {
+  return {
+    type: 'event',
+    event: {
+      seq,
+      time: seq * 100,
+      type: 'assistant/message',
+      data: {
+        turn: 1,
+        step: 1,
+        message: { id: `a${seq}`, role: 'assistant', content: [{ type: 'text', text }], source: { kind: 'model', provider: 'p', model: 'm' } },
+        stream: [],
+      },
+    },
+  } as unknown as SessionLiveEventEntry
 }
 
 describe('ui-console apply', () => {
@@ -90,12 +129,13 @@ describe('ui-console apply', () => {
     const entry = slots.entries('sidebar.footer.action')[0]!
     expect(entry.options).toMatchObject({ id: 'console', order: 40 })
     expect(resolveSlotLabel(entry.options.label)).toBe('Console')
-    // The injected face exposes the store hook, the price table, the service
-    // verb set, the chat fetcher, and the default model.
+    // The injected face exposes the store hook, the price table, the scoped
+    // conversation, the service verb set, the chat fetcher, and the default model.
     const face = (entry.inject as unknown as () => {
       hooks: {
         console: { getSnapshot: () => unknown; subscribe: unknown }
         prices: { getSnapshot: () => readonly ModelPrice[] }
+        messages: { getSnapshot: () => readonly TimelineMessage[]; subscribe: unknown }
       }
       store: unknown
       services: unknown
@@ -104,6 +144,9 @@ describe('ui-console apply', () => {
     })()
     expect(typeof face.hooks.console.getSnapshot).toBe('function')
     expect(typeof face.hooks.console.subscribe).toBe('function')
+    expect(typeof face.hooks.messages.getSnapshot).toBe('function')
+    expect(typeof face.hooks.messages.subscribe).toBe('function')
+    expect(face.hooks.messages.getSnapshot()).toEqual([])
     // The price table is served as a live source: the namespace answers after
     // bind, so the value a read at bind time would have found is empty.
     expect(face.hooks.prices.getSnapshot()).toEqual([])
@@ -214,6 +257,112 @@ describe('ui-console apply', () => {
     // A live row still lands, and never triggers a backfill over it.
     remote.emit('api-session/activity', ['s1', 1000])
     expect(face.hooks.console.getSnapshot().timeline.map(row => row.kind)).toEqual(['activity'])
+    await fiber.dispose()
+  })
+
+  it('derives the scoped session conversation from that session event window and follows it', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'Repair the composer'), replyEntry(2, 'Done.')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // Nothing is scoped, so the card has no conversation to render.
+    expect(face.hooks.messages.getSnapshot()).toEqual([])
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot()).toEqual([
+      { key: 1, role: 'user', text: 'Repair the composer', time: 100 },
+      { key: 2, role: 'assistant', text: 'Done.', time: 200 },
+    ])
+
+    // The window is the live source: a later append reaches the published list.
+    await sessions.appendEvent('s1', promptEntry(3, 'And the tests.'))
+    expect(face.hooks.messages.getSnapshot().map(message => message.text))
+      .toEqual(['Repair the composer', 'Done.', 'And the tests.'])
+
+    await fiber.dispose()
+  })
+
+  it('swaps the conversation when the console scope changes, leaving no subscription behind', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'first session')] }, { current: false })
+    await sessions.add({ id: 's2', summary: { updatedAt: 200 }, events: [promptEntry(1, 'second session')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot().map(message => message.text)).toEqual(['first session'])
+
+    face.store.setSelectedSession('s2')
+    expect(face.hooks.messages.getSnapshot().map(message => message.text)).toEqual(['second session'])
+
+    // s1 is no longer followed: a window revision there publishes nothing.
+    await sessions.replaceEvents('s1', [promptEntry(1, 'first session'), replyEntry(2, 'stale reply')])
+    expect(face.hooks.messages.getSnapshot().map(message => message.text)).toEqual(['second session'])
+
+    // Clearing the scope empties the card without disturbing s2's own window.
+    face.store.setSelectedSession(undefined)
+    expect(face.hooks.messages.getSnapshot()).toEqual([])
+
+    await fiber.dispose()
+  })
+
+  it('publishes no conversation for a selected session without a binding', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot()).toHaveLength(1)
+
+    face.store.setSelectedSession('missing')
+    expect(face.hooks.messages.getSnapshot()).toEqual([])
+
+    await fiber.dispose()
+  })
+
+  it('stops following the session event window when the fiber is disposed', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot()).toHaveLength(1)
+
+    await fiber.dispose()
+    await sessions.replaceEvents('s1', [promptEntry(1, 'scoped'), replyEntry(2, 'after disposal')])
+    expect(face.hooks.messages.getSnapshot().map(message => message.text)).toEqual(['scoped'])
+  })
+
+  it('leaves a published conversation untouched when the window revision changes nothing rendered', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    const published = face.hooks.messages.getSnapshot()
+
+    // A revision that carries no renderable message republishes nothing, so the
+    // bound hook keeps one snapshot reference.
+    await sessions.appendEvent('s1', {
+      type: 'event',
+      event: { seq: 2, time: 200, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } } as unknown as SessionEvent,
+    })
+    expect(face.hooks.messages.getSnapshot()).toBe(published)
+
     await fiber.dispose()
   })
 

@@ -4,9 +4,10 @@
  * from the standard `useSessions` feed; the timeline and host metrics are fed
  * from the forwarded `api-session/*` and `host/metrics` events into a store the
  * apply closure owns, with the timeline backfilled from the session list on the
- * first open; session verbs (rename/fork/archive/create) and the
- * workspace/preset options ride the real service faces; Smart Q&A streams over
- * `ctx.remote.llm.chat`.
+ * first open; the console's selected session contributes its own conversation
+ * from that session's event feed; session verbs (rename/fork/archive/create)
+ * and the workspace/preset options ride the real service faces; Smart Q&A
+ * streams over `ctx.remote.llm.chat`.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -19,12 +20,16 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { CONSOLE_PRICING_NAMESPACE, PriceTablePolicy } from '@deepseek-ai/dsh-client-ui-primitives'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { ConsoleButton } from './ConsoleButton.tsx'
 import { createConsoleStore, historyEntries } from './consoleStore.ts'
 import type { ConsoleStoreWrite } from './consoleStore.ts'
+import { deriveTimelineMessages, sameTimelineMessages } from './timelineMessages.ts'
+import type { TimelineMessage } from './timelineMessages.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { LlmChatRequest } from '@deepseek-ai/dsh-llm/types'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { en, zh, type ConsoleKey, NS } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -94,6 +99,42 @@ export function apply(ctx: ClientContext): void {
     for (const row of rows) store.actions.pushTimeline(row)
   }), 'ui-console: timeline history seed')
 
+  // The selected session's conversation, derived from its own event feed —
+  // `SessionSnapshot` carries no messages. The apply closure owns the single
+  // subscription, so the card renders plain data through its bound hook and
+  // holds no subscription machinery of its own; a window revision that leaves
+  // the rendered conversation unchanged publishes nothing.
+  const messages = createSnapshotStore<readonly TimelineMessage[]>([])
+  ctx.effect(() => {
+    let scoped: string | undefined
+    let stopFeed: (() => void) | undefined
+    const publish = (next: readonly TimelineMessage[]): void => {
+      if (!sameTimelineMessages(messages.getSnapshot(), next)) messages.set(next)
+    }
+    // Swapping the console's scope disposes the previous session's feed before
+    // the new one is read, so exactly one feed is ever subscribed.
+    const following = (): void => {
+      const sessionId = store.getSnapshot().selectedSession
+      if (sessionId === scoped) return
+      scoped = sessionId
+      stopFeed?.()
+      stopFeed = undefined
+      const feed = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId as SessionId)?.eventSource
+      if (feed === undefined) {
+        publish([])
+        return
+      }
+      publish(deriveTimelineMessages(feed.getSnapshot()))
+      stopFeed = feed.subscribe(() => { publish(deriveTimelineMessages(feed.getSnapshot())) })
+    }
+    const stopStore = store.subscribe(following)
+    following()
+    return () => {
+      stopStore()
+      stopFeed?.()
+    }
+  }, 'ui-console: selected session conversation')
+
   // Resolve the Smart Q&A default model once at load from the console-bridge
   // setting (`provider/model`); an unset or malformed override leaves it null,
   // so the panel stays disabled until the operator configures a model.
@@ -157,7 +198,7 @@ export function apply(ctx: ClientContext): void {
       label: () => t('console'),
       locale: NS,
       inject: () => ({
-        hooks: { console: store.store, prices: priceTable.prices },
+        hooks: { console: store.store, prices: priceTable.prices, messages },
         store: write,
         services,
         chat: ((request: LlmChatRequest, signal: AbortSignal) => ctx.remote.llm.chat(request, signal)) as ChatFetcher,

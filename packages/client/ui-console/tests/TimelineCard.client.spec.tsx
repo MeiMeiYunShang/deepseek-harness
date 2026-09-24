@@ -2,8 +2,9 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AskCardBody, Composer, rowTone, TimelineCard, TimelineList, TimelineRow } from '../src/client/TimelineCard.tsx'
+import { AskCardBody, Composer, MessageStream, rowTone, TimelineCard, TimelineList, TimelineRow } from '../src/client/TimelineCard.tsx'
 import type { TimelineEntry, TimelineMode } from '../src/client/consoleStore.ts'
+import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -18,6 +19,7 @@ function renderCard(overrides: {
   timeline: readonly TimelineEntry[]
   timelineMode?: TimelineMode
   selectedSession?: string
+  messages?: readonly TimelineMessage[]
   titleOf?: (id: string) => string | undefined
   setTimelineMode?: (mode: TimelineMode) => void
 }) {
@@ -27,6 +29,7 @@ function renderCard(overrides: {
     timeline={overrides.timeline}
     timelineMode={overrides.timelineMode ?? 'all'}
     selectedSession={overrides.selectedSession}
+    messages={overrides.messages ?? []}
     titleOf={overrides.titleOf ?? (id => `Title of ${id}`)}
     setTimelineMode={setTimelineMode}
     sendInstruction={vi.fn(async () => undefined)}
@@ -58,14 +61,17 @@ describe('TimelineCard', () => {
     expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
   })
 
-  it('lists only the selected session and names it beside the title', () => {
+  it('replaces the coarse rows with the scoped session conversation and names that session', () => {
     renderCard({
       timeline: [entry(1, 's1', 'activity', 1000), entry(2, 's2', 'activity', 2000)],
       selectedSession: 's2',
+      messages: [{ key: 4, role: 'user', text: 'Repair the composer', time: 4000 }],
       titleOf: () => 'Repair the composer',
     })
-    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    // The scoped card renders the conversation, not the coarse rows of any session.
+    expect(screen.getByText('Repair the composer')).toBeTruthy()
     expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
     expect(screen.getByText(`${en.timelineScopeLabel}: Repair the composer`)).toBeTruthy()
   })
 
@@ -89,10 +95,21 @@ describe('TimelineCard', () => {
     expect(setTimelineMode).toHaveBeenCalledWith('all')
   })
 
-  it('renders the empty hint when the scoped session has no entries', () => {
+  it('renders the empty hint when the scoped session has no renderable message', () => {
     renderCard({ timeline: [entry(1, 's1', 'status', 1000)], selectedSession: 's9' })
-    expect(screen.getByText(en.timelineEmpty)).toBeTruthy()
+    expect(screen.getByText(en.timelineNoMessages)).toBeTruthy()
     expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
+  })
+
+  it('withholds the row-verbosity toggle from the scoped conversation', () => {
+    const { setTimelineMode } = renderCard({
+      timeline: [entry(1, 's1', 'status', 1000)],
+      selectedSession: 's1',
+      messages: [{ key: 1, role: 'assistant', text: 'Done.', time: 1000 }],
+    })
+    expect(screen.queryByRole('button', { name: en.timelineStatus })).toBeNull()
+    expect(screen.queryByRole('button', { name: en.timelineActivity })).toBeNull()
+    expect(setTimelineMode).not.toHaveBeenCalled()
   })
 
   it('renders backfilled history rows newest snapshot first and labelled apart from live events', () => {
@@ -141,6 +158,35 @@ describe('TimelineCard', () => {
   })
 })
 
+describe('MessageStream', () => {
+  it('renders an operator message as a bubble and a reply as a block with its own time', () => {
+    const { container } = render(<MessageStream
+      t={t}
+      messages={[
+        { key: 1, role: 'user', text: 'Repair the composer', time: 1_700_000_000_000 },
+        { key: 2, role: 'assistant', text: 'Done.', time: 1_700_000_005_000 },
+      ]}
+    />)
+
+    expect(container.querySelector('[data-role="user"]')?.textContent).toBe('Repair the composer')
+    expect(container.querySelector('[data-role="assistant"]')?.textContent).toBe(`Done.${clockOf(1_700_000_005_000)}`)
+    // Only the assistant block carries the metadata row.
+    expect(container.querySelector('[data-role="user"]')?.textContent).not.toContain(clockOf(1_700_000_005_000))
+  })
+
+  it('renders the empty hint for a conversation with no renderable message', () => {
+    render(<MessageStream t={t} messages={[]} />)
+    expect(screen.getByText(en.timelineNoMessages)).toBeTruthy()
+  })
+})
+
+/** The card's HH:MM:SS rendering of an epoch millisecond time. */
+function clockOf(ms: number): string {
+  const date = new Date(ms)
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
 describe('TimelineRow', () => {
   it('toggles its expanded state from a long text', () => {
     render(<TimelineRow
@@ -176,7 +222,6 @@ describe('TimelineList', () => {
     render(<TimelineList
       t={t}
       timeline={[entry(1, 's1', 'status', 1000)]}
-      selectedSession={undefined}
       detailOf={() => ({ question: 'Continue?', options: ['Yes', 'No'], interactive: true })}
     />)
     fireEvent.click(screen.getByRole('button', { name: en.timelineExpand }))
@@ -188,12 +233,12 @@ describe('TimelineList', () => {
     expect(screen.getByRole('button', { name: en.timelineExpand })).toBeTruthy()
   })
   it('renders the empty hint with no rows', () => {
-    render(<TimelineList t={t} timeline={[]} selectedSession={undefined} detailOf={() => undefined} />)
+    render(<TimelineList t={t} timeline={[]} detailOf={() => undefined} />)
     expect(screen.getByText(en.timelineEmpty)).toBeTruthy()
   })
 
   it('renders a short row without a fold toggle or detail', () => {
-    render(<TimelineList t={t} timeline={[entry(1, 's1', 'status', 1000)]} selectedSession={undefined} detailOf={() => undefined} />)
+    render(<TimelineList t={t} timeline={[entry(1, 's1', 'status', 1000)]} detailOf={() => undefined} />)
     expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
     expect(screen.queryByRole('button', { name: en.timelineExpand })).toBeNull()
   })
@@ -205,7 +250,6 @@ describe('TimelineList', () => {
         entry(1, 's1', 'status', 1000),
         { id: 2, sessionId: 's1', time: 2000, kind: 'history', title: 'Ship the fix' },
       ]}
-      selectedSession={undefined}
       detailOf={() => undefined}
     />)
     const liveText = `${en.sessionPrefix} s1 ${en.timelineStatus}`
@@ -277,7 +321,7 @@ describe('TimelineList paging', () => {
   const many = Array.from({ length: 45 }, (_value, index) => entry(index + 1, 's1', 'status', 1000 + index))
 
   it('renders one page of newest events and reveals older ones on demand', () => {
-    render(<TimelineList t={interpolate} timeline={many} selectedSession={undefined} detailOf={() => undefined} />)
+    render(<TimelineList t={interpolate} timeline={many} detailOf={() => undefined} />)
 
     expect(screen.getAllByText(new RegExp(`^${en.sessionPrefix} s1 `))).toHaveLength(40)
     const more = screen.getByRole('button', { name: 'Show 5 earlier events' })
@@ -289,7 +333,7 @@ describe('TimelineList paging', () => {
   })
 
   it('renders no page control when a scope fits in one page', () => {
-    render(<TimelineList t={interpolate} timeline={many.slice(0, 3)} selectedSession={undefined} detailOf={() => undefined} />)
+    render(<TimelineList t={interpolate} timeline={many.slice(0, 3)} detailOf={() => undefined} />)
 
     expect(screen.queryByRole('button', { name: /earlier events/ })).toBeNull()
   })

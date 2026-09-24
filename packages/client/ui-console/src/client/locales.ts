@@ -51,6 +51,7 @@ export type ConsoleKey = 'console'
   | 'timelineHistory'
   | 'timelineModeAria'
   | 'timelineEmpty'
+  | 'timelineNoMessages'
   | 'timelineExpand'
   | 'timelineCollapse'
   | 'timelineMore'
@@ -168,6 +169,7 @@ export const en: Record<ConsoleKey, string> = {
   timelineHistory: 'History',
   timelineModeAria: 'Timeline mode',
   timelineEmpty: 'No session activity yet.',
+  timelineNoMessages: 'This session has no messages in the loaded window.',
   timelineExpand: 'Expand',
   timelineMore: 'Show {count} earlier events',
   timelineCollapse: 'Collapse',
@@ -283,6 +285,7 @@ export const zh: Record<ConsoleKey, string> = {
   timelineHistory: '历史',
   timelineModeAria: '时间线模式',
   timelineEmpty: '暂无会话活动。',
+  timelineNoMessages: '已加载的窗口内没有该会话的消息。',
   timelineExpand: '展开',
   timelineMore: '显示更早的 {count} 条',
   timelineCollapse: '收起',
