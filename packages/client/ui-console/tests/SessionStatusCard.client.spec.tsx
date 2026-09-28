@@ -392,12 +392,14 @@ describe('SessionStatusCard awaiting-input parity', () => {
   })
 
   it('announces an approval wait in the operator\'s own language', () => {
-    for (const [translate, dictionary] of [[t, en], [zhT, zh]] as const) {
+    // The announcement is pinned, not read back out of the dictionary: a screen
+    // reader must hear what is being waited on, in the vocabulary `ui-approval`
+    // itself uses, so a copy change back to a bare phase word fails here.
+    for (const [translate, announcement] of [[t, 'Waiting for approval'], [zhT, '等待审批']] as const) {
       renderCard({
         sessionView: 'grid', sessionBuckets: ['pending'], byId: PARITY_ROWS, pendingKindOf, t: translate,
       })
-      expect(squareOf('sApproval')?.getAttribute('aria-label'))
-        .toBe(`sApproval (${dictionary['sessionStatus.waiting']})`)
+      expect(squareOf('sApproval')?.getAttribute('aria-label')).toBe(`sApproval (${announcement})`)
       cleanup()
     }
   })
