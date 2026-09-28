@@ -33,7 +33,7 @@ store 由 `apply` 中转发来的 `api-session/*` 与 `host/metrics` 事件供�
 
 ### 完整移植源码工作台，包括其对话框与内联回答卡片
 
-已拒绝。源码对话框（带工作区/预设的新建会话、重命名/派生/归档右键菜单、内联编写器）调用的目标 API 无法干净映射（`api.sessions.prompt`、`api.agentPresets.*`、`api.workspace.*` 并非今日存在的 `ctx.sessions` 与 Remote 界面），而内联 `ask_user_question` 回答卡片需要具体的 `PendingQuestion` 呈现类，它位于 `ui-user-questions` —— 这是客户端打包纯度门禁止的跨功能运行期值导入。因此工作台做成了监控镜像：它标识哪些会话有待处理提问或计划审阅，但回答属于对话编辑器。
+已拒绝。源码对话框（带工作区/预设的新建会话、重命名/派生/归档右键菜单、内联编写器）调用的目标 API 无法干净映射（`api.sessions.prompt`、`api.agentPresets.*`、`api.workspace.*` 并非今日存在的 `ctx.sessions` 与 Remote 界面），而内联 `ask_user_question` 回答卡片需要具体的 `PendingQuestion` 呈现类，它位于 `ui-user-questions` —— 这是客户端打包纯度门禁止的跨功能运行期值导入。因此工作台做成了监控镜像：它标识哪些会话有待处理交互，但回答属于对话编辑器。
 
 ### 通过渲染出的 inject 值把 store 暴露给组件
 

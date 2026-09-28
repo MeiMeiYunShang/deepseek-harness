@@ -33,7 +33,7 @@ The store is fed in `apply` by the forwarded `api-session/*` and `host/metrics` 
 
 ### Port the full source workbench, including its dialogs and inline answer card
 
-Rejected. The source dialogs (New Session with workspace/preset, rename/fork/archive context menu, inline composer) call target APIs that do not map cleanly (`api.sessions.prompt`, `api.agentPresets.*`, `api.workspace.*` are not the `ctx.sessions` and Remote surfaces that exist today), and the inline `ask_user_question` answer card needs the concrete `PendingQuestion` presentation class, which lives in `ui-user-questions` — a runtime cross-feature value import the client-bundle purity gate forbids. The workbench is therefore a monitoring mirror: it names which sessions hold a pending question or plan review, but answering belongs to the conversation composer.
+Rejected. The source dialogs (New Session with workspace/preset, rename/fork/archive context menu, inline composer) call target APIs that do not map cleanly (`api.sessions.prompt`, `api.agentPresets.*`, `api.workspace.*` are not the `ctx.sessions` and Remote surfaces that exist today), and the inline `ask_user_question` answer card needs the concrete `PendingQuestion` presentation class, which lives in `ui-user-questions` — a runtime cross-feature value import the client-bundle purity gate forbids. The workbench is therefore a monitoring mirror: it names which sessions hold a pending interaction, but answering belongs to the conversation composer.
 
 ### Expose the store to the component through a rendered inject value
 

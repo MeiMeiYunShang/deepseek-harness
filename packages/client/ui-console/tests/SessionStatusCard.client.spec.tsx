@@ -8,11 +8,19 @@ import { createConsoleStore } from '../src/client/consoleStore.ts'
 import type { SessionBucket } from '../src/client/sessionState.ts'
 import { en, zh } from '../src/client/locales.ts'
 import type { ConsoleKey } from '../src/client/locales.ts'
+import css from '../src/client/console.module.css'
 
 afterEach(cleanup)
 
 const t = (key: string): string => (en as Record<string, string>)[key] ?? key
 const zhT = (key: ConsoleKey): string => zh[key]
+
+/** Resolve one grid square's tone class, or fail loudly when the sheet lost it. */
+function toneClass(suffix: string): string {
+  const name = css[`gridCell${suffix}`]
+  if (name === undefined) throw new Error(`gridCell${suffix} class missing from console.module.css`)
+  return name
+}
 
 function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
@@ -112,6 +120,15 @@ describe('cellPhase', () => {
     // The key is a derivation the card translates; it is never the text a
     // square announces.
     expect(archived.labelKey).toBe('sessionStatus.archived')
+  })
+
+  it('gives an approval wait the waiting tone and its own label key', () => {
+    const approval = cellPhase(session('s'), 'approval', false)
+    expect(approval.tone).toBe('waiting')
+    expect(approval.labelKey).toBe('sessionStatus.waiting')
+    // An archived approval is archived: the archival signal keeps its existing
+    // precedence over every pending kind.
+    expect(cellPhase(session('s'), 'approval', true).tone).toBe('archived')
   })
 })
 
@@ -353,13 +370,35 @@ describe('SessionStatusCard awaiting-input parity', () => {
     renderCard({ sessionView: 'grid', sessionBuckets: ['pending'], byId: PARITY_ROWS, pendingKindOf })
     const tiled = within(screen.getByLabelText(en.sessionGridAria)).getAllByRole('button')
     expect(tiled).toHaveLength(Number(counted))
-    // Each square announces its own phase, translated: `sessionPhase` still
-    // draws the question and plan-review kinds alone, so the approval row
-    // carries the available phase inside the awaiting-input bucket.
+    // Each square announces its own phase, translated: `sessionPhase` gives
+    // every kind its own phase, so the approval row reads as waiting and the
+    // question and plan-review rows keep the phases they had.
     expect(tiled.map(cell => cell.getAttribute('aria-label'))).toEqual([
-      `sApproval (${en['sessionStatus.available']})`,
+      `sApproval (${en['sessionStatus.waiting']})`,
       `sQuestion (${en['sessionStatus.pending']})`,
       `sPlan (${en['sessionStatus.planning']})`,
     ])
+  })
+
+  it('draws the approval square in the waiting tone, beside the tones of the other kinds', () => {
+    renderCard({ sessionView: 'grid', sessionBuckets: ['pending'], byId: PARITY_ROWS, pendingKindOf })
+    // The bucket decides whether the square renders; the phase decides how it
+    // is drawn. A square the awaiting-input bucket tiles must not keep the
+    // available tone it carried while the approval kind had no phase arm.
+    expect(squareOf('sApproval')?.classList.contains(toneClass('Waiting'))).toBe(true)
+    expect(squareOf('sApproval')?.classList.contains(toneClass('Available'))).toBe(false)
+    expect(squareOf('sQuestion')?.classList.contains(toneClass('Pending'))).toBe(true)
+    expect(squareOf('sPlan')?.classList.contains(toneClass('Planning'))).toBe(true)
+  })
+
+  it('announces an approval wait in the operator\'s own language', () => {
+    for (const [translate, dictionary] of [[t, en], [zhT, zh]] as const) {
+      renderCard({
+        sessionView: 'grid', sessionBuckets: ['pending'], byId: PARITY_ROWS, pendingKindOf, t: translate,
+      })
+      expect(squareOf('sApproval')?.getAttribute('aria-label'))
+        .toBe(`sApproval (${dictionary['sessionStatus.waiting']})`)
+      cleanup()
+    }
   })
 })

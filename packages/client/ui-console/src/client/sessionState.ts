@@ -14,9 +14,14 @@ export type SessionPhase =
 
 /**
  * Derive a session's status phase from its summary plus the pending-interaction
- * and archival context. Running wins over every signal; a session with a
- * question or plan-review pending reads as waiting/planning; an archived id is
- * always archived; the remaining sessions are available.
+ * and archival context. An archived id is archived whatever else it carries,
+ * running beats every pending kind, and a pending kind reads as its own phase:
+ * a plan review as planning, a question as pending, an approval as waiting. The
+ * remaining sessions are available.
+ *
+ * A session carries at most one pending interaction, so exactly one of the
+ * three pending arms can match and their relative order changes no result; they
+ * are grouped ahead of the available fallback so the kinds read as one set.
  * @param summary - session summary.
  * @param pendingKind - the pending interaction kind for this session, if any.
  * @param archived - whether the session id is in the archived set.
@@ -31,6 +36,7 @@ export function sessionPhase(
   if (summary.running) return 'running'
   if (pendingKind === 'plan-review') return 'planning'
   if (pendingKind === 'question') return 'pending'
+  if (pendingKind === 'approval') return 'waiting'
   return 'available'
 }
 
@@ -76,11 +82,11 @@ const BUCKET_LABEL: Record<SessionBucket, ConsoleKey> = {
  * whatever kind a domain publishes — which is the same test the statistics
  * view counts its awaiting-input tile by, so the tile never counts a session
  * the grid then leaves out of that bucket. The predicate is the kind's
- * presence alone and not an enumeration: `sessionPhase` is where the
- * `question` and `plan-review` kinds are told apart, because it draws the
- * square rather than deciding whether the grid shows it. `completed` is the
- * summary's own flag rather than a phase, which is why it can be a bucket
- * without changing {@link sessionPhase}.
+ * presence alone and not an enumeration: `sessionPhase` is where each kind
+ * takes its own phase — `plan-review`, `question`, `approval` — because it
+ * draws the square rather than deciding whether the grid shows it. `completed`
+ * is the summary's own flag rather than a phase, which is why it can be a
+ * bucket without changing {@link sessionPhase}.
  * @param summary - session summary.
  * @param pendingKind - the pending interaction kind for this session, if any.
  * @param archived - whether the session id is in the archived set.

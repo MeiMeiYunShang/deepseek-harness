@@ -10,16 +10,30 @@ describe('sessionState', () => {
   it('derives the archived phase before every other signal', () => {
     expect(sessionPhase(summary, undefined, true)).toBe('archived')
     expect(sessionPhase(summary, 'question', true)).toBe('archived')
+    expect(sessionPhase(summary, 'approval', true)).toBe('archived')
   })
 
   it('derives running before the pending-interaction signals', () => {
     expect(sessionPhase({ running: true } as never, 'question', false)).toBe('running')
     expect(sessionPhase({ running: true } as never, 'plan-review', false)).toBe('running')
+    expect(sessionPhase({ running: true } as never, 'approval', false)).toBe('running')
   })
 
   it('maps a plan-review pending to planning and a question to pending', () => {
     expect(sessionPhase(summary, 'plan-review', false)).toBe('planning')
     expect(sessionPhase(summary, 'question', false)).toBe('pending')
+  })
+
+  it('maps the approval kind to the waiting phase the union reserved for it', () => {
+    // Without this arm an approval wait draws the available tone inside the
+    // awaiting-input bucket the grid tiles it by.
+    expect(sessionPhase(summary, 'approval', false)).toBe('waiting')
+  })
+
+  it('gives every pending kind its own phase and leaves the rest available', () => {
+    const phases = ['plan-review', 'question', 'approval', 'a-kind-no-domain-publishes-yet']
+      .map(pendingKind => sessionPhase(summary, pendingKind, false))
+    expect(phases).toEqual(['planning', 'pending', 'waiting', 'available'])
   })
 
   it('defaults an idle session to available', () => {
