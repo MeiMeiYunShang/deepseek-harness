@@ -8,6 +8,7 @@ import type {} from '@deepseek-ai/dsh-session-stats/types'
 import { Workbench } from '../src/client/Workbench.tsx'
 import type { ConsoleComposerActions, ConsoleComposerState } from '../src/client/composer.ts'
 import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
+import type { SessionBucket } from '../src/client/sessionState.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 import { formatTime } from '../src/client/format.ts'
@@ -54,6 +55,9 @@ const baseStore = (): ConsoleStoreState => ({
   systemStatus: { cpu: 42, memory: 61, gpu: null },
   timelineMode: 'brief',
   sessionView: 'stats',
+  // Every bucket ticked: these cases exercise the header, the grid verbs, and
+  // the one console scope, not which squares the filter tiles.
+  sessionBuckets: ['running', 'pending', 'completed', 'available', 'archived'],
   selectedSession: 's1',
   layout: 'balanced',
   collapsed: {},
@@ -92,6 +96,15 @@ function renderWorkbench(overrides: {
     setSelectedSession: vi.fn((sessionId: string | undefined) => {
       snap.update((draft) => { draft.selectedSession = sessionId })
       composerSnap.set({ ...composerSnap.getSnapshot(), ready: sessionId !== undefined })
+    }),
+    // The grid filter's selection moves the same snapshot the card reads, so a
+    // ticked row reaches the squares in the same render.
+    toggleSessionBucket: vi.fn((bucket: SessionBucket) => {
+      snap.update((draft) => {
+        const index = draft.sessionBuckets.indexOf(bucket)
+        if (index === -1) draft.sessionBuckets.push(bucket)
+        else draft.sessionBuckets.splice(index, 1)
+      })
     }),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
@@ -297,6 +310,23 @@ describe('Workbench', () => {
     await waitFor(() =>{  expect(srv.create).toHaveBeenCalledWith({ workspaceId: 'w1', presetId: undefined, instruction: '' }) })
     await waitFor(() =>{  expect(srv.selectPreset).not.toHaveBeenCalled() })
     await waitFor(() =>{  expect(srv.sendInstruction).not.toHaveBeenCalled() })
+  })
+
+  it('narrows the grid squares through the store filter, leaving the counts alone', () => {
+    const { store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: undefined } })
+    const square = (id: string): Element | undefined =>
+      screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes(id))
+    expect(square('s2')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: en.sessionFilter }))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionCompleted }))
+
+    expect(store.toggleSessionBucket).toHaveBeenCalledWith('completed')
+    // The square the filter hides leaves the grid; the task-statistics counts
+    // beside it are taken over the whole list, so they stay as they were.
+    expect(square('s2')).toBeUndefined()
+    expect(square('s1')).toBeTruthy()
+    expect(screen.getByText(`${en.taskScope}: ${en.taskAllSessions}`)).toBeTruthy()
   })
 
   it('switches the session view and timeline mode through the store writers', () => {

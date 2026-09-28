@@ -96,6 +96,7 @@ export function Workbench({
   const timeline = useConsole(value => value.timeline)
   const timelineMode = useConsole(value => value.timelineMode)
   const sessionView = useConsole(value => value.sessionView)
+  const sessionBuckets = useConsole(value => value.sessionBuckets)
   const selectedSession = useConsole(value => value.selectedSession)
   const systemStatus = useConsole(value => value.systemStatus)
   const layout = useConsole(value => value.layout)
@@ -172,10 +173,12 @@ export function Workbench({
               byId={byId}
               current={current}
               sessionView={sessionView}
+              sessionBuckets={sessionBuckets}
               selected={selectedSession}
               isArchived={id => archived.has(id)}
               pendingKindOf={pendingKindOf}
               setSessionView={store.setSessionView}
+              toggleSessionBucket={store.toggleSessionBucket}
               selectSession={(id) => { store.setSelectedSession(id) }}
               clearScope={() => { store.setSelectedSession(undefined) }}
               onContextMenu={(id, x, y) => { setContextMenu({ id, x, y, archived: archived.has(id) }) }}

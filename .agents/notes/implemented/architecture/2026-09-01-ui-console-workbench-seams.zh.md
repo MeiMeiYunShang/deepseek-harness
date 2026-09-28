@@ -20,7 +20,7 @@ console-bridge 迁移需要一个浏览器工作台，而旧的 apiproxy 界面�
 | 选中会话的对话 | `apply` 中由 `deriveTimelineMessages` 折叠的 `SessionBinding.eventSource` 与该会话的 `sessionStats` 投影面 |
 | 选中会话的输入框草稿与提交 | 该会话的 Agent 作用域：`ctx.sessions.scope(id)?.get('conversation')` 给出 Conversation 服务，其 `input.for(scope)` 给出该会话的输入机（`SessionInput`）；该机的 `state` store 是草稿的读取方，`setDraft`/`submit` 是它的写方法 |
 | 主机资源指标 | `ctx.remote.$on('host/metrics')` |
-| 待处理的 `ask_user_question` / `plan-review` | 基于 `ctx.uiSession.pendingInteractions` 的 `useSessionPendingInteraction` |
+| 任何待处理交互（`approval` / `question` / `plan-review`） | 基于 `ctx.uiSession.pendingInteractions` 的 `useSessionPendingInteraction` |
 | 累计任务统计 | `SessionSummary.projectionValues` 上的 `sessionStats` 投影 |
 | 模型费用 | 按 `console-pricing` 设置表计价的 `sessionStats.routes`（整会话）与 `sessionStats.turnRoutes`（单个轮次，记在关闭它的那条回复上） |
 | 侧栏底部操作 | `ctx.slots.inject('sidebar.footer.action', …)` |
@@ -51,6 +51,7 @@ store 由 `apply` 中转发来的 `api-session/*` 与 `host/metrics` 事件供�
 
 - 费用在两种作用域下都渲染，且限定作用域时是精确值：`aggregateSessionStats` 会跳过作用域之外的每个会话，只累加该会话自己的 `sessionStats.routes` 桶，因此总额计的是这次对话自身的费用，而不是共享价格表中的份额。
 - 一个会话方格一次手势只做一件事，工作台也只保留一个作用域。左键点击设置选中会话，这一个值同时驱动任务统计的作用域行与费用、时间线列出的行、以及输入框的目标；会话卡标题栏的「全部会话」pill 一次点击就把这三者都恢复到整个列表，而时间线通过在标题旁标出该会话来表明自己已被限定，不再自带第二个清除控件。右键菜单承载作用于该会话的动作：打开会切换应用当前会话，重命名、Fork、归档则修改它。打开是菜单项而不是点击，因为工作台是全屏的：一次切换应用会话的点击在面板关闭前没有任何可见效果。
+- 网格铺出哪些方块是第二个独立选择，同样存放在这个 store 里。`sessionBucket` 按已归档、运行中、等待输入、已完成、空闲的顺序为每个会话推导出五个互斥分桶之一，卡标题栏的筛选下拉则逐个切换它们；它默认勾选运行中、等待输入与空闲，因此已完成与已归档的方块在操作者勾选前不显示。它的等待输入分桶取「任何待处理交互」，而不是一串种类的枚举，这与统计视图统计「等待输入」计数所用的 `pendingKindOf(id) !== undefined` 是同一个判断，因此该计数不会算上一个随后被这个分桶排除的会话；具体是哪种交互仍由 `sessionPhase` 负责，因为画方块的是相位。筛选只收窄方块 —— 统计视图上报的每个计数仍统计整个会话列表 —— 而被它清空的网格会点名筛选条件，而不是声称没有会话。
 
 - 控制台不是完整的对话界面 —— 待处理交互只列出、不回答 —— 它的唯一作用域驱动两种时间线视图。未限定范围时保留粗略镜像：转发的 `api-session/*` 行，加上首次打开时列表已持有的每个会话一行回填的 `history`。限定到某个会话时则渲染该会话自身的对话，由 `apply` 从该会话的事件窗口折叠而来，而该窗口由 Session Controller 填入部分尾部以及它已取回的更早分页；卡片只渲染窗口持有的内容，从不抓取。每条回复携带来自 `assistant/message` 事件 usage 的自身 token 总数，每个轮次的费用则落在关闭该轮次的那条回复上，因此跨多个步骤的一个轮次只被计一次费。
 - 在配置 `console-bridge.smartQaModel`（形如 `provider/model`）之前，智能问答保持禁用；没有客户端模型目录 Remote 可用来种子一个默认值。

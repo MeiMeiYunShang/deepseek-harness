@@ -335,9 +335,13 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-/* The scope pill: the session card header's control that returns the console's
-   one scope to the whole session list. */
-.scopePill {
+/* The scope pill — the session card header's control that returns the console's
+   one scope to the whole session list — the placeholder that holds its slot, and
+   the grid filter beside it share one box, so the header row keeps one geometry
+   whether or not a session is scoped. */
+.scopePill,
+.scopePillPlaceholder,
+.sessionFilterTrigger {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -348,11 +352,23 @@
   font: inherit;
   font-size: 12px;
   color: var(--dsw-alias-label-primary);
+}
+
+.scopePill,
+.sessionFilterTrigger {
   cursor: pointer;
 }
 
-.scopePill:hover {
+.scopePill:hover,
+.sessionFilterTrigger:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* The pill is conditional, so its slot is held open while the whole session
+   list is in scope; hidden rather than absent, which keeps the grid filter
+   beside it from moving when a session becomes scoped. */
+.scopePillPlaceholder {
+  visibility: hidden;
 }
 
 /* Both counters carry exactly five tiles. Three per row is the widest count

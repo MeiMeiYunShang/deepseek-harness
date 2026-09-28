@@ -281,6 +281,24 @@ describe('ui-console apply', () => {
     await fiber.dispose()
   })
 
+  it('keeps the grid filter selection across a workbench close and reopen', async () => {
+    const { ctx, slots } = await bench()
+    declareSidebar(slots)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // The selection is viewing state the store owns, not the card: closing and
+    // reopening the workbench remounts every card without touching it.
+    face.store.toggleSessionBucket('archived')
+    face.store.setOpen(true)
+    face.store.setOpen(false)
+    face.store.setOpen(true)
+
+    expect(face.hooks.console.getSnapshot().sessionBuckets).toEqual(['running', 'pending', 'available', 'archived'])
+    await fiber.dispose()
+  })
+
   it('leaves a timeline that already holds a live row alone', async () => {
     const { ctx, slots, sessions, remote } = await bench()
     declareSidebar(slots)

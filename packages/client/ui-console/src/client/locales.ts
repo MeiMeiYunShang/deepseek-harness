@@ -17,11 +17,13 @@ export type ConsoleKey = 'console'
   | 'sessionViewToggleAria'
   | 'sessionStatsView'
   | 'sessionGridView'
+  | 'sessionFilter'
   | 'sessionTotal'
   | 'sessionRunning'
   | 'sessionPending'
   | 'sessionCompleted'
   | 'sessionArchived'
+  | 'sessionIdle'
   | 'sessionCurrent'
   | 'taskStats'
   | 'taskAllSessions'
@@ -107,6 +109,7 @@ export type ConsoleKey = 'console'
   | 'selectedSession'
   | 'scopeAllSessions'
   | 'noSession'
+  | 'noSessionMatch'
   | 'updatedAt'
   | 'askUserTitle'
   | 'askUserRecommend'
@@ -138,11 +141,13 @@ export const en: Record<ConsoleKey, string> = {
   sessionViewToggleAria: 'Session view',
   sessionStatsView: 'Stats',
   sessionGridView: 'Grid',
+  sessionFilter: 'Filter',
   sessionTotal: 'Total',
   sessionRunning: 'Running',
   sessionPending: 'Awaiting input',
   sessionCompleted: 'Completed',
   sessionArchived: 'Archived',
+  sessionIdle: 'Idle',
   sessionCurrent: 'current',
   taskStats: 'Task statistics',
   taskAllSessions: 'All sessions',
@@ -228,6 +233,7 @@ export const en: Record<ConsoleKey, string> = {
   selectedSession: 'selected',
   scopeAllSessions: 'All sessions',
   noSession: 'No session selected',
+  noSessionMatch: 'No sessions match the filter',
   updatedAt: 'updated',
   askUserTitle: 'Question',
   askUserRecommend: 'Recommended',
@@ -257,11 +263,13 @@ export const zh: Record<ConsoleKey, string> = {
   sessionViewToggleAria: '会话视图',
   sessionStatsView: '统计',
   sessionGridView: '网格',
+  sessionFilter: '筛选',
   sessionTotal: '总数',
   sessionRunning: '运行中',
   sessionPending: '等待输入',
   sessionCompleted: '已完成',
   sessionArchived: '已归档',
+  sessionIdle: '空闲',
   sessionCurrent: '当前',
   taskStats: '任务统计',
   taskAllSessions: '全部会话',
@@ -347,6 +355,7 @@ export const zh: Record<ConsoleKey, string> = {
   selectedSession: '已选',
   scopeAllSessions: '全部会话',
   noSession: '未选择会话',
+  noSessionMatch: '没有符合筛选的会话',
   updatedAt: '更新于',
   askUserTitle: '问题',
   askUserRecommend: '推荐',

@@ -60,6 +60,7 @@ function makeStore(overrides: Partial<ConsoleStoreState> = {}): ConsoleStoreStat
     systemStatus: { cpu: 42, memory: 61, gpu: null },
     timelineMode: 'brief',
     sessionView: 'stats',
+    sessionBuckets: ['running', 'pending', 'available'],
     selectedSession: undefined,
     layout: 'balanced',
     collapsed: {},
@@ -124,6 +125,7 @@ function renderConsole(overrides: {
     }),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
+    toggleSessionBucket: vi.fn(),
     // The open state lives in the store, so the writers drive the same
     // snapshot the component reads through its bound hook.
     setOpen: vi.fn((open: boolean) => { snap.update((draft) => { draft.open = open }) }),

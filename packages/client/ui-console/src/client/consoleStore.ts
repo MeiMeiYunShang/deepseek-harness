@@ -1,5 +1,6 @@
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
+import type { SessionBucket } from './sessionState.ts'
 
 /** Session-status card view: the stats counters or the per-session grid. */
 export type SessionView = 'stats' | 'grid'
@@ -51,6 +52,8 @@ export interface ConsoleStoreWrite {
   setTimelineMode: (mode: TimelineMode) => void
   setSessionView: (view: SessionView) => void
   setSelectedSession: (sessionId: string | undefined) => void
+  /** Select or clear one grid-filter bucket. */
+  toggleSessionBucket: (bucket: SessionBucket) => void
   setLayout: (layout: LayoutPreset) => void
   toggleCollapsed: (card: ConsoleCardKey) => void
   /** Open or close the workbench. */
@@ -70,6 +73,11 @@ export interface ConsoleStoreState {
   /** Session-status card view. */
   sessionView: SessionView
   /**
+   * The grid-filter buckets whose squares render. The statistics view's counts
+   * ignore this selection and keep counting every session.
+   */
+  sessionBuckets: SessionBucket[]
+  /**
    * The console's scope: `undefined` covers the whole session list. One value
    * drives the task-statistics scope line and cost, the rows the timeline
    * lists, and the instruction composer's target.
@@ -84,6 +92,12 @@ export interface ConsoleStoreState {
 /** Timeline cap: a monitoring panel keeps a bounded recent window. */
 const TIMELINE_LIMIT = 200
 
+/**
+ * Buckets the grid opens on: everything except completed and archived, so the
+ * operator starts with the sessions still in flight.
+ */
+const DEFAULT_SESSION_BUCKETS: readonly SessionBucket[] = ['running', 'pending', 'available']
+
 /** Write surface for {@link ConsoleStoreState}. */
 type ConsoleStoreActions = {
   pushTimeline: (draft: ConsoleStoreState, entry: Omit<TimelineEntry, 'id'>) => void
@@ -91,6 +105,7 @@ type ConsoleStoreActions = {
   setTimelineMode: (draft: ConsoleStoreState, mode: TimelineMode) => void
   setSessionView: (draft: ConsoleStoreState, view: SessionView) => void
   setSelectedSession: (draft: ConsoleStoreState, sessionId: string | undefined) => void
+  toggleSessionBucket: (draft: ConsoleStoreState, bucket: SessionBucket) => void
   setLayout: (draft: ConsoleStoreState, layout: LayoutPreset) => void
   toggleCollapsed: (draft: ConsoleStoreState, card: ConsoleCardKey) => void
   setOpen: (draft: ConsoleStoreState, open: boolean) => void
@@ -98,8 +113,9 @@ type ConsoleStoreActions = {
 
 /**
  * Console store: holds the live activity timeline the apply closure feeds, the
- * selected timeline verbosity, the session-status view, and the console's
- * selected session. The component reads it through the `useStore` share.
+ * selected timeline verbosity, the session-status view, the grid-filter buckets
+ * the grid tiles, and the console's selected session. The component reads it
+ * through the `useStore` share.
  * @returns the store handle.
  */
 export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, ConsoleStoreActions> {
@@ -111,6 +127,7 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       systemStatus: null,
       timelineMode: 'all',
       sessionView: 'stats',
+      sessionBuckets: [...DEFAULT_SESSION_BUCKETS],
       selectedSession: undefined,
       layout: 'balanced',
       collapsed: {},
@@ -134,6 +151,11 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       },
       setSelectedSession(draft, sessionId): void {
         draft.selectedSession = sessionId
+      },
+      toggleSessionBucket(draft, bucket): void {
+        const index = draft.sessionBuckets.indexOf(bucket)
+        if (index === -1) draft.sessionBuckets.push(bucket)
+        else draft.sessionBuckets.splice(index, 1)
       },
       setLayout(draft, layout): void {
         draft.layout = layout

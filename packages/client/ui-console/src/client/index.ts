@@ -75,6 +75,7 @@ export function apply(ctx: ClientContext): void {
     setTimelineMode: store.actions.setTimelineMode,
     setSessionView: store.actions.setSessionView,
     setSelectedSession: store.actions.setSelectedSession,
+    toggleSessionBucket: store.actions.toggleSessionBucket,
     setLayout: store.actions.setLayout,
     toggleCollapsed: store.actions.toggleCollapsed,
     setOpen: store.actions.setOpen,

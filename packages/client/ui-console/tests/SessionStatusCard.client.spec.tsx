@@ -1,14 +1,18 @@
 // @vitest-environment jsdom
 
-import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, createEvent, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cellPhase, GridCell, SessionStatusCard } from '../src/client/SessionStatusCard.tsx'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
-import { en } from '../src/client/locales.ts'
+import { createConsoleStore } from '../src/client/consoleStore.ts'
+import type { SessionBucket } from '../src/client/sessionState.ts'
+import { en, zh } from '../src/client/locales.ts'
+import type { ConsoleKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
 const t = (key: string): string => (en as Record<string, string>)[key] ?? key
+const zhT = (key: ConsoleKey): string => zh[key]
 
 function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
@@ -21,14 +25,37 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
   }
 }
 
+/** One row per bucket, so a filter case reads as the squares the grid tiles. */
+const FILTER_ROWS: Record<string, SessionSummary> = {
+  sRunning: session('sRunning', { running: true }),
+  sPending: session('sPending'),
+  sCompleted: session('sCompleted', { completed: true }),
+  sIdle: session('sIdle'),
+  sArchived: session('sArchived'),
+}
+
+/** The pending interaction of the one awaiting-input row above. */
+const PENDING_KIND = (id: string): string | undefined => (id === 'sPending' ? 'question' : undefined)
+
+/** The archived id among those same rows. */
+const ARCHIVED_IDS = ['sArchived']
+
+/** The grid square for a session id, or null when the filter hides it. */
+function squareOf(id: string): HTMLElement | null {
+  return screen.queryByRole('button', { name: new RegExp(id) })
+}
+
 function renderCard(overrides: {
   byId?: Record<string, SessionSummary>
   current?: string
   sessionView?: 'stats' | 'grid'
+  sessionBuckets?: readonly SessionBucket[]
   selected?: string
   archived?: readonly string[]
   pendingKindOf?: (id: string) => string | undefined
+  t?: (key: ConsoleKey) => string
   setSessionView?: (view: 'stats' | 'grid') => void
+  toggleSessionBucket?: (bucket: SessionBucket) => void
   selectSession?: (id: string) => void
   clearScope?: () => void
   onContextMenu?: (id: string, x: number, y: number) => void
@@ -36,38 +63,55 @@ function renderCard(overrides: {
   collapsed?: boolean
   onToggleCollapse?: () => void
 } = {}) {
+  // The real store backs the default bucket selection and the default toggle, so
+  // a filter click moves the same state the workbench's bound hook reads.
+  const store = createConsoleStore().create()
   const setSessionView = overrides.setSessionView ?? vi.fn()
+  const toggleSessionBucket = overrides.toggleSessionBucket ?? store.actions.toggleSessionBucket
   const selectSession = overrides.selectSession ?? vi.fn()
   const clearScope = overrides.clearScope ?? vi.fn()
   const onContextMenu = overrides.onContextMenu ?? vi.fn()
   const onNewSession = overrides.onNewSession ?? vi.fn()
   const onToggleCollapse = overrides.onToggleCollapse ?? vi.fn()
-  render(<SessionStatusCard
-    t={t}
-    byId={overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }}
-    current={overrides.current}
-    sessionView={overrides.sessionView ?? 'stats'}
-    selected={overrides.selected}
-    isArchived={id => (overrides.archived ?? []).includes(id)}
-    pendingKindOf={overrides.pendingKindOf ?? (() => undefined)}
-    setSessionView={setSessionView}
-    selectSession={selectSession}
-    clearScope={clearScope}
-    onContextMenu={onContextMenu}
-    onNewSession={onNewSession}
-    collapsed={overrides.collapsed ?? false}
-    onToggleCollapse={onToggleCollapse}
-  />)
-  return { setSessionView, selectSession, clearScope, onContextMenu, onNewSession, onToggleCollapse }
+  const card = (sessionBuckets: readonly SessionBucket[]) => (
+    <SessionStatusCard
+      t={overrides.t ?? t}
+      byId={overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }}
+      current={overrides.current}
+      sessionView={overrides.sessionView ?? 'stats'}
+      sessionBuckets={sessionBuckets}
+      selected={overrides.selected}
+      isArchived={id => (overrides.archived ?? []).includes(id)}
+      pendingKindOf={overrides.pendingKindOf ?? (() => undefined)}
+      setSessionView={setSessionView}
+      toggleSessionBucket={toggleSessionBucket}
+      selectSession={selectSession}
+      clearScope={clearScope}
+      onContextMenu={onContextMenu}
+      onNewSession={onNewSession}
+      collapsed={overrides.collapsed ?? false}
+      onToggleCollapse={onToggleCollapse}
+    />
+  )
+  const view = render(card(overrides.sessionBuckets ?? store.getSnapshot().sessionBuckets))
+  return {
+    setSessionView, toggleSessionBucket, selectSession, clearScope, onContextMenu, onNewSession,
+    onToggleCollapse, store,
+    /** Re-render against the store's current selection, as the bound hook would. */
+    rerender: () => { view.rerender(card(store.getSnapshot().sessionBuckets)) },
+  }
 }
 
 describe('cellPhase', () => {
-  it('derives the tone and aria from the phase signals', () => {
+  it('derives the tone from the phase signals and the label as a dictionary key', () => {
     expect(cellPhase(session('s', { running: true }), 'question', false).tone).toBe('running')
     expect(cellPhase(session('s'), 'plan-review', false).tone).toBe('planning')
     expect(cellPhase(session('s'), 'question', false).tone).toBe('pending')
     const archived = cellPhase(session('s'), undefined, true)
     expect(archived.tone).toBe('archived')
+    // The key is a derivation the card translates; it is never the text a
+    // square announces.
+    expect(archived.labelKey).toBe('sessionStatus.archived')
   })
 })
 
@@ -134,9 +178,12 @@ describe('SessionStatusCard', () => {
     expect(clearScope).toHaveBeenCalled()
   })
 
-  it('offers no scope pill while the whole list is in scope', () => {
+  it('offers no scope pill while the whole list is in scope, holding its slot instead', () => {
     renderCard({ sessionView: 'grid' })
     expect(screen.queryByRole('button', { name: en.scopeAllSessions })).toBeNull()
+    // The slot itself stays: a hidden label keeps the pill's width, so the
+    // filter beside it does not move when a session becomes scoped.
+    expect(screen.getByText(en.scopeAllSessions).getAttribute('aria-hidden')).toBe('true')
   })
 
   it('opens the new-session action', () => {
@@ -148,6 +195,13 @@ describe('SessionStatusCard', () => {
   it('shows the no-session hint in the grid view when empty', () => {
     renderCard({ sessionView: 'grid', byId: {} })
     expect(screen.getByText(en.noSession)).toBeTruthy()
+    expect(screen.queryByText(en.noSessionMatch)).toBeNull()
+  })
+
+  it('names a filtered-out grid instead of claiming there are no sessions', () => {
+    renderCard({ sessionView: 'grid', sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS })
+    expect(screen.getByText(en.noSessionMatch)).toBeTruthy()
+    expect(screen.queryByText(en.noSession)).toBeNull()
   })
 
   it('counts archived sessions and the current row in the stats view', () => {
@@ -158,5 +212,154 @@ describe('SessionStatusCard', () => {
   it('counts sessions awaiting a pending interaction', () => {
     renderCard({ byId: { s1: session('s1'), s2: session('s2') }, pendingKindOf: id => (id === 's1' ? 'question' : undefined) })
     expect(screen.getAllByText('1', { exact: true }).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('counts every session in the stats view whatever the filter hides', () => {
+    renderCard({ sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS })
+    // No bucket is selected at all, and the tiles still count the whole list:
+    // the filter narrows the grid squares, never the statistics.
+    expect(screen.getByText('5', { exact: true })).toBeTruthy()
+    expect(screen.getAllByText('1', { exact: true })).toHaveLength(4)
+  })
+})
+
+describe('SessionStatusCard grid filter', () => {
+  const grid = (overrides: Parameters<typeof renderCard>[0] = {}) => renderCard({
+    sessionView: 'grid', byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS, ...overrides,
+  })
+
+  const openFilter = () => { fireEvent.click(screen.getByRole('button', { name: en.sessionFilter })) }
+
+  it('opens on running, awaiting-input and idle squares, leaving completed and archived out', () => {
+    grid()
+    expect(squareOf('sRunning')).toBeTruthy()
+    expect(squareOf('sPending')).toBeTruthy()
+    expect(squareOf('sIdle')).toBeTruthy()
+    expect(squareOf('sCompleted')).toBeNull()
+    expect(squareOf('sArchived')).toBeNull()
+  })
+
+  it('offers the filter in the grid view alone', () => {
+    renderCard({ sessionView: 'stats' })
+    expect(screen.queryByRole('button', { name: en.sessionFilter })).toBeNull()
+  })
+
+  it('opens and closes its list from the trigger, announcing the expanded state', () => {
+    grid()
+    const trigger = screen.getByRole('button', { name: en.sessionFilter })
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(0)
+
+    openFilter()
+    expect(screen.getByRole('button', { name: en.sessionFilter }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getAllByRole('menuitem').map(entry => entry.textContent)).toEqual([
+      en.sessionRunning, en.sessionPending, en.sessionCompleted, en.sessionIdle, en.sessionArchived,
+    ])
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: en.sessionFilter }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('closes its list on an outside click', () => {
+    grid()
+    openFilter()
+    expect(screen.getAllByRole('menuitem').length).toBeGreaterThan(0)
+
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(0)
+  })
+
+  it('toggles the bucket the clicked row names', () => {
+    const { toggleSessionBucket } = grid({ toggleSessionBucket: vi.fn() })
+    openFilter()
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionArchived }))
+    expect(toggleSessionBucket).toHaveBeenCalledWith('archived')
+  })
+
+  it('shows and hides a bucket\'s squares as the operator toggles it', () => {
+    const { rerender } = grid()
+
+    openFilter()
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionCompleted }))
+    rerender()
+    expect(squareOf('sCompleted')).toBeTruthy()
+    expect(squareOf('sRunning')).toBeTruthy()
+
+    // The list stays open across a toggle, so the next tick lands on it too.
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionRunning }))
+    rerender()
+    expect(squareOf('sRunning')).toBeNull()
+    expect(squareOf('sCompleted')).toBeTruthy()
+  })
+
+  it('hides archived squares until the archived bucket is ticked', () => {
+    const { rerender } = grid()
+    expect(squareOf('sArchived')).toBeNull()
+
+    openFilter()
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionArchived }))
+    rerender()
+    expect(squareOf('sArchived')).toBeTruthy()
+    // Ticking the bucket in shows the square; it does not re-bucket the session,
+    // whose square still carries the archived phase the grid draws.
+    expect(squareOf('sArchived')?.getAttribute('aria-label')).toBe(`sArchived (${en['sessionStatus.archived']})`)
+  })
+
+  it('announces a square\'s phase in the operator\'s language, never the dictionary key', () => {
+    grid({ sessionBuckets: ['archived'], t: zhT })
+    expect(squareOf('sArchived')?.getAttribute('aria-label')).toBe(`sArchived (${zh['sessionStatus.archived']})`)
+  })
+
+  it('leaves the scope click and the context menu on a square the filter shows', () => {
+    const selectSession = vi.fn()
+    const onContextMenu = vi.fn()
+    grid({ selectSession, onContextMenu })
+
+    fireEvent.click(squareOf('sIdle') as HTMLElement)
+    expect(selectSession).toHaveBeenCalledWith('sIdle')
+
+    fireEvent.contextMenu(squareOf('sPending') as HTMLElement, { clientX: 3, clientY: 4 })
+    expect(onContextMenu).toHaveBeenCalledWith('sPending', 3, 4)
+  })
+})
+
+describe('SessionStatusCard awaiting-input parity', () => {
+  /** One row per pending kind a domain publishes, plus one holding none. */
+  const PARITY_ROWS: Record<string, SessionSummary> = {
+    sApproval: session('sApproval'),
+    sQuestion: session('sQuestion'),
+    sPlan: session('sPlan'),
+    sIdle: session('sIdle'),
+  }
+  const PARITY_KINDS: Record<string, string | undefined> = {
+    sApproval: 'approval',
+    sQuestion: 'question',
+    sPlan: 'plan-review',
+    sIdle: undefined,
+  }
+  const pendingKindOf = (id: string): string | undefined => PARITY_KINDS[id]
+
+  it('tiles exactly the sessions the awaiting-input count counts', () => {
+    renderCard({ byId: PARITY_ROWS, pendingKindOf })
+    // The statistics view's awaiting-input tile over these rows. The count sits
+    // in the item's own number slot, ahead of its label.
+    const counted = screen.getByText(en.sessionPending).previousElementSibling?.textContent
+    expect(counted).toBe('3')
+    cleanup()
+
+    // The same rows, tiled by that one bucket alone: the approval row — the
+    // kind a two-kind enumeration dropped — is one of the squares.
+    renderCard({ sessionView: 'grid', sessionBuckets: ['pending'], byId: PARITY_ROWS, pendingKindOf })
+    const tiled = within(screen.getByLabelText(en.sessionGridAria)).getAllByRole('button')
+    expect(tiled).toHaveLength(Number(counted))
+    // Each square announces its own phase, translated: `sessionPhase` still
+    // draws the question and plan-review kinds alone, so the approval row
+    // carries the available phase inside the awaiting-input bucket.
+    expect(tiled.map(cell => cell.getAttribute('aria-label'))).toEqual([
+      `sApproval (${en['sessionStatus.available']})`,
+      `sQuestion (${en['sessionStatus.pending']})`,
+      `sPlan (${en['sessionStatus.planning']})`,
+    ])
   })
 })
