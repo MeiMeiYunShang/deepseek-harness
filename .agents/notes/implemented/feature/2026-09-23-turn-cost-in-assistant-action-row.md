@@ -20,7 +20,7 @@ So the charge needed per-Turn tokens, per-Turn route attribution, and the projec
 
 The chat Turn figure prices those buckets with `totalCost` and never touches bands, routes, or the session totals. The operator's table is adopted from the `console-pricing` settings section on every accepted section (`PriceTablePolicy`), not read once at load: the client settings mirror answers asynchronously, so the first snapshot after `bind` carries no value and a one-shot read would leave every Turn unpriced for the life of the page.
 
-The charge rules themselves move from `packages/client/ui-console/src/client/pricing.ts` to `dsh-client-ui-primitives`. A client plugin must not reach into another feature plugin's values, and copying the arithmetic into `ui-chat` would give the two money surfaces two implementations of the unpriceable-route rule that the console and the action row answer for the same tokens.
+The charge rules themselves move from `ui-console`'s client `pricing.ts` to `packages/client/ui-primitives/src/pricing.ts`. A client plugin must not reach into another feature plugin's values, and copying the arithmetic into `ui-chat` would give the two money surfaces two implementations of the unpriceable-route rule that the console and the action row answer for the same tokens.
 
 The figure renders nothing when the projection attributed the Turn no route tokens, and otherwise shows the amount, `Unpriced`, or `Ambiguous price` — the console card's treatment, extended to the row.
 

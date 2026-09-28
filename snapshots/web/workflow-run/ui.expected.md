@@ -39,4 +39,4 @@
 - button "Ran for {{duration}}":
   - img
   - text: Ran for {{duration}}
-- text: {{clock}}
+- text: Unpriced {{clock}}

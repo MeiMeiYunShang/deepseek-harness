@@ -20,7 +20,7 @@ Status: implemented
 
 聊天轮次数字用 `totalCost` 给这些桶计价，完全不接触时段、路由或会话总量。运营者的价格表在每次接受设置区块时从 `console-pricing` 采纳（`PriceTablePolicy`），而不是在加载时只读一次：客户端设置镜像异步应答，因此 `bind` 之后的第一份快照不带值，只读一次会让整个页面生命周期内每一轮都显示未定价。
 
-计费规则本身从 `packages/client/ui-console/src/client/pricing.ts` 移到 `dsh-client-ui-primitives`。客户端插件不得伸手拿另一个功能插件的值，而把这套算术复制进 `ui-chat`，会让两个费用面各有一份「无法计价路由」规则实现，而它们要为同一批 token 作答。
+计费规则本身从 `ui-console` 客户端的 `pricing.ts` 移到 `packages/client/ui-primitives/src/pricing.ts`。客户端插件不得伸手拿另一个功能插件的值，而把这套算术复制进 `ui-chat`，会让两个费用面各有一份「无法计价路由」规则实现，而它们要为同一批 token 作答。
 
 投影未把该轮 token 归属到任何路由时，该数字不显示任何内容；其余情况显示金额、`未定价` 或 `价格不唯一` —— 把控制台卡片的处理方式延伸到这一行。
 

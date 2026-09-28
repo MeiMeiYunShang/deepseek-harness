@@ -15,10 +15,10 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { createMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace, SettingsProvider } from '@deepseek-ai/dsh-settings'
 import * as SessionStatsPlugin from '@deepseek-ai/dsh-session-stats'
 import { CONSOLE_PRICING_NAMESPACE, sessionStatsStateVersion } from '@deepseek-ai/dsh-session-stats/src/off-peak.ts'
 import type { OffPeakWindow } from '@deepseek-ai/dsh-session-stats/src/off-peak.ts'
@@ -179,6 +179,19 @@ function attemptAt(
 type FoldState = Parameters<ReturnType<typeof sessionStatsProjectionDefinition>['apply']>[0]
 
 /**
+ * The header of the synthetic log the pure folds below run over. `init` takes
+ * the live Session's immutable metadata and the fork-inherited prefix length,
+ * and this unit reads neither: the state starts from the empty log the supplied
+ * events are then folded onto.
+ */
+const FOLD_HEADER: SessionHeader = {
+  version: SESSION_FORMAT_VERSION,
+  id: SessionId('folded'),
+  createdAt: 0,
+  isSeeded: false,
+}
+
+/**
  * Fold a synthetic event list through the definition and view the result.
  * @param events - the committed events, in seq order.
  * @param window - the off-peak window to fold under; omitted means peak-only.
@@ -188,7 +201,7 @@ function fold(events: readonly SessionEvent[], window?: OffPeakWindow): SessionS
   const definition = sessionStatsProjectionDefinition(window)
   const state = events.reduce<FoldState>(
     (folded, event) => definition.apply(folded, event),
-    definition.init(),
+    definition.init(FOLD_HEADER, SessionLogOffset(0)),
   )
   return definition.wire.view(state)
 }
@@ -555,7 +568,7 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
     const definition = sessionStatsProjectionDefinition(undefined)
     const state = events.reduce<FoldState>(
       (folded, event) => definition.apply(folded, event),
-      definition.init(),
+      definition.init(FOLD_HEADER, SessionLogOffset(0)),
     )
     expect(definition.apply(
       state,
@@ -565,7 +578,7 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
 
   it('accrues nothing for unrelated events and clamps negative clock skew to zero', () => {
     const definition = sessionStatsProjectionDefinition(undefined)
-    const state = definition.init()
+    const state = definition.init(FOLD_HEADER, SessionLogOffset(0))
     const untouched = definition.apply(state, at(1, 'user/message', { content: [] }))
     expect(untouched).toBe(state)
     expect(fold([
@@ -811,13 +824,15 @@ describe('sessionStats off-peak window wiring', () => {
     const windowed = installedVersion(ctx, session)
     expect(windowed).toBe(sessionStatsStateVersion(nineToSix))
     // A row folded under the peak-only unit is discarded rather than reused.
-    expect(ctx.sessionProjections.restoreFloor({ sessionStats: { ver: sessionStatsStateVersion(undefined), seq: 3, val: {} } })).toBe(0)
+    expect(ctx.sessionProjections.restoreFloor({
+      sessionStats: { ver: sessionStatsStateVersion(undefined), seq: SessionSeq(3), val: {} },
+    })).toBe(0)
     // A row folded under this window still seeds the fold from after its seq.
-    expect(ctx.sessionProjections.restoreFloor({ sessionStats: { ver: windowed, seq: 3, val: {} } })).toBe(3)
+    expect(ctx.sessionProjections.restoreFloor({ sessionStats: { ver: windowed, seq: SessionSeq(3), val: {} } })).toBe(3)
 
     const night: OffPeakWindow = { start: '22:00', end: '06:00', timezone: 'Asia/Kolkata' }
     section = { offPeak: night }
-    ctx.emit('settings/updated', CONSOLE_PRICING_NAMESPACE, section, section, 'update')
+    ctx.emit('settings/updated', CONSOLE_PRICING_NAMESPACE as SettingsNamespace, section, section, 'update')
     const edited = installedVersion(ctx, session)
     expect(edited).toBe(sessionStatsStateVersion(night))
     expect(edited).not.toBe(windowed)
@@ -825,7 +840,7 @@ describe('sessionStats off-peak window wiring', () => {
     // A commit on another namespace, and a re-read of the same section, both
     // leave the live unit in place: re-registering costs every live session a
     // refold, so only an actual change does it.
-    ctx.emit('settings/updated', 'console-bridge', {}, {}, 'update')
+    ctx.emit('settings/updated', 'console-bridge' as SettingsNamespace, {}, {}, 'update')
     ctx.sessions.create(SessionId('unchanged'))
     expect(installedVersion(ctx, session)).toBe(edited)
   })
