@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 /**
  * The console's own wiring of the operator price table: a `console-pricing`
- * section the settings mirror accepts AFTER `bind` must reach the
+ * section the settings mirror accepts AFTER `get` must reach the
  * task-statistics cost figure, not only a section standing at mount time.
  */
 import { act, cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import {
-  SlotTestRuntime, TestRemote, stubSettingsScope, usePinnedBrowserLanguages,
+  SlotTestRuntime, stubConfigForm, usePinnedBrowserLanguages,
 } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -46,13 +46,11 @@ const SESSION_STATS = {
 /** Mount the plugin over a real runtime with an answerable `console-pricing` scope. */
 async function bench() {
   const runtime = await SlotTestRuntime.create()
-  const pricing = stubSettingsScope<{ models?: ModelPrice[] }>()
-  runtime.ctx.provide('settingsScope', {
-    bind: ({ namespace }: { namespace: string }) => namespace === 'console-pricing'
-      ? pricing.scope
-      : stubSettingsScope().scope,
-  } as never)
-  new TestRemote(runtime.ctx, { llm: { chat: vi.fn(async function* () { /* no chunks */ }), listProviders: vi.fn() } })
+  const pricing = stubConfigForm<{ models?: ModelPrice[] }>()
+  runtime.ctx.provide('configForms', { get: () => pricing.scope } as never)
+  // The runtime owns the Remote double; only the session navigation face the
+  // console's open verb injects needs a stub.
+  runtime.ctx.provide('uiWorkspace', { openSession: vi.fn(), startSession: vi.fn() } as never)
   const locale = new LocaleRuntime(runtime.ctx)
   locale.setLocale('en')
   runtime.ctx.provide('locale', locale)

@@ -5,7 +5,7 @@ import { createConsoleStore, historyEntries } from '../src/client/consoleStore.t
 
 /** One list row for the history projection. */
 function summary(id: string, updatedAt: number, displayTitle = id): SessionSummary {
-  return { id: id as SessionId, displayTitle, running: false, blank: false, updatedAt }
+  return { id: id as SessionId, displayTitle, running: false, retainedBy: {}, blank: false, updatedAt }
 }
 
 /** A session-list snapshot in host order. */
@@ -13,11 +13,8 @@ function list(rows: readonly SessionSummary[]): SessionListState {
   return {
     ids: rows.map(row => row.id),
     byId: Object.fromEntries(rows.map(row => [row.id, row])),
-    current: undefined,
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
-    currentAddress: undefined,
+    projectionsBySession: {},
   }
 }
 

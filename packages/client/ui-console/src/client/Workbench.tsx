@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { IconCloseOutline16, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCloseOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -57,6 +57,8 @@ export interface WorkbenchProps {
   titleOf: (id: string) => string | undefined
   /** Resolve a session's pending interaction kind (feeds the grid phase). */
   pendingKindOf: (id: string) => string | undefined
+  /** Resolve whether a session carries an unacknowledged completion (feeds the completed bucket/count). */
+  completedOf: (id: string) => boolean
   /** Live workspace options. */
   workspaces: readonly ConsoleWorkspaceOption[]
   /** Console store read hook. */
@@ -89,7 +91,7 @@ interface OpenContextMenu {
 
 /** The fullscreen workbench panel. */
 export function Workbench({
-  t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces,
+  t, onClose, byId, current, archived, titleOf, pendingKindOf, completedOf, workspaces,
   useConsole, store, services, chat, defaultModel, prices, messages,
   useComposer, composerActions,
 }: WorkbenchProps) {
@@ -162,7 +164,7 @@ export function Workbench({
               ))}
             </div>
             <button type="button" className={css.closeButton} aria-label={t('close')} onClick={onClose}>
-              <IconCloseOutline16 size={14} />
+              <IconCloseOutlineRegular size={14} />
             </button>
           </div>
         </div>
@@ -177,6 +179,7 @@ export function Workbench({
               selected={selectedSession}
               isArchived={id => archived.has(id)}
               pendingKindOf={pendingKindOf}
+              completedOf={completedOf}
               setSessionView={store.setSessionView}
               toggleSessionBucket={store.toggleSessionBucket}
               selectSession={(id) => { store.setSelectedSession(id) }}

@@ -17,6 +17,7 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     id: id as SessionSummary['id'],
     displayTitle: id,
     running: false,
+    retainedBy: {},
     blank: false,
     updatedAt: 0,
     ...overrides,

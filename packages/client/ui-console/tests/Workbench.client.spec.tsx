@@ -24,6 +24,7 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     id: id as SessionSummary['id'],
     displayTitle: id,
     running: false,
+    retainedBy: {},
     blank: false,
     updatedAt: 0,
     ...overrides,
@@ -70,6 +71,7 @@ function renderWorkbench(overrides: {
   archived?: readonly string[]
   workspaces?: readonly { id: string; label: string }[]
   titleOf?: (id: string) => string | undefined
+  completedOf?: (id: string) => boolean
   messages?: readonly TimelineMessage[]
   onClose?: () => void
 } = {}) {
@@ -112,7 +114,7 @@ function renderWorkbench(overrides: {
   }
   const srv = services(overrides.services)
   // One row set: the cards and the title resolver read the same sessions.
-  const byId = overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }
+  const byId = overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2') }
   const view = render(<Workbench
     t={t}
     onClose={overrides.onClose ?? (() => {})}
@@ -121,6 +123,7 @@ function renderWorkbench(overrides: {
     archived={new Set(overrides.archived ?? [])}
     titleOf={overrides.titleOf ?? (id => byId[id]?.displayTitle)}
     pendingKindOf={() => undefined}
+    completedOf={overrides.completedOf ?? (id => id === 's2')}
     workspaces={overrides.workspaces ?? [{ id: 'w1', label: 'Workspace' }]}
     useConsole={bindSnapshotSelector(snap)}
     store={store}

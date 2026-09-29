@@ -17,7 +17,7 @@
       "path": "../../client/connection/tsconfig.client.json"
     },
     {
-      "path": "../../client/locale"
+      "path": "../../client/locale/tsconfig.client.json"
     },
     {
       "path": "../../client/store"
@@ -29,7 +29,7 @@
       "path": "../../client/ui-renderer"
     },
     {
-      "path": "../../client/ui-settings"
+      "path": "../../client/ui-settings/tsconfig.client.json"
     },
     {
       "path": "../../client/ui-layout"

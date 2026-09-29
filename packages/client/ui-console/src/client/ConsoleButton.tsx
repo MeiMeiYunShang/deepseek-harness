@@ -4,10 +4,10 @@
  * every data source and verb arrives through the composed props shares.
  */
 
-import { IconCodeOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCodeOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
-// Type-only: pulls the useSessions / useSessionPendingInteraction standard hooks.
+// Type-only: pulls the useSessions / useSessionStatus standard hooks.
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the useWorkspaces standard hook (GlobalStandardProps merge).
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
@@ -74,13 +74,19 @@ export function ConsoleButton(props: ConsoleButtonProps) {
   const prices = props.usePrices(value => value)
   const messages = props.useMessages(value => value)
   const byId = props.useSessions(value => value.byId)
-  const current = props.useSessions(value => value.current)
   const workspace = props.useWorkspaces(value => value)
-  const pending = props.useSessionPendingInteraction(value => value)
+  const status = props.useSessionStatus(value => value)
 
   const archived = new Set(workspace.archivedSessionIds)
   const workspaces = workspace.items.map(item => ({ id: item.workspaceId, label: item.title }))
-  const pendingKindOf = (id: string): string | undefined => pending.get(id as never)?.kind
+  // The main panel's session is the row its `mainView` reference marks; the
+  // console reads the same retained-by signal the shell's title does.
+  const current = Object.values(byId).find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
+  const statusOf = (id: string) => status.get(id as never)
+  const pendingKindOf = (id: string): string | undefined => statusOf(id)?.pendingInteraction?.kind
+  // A completion observed outside the main view is the status feed's
+  // unacknowledged bit, which fills the grid's completed bucket and count.
+  const completedOf = (id: string): boolean => statusOf(id)?.completionUnread ?? false
 
   const workbench: WorkbenchProps = {
     t,
@@ -90,6 +96,7 @@ export function ConsoleButton(props: ConsoleButtonProps) {
     archived,
     titleOf: id => titleOf(byId, id),
     pendingKindOf,
+    completedOf,
     workspaces,
     useConsole: props.useConsole,
     store: props.store,
@@ -111,7 +118,7 @@ export function ConsoleButton(props: ConsoleButtonProps) {
         aria-label={t('trigger')}
         onClick={() => { props.store.setOpen(true) }}
       >
-        <IconCodeOutline16 size={16} className={css.triggerIcon} />
+        <IconCodeOutlineRegular size={16} className={css.triggerIcon} />
         {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}
       </button>
       {open && <Workbench {...workbench} />}

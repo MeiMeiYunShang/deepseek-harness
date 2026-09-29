@@ -85,22 +85,24 @@ const BUCKET_LABEL: Record<SessionBucket, ConsoleKey> = {
  * presence alone and not an enumeration: `sessionPhase` is where each kind
  * takes its own phase — `plan-review`, `question`, `approval` — because it
  * draws the square rather than deciding whether the grid shows it. `completed`
- * is the summary's own flag rather than a phase, which is why it can be a
- * bucket without changing {@link sessionPhase}.
+ * is the status feed's unacknowledged-completion bit rather than a phase, which
+ * is why it can be a bucket without changing {@link sessionPhase}.
  * @param summary - session summary.
  * @param pendingKind - the pending interaction kind for this session, if any.
  * @param archived - whether the session id is in the archived set.
+ * @param completed - whether the session carries an unacknowledged completion.
  * @returns the single bucket this session belongs to.
  */
 export function sessionBucket(
   summary: SessionSummary,
   pendingKind: string | undefined,
   archived: boolean,
+  completed: boolean,
 ): SessionBucket {
   if (archived) return 'archived'
   if (summary.running) return 'running'
   if (pendingKind !== undefined) return 'pending'
-  if (summary.completed === true) return 'completed'
+  if (completed) return 'completed'
   return 'available'
 }
 

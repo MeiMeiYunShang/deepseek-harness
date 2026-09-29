@@ -1,191 +1,115 @@
 /**
- * Real-composition guard for the web settings surface: the bundle boots
- * the console-bridge row with `config: { autoStart: false }` and no `agentId`
- * — the operator enters the identity in the browser form. The plugin must load
- * under that config (registering the settings namespaces is what makes the
- * plugins tab render one card per namespace) and must not fail when the bridge
- * is disabled. Booted through the real Loader + Include path, exactly like the
- * settings-file composition suite.
+ * Real-composition guard for the web settings surface. The bundle boots the
+ * console-bridge row through master's settings composition — the real
+ * `@deepseek-ai/dsh-config-editor` and `@deepseek-ai/dsh-settings` services
+ * over a profile Loader — so the entry's editable fields appear in
+ * `ctx.settings.describe()` and the price table the cost view reads is the same
+ * composition data a running installation projects.
+ *
+ * The row is disabled (`enabled: false`), so boot subscribes to nothing and
+ * needs no console endpoint; the spec pins composition and projection only.
  */
 
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import Loader from '@deepseek-ai/cordis-plugin-loader'
-import Include from '@deepseek-ai/cordis-plugin-include'
-import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
+import { onTestFinished } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import type { Context } from '@deepseek-ai/cordis'
+import { boot, initProfile, readProfilePatches, type ProfileContext } from '@deepseek-ai/dsh-app-boot'
+import ConfigEditor from '@deepseek-ai/dsh-config-editor'
+import Settings from '@deepseek-ai/dsh-settings'
 import * as consoleBridge from '../src/index.ts'
 
-let root: string | undefined
-let context: Context | undefined
-
-afterEach(async () => {
-  await context?.fiber.dispose()
-  context = undefined
-  if (root !== undefined) await rm(root, { recursive: true, force: true })
-  root = undefined
-})
+/** A test agents registry; the bridge only needs the service to exist at mount. */
+const agents = {
+  name: 'console-bridge-test-agents',
+  apply: (ctx: Context) => { ctx.provide('agents', { create: () => Promise.reject(new Error('no agents in test')) }) },
+}
 
 /**
- * Boot the console-bridge row through the real Loader against one settings document.
- * @param settingsYaml - the `$DSH_HOME/settings.yaml` content the provider reads.
- * @returns the booted root context and the path of the settings document.
+ * Boot a fresh profile whose bundle inserts the console-bridge row with the
+ * supplied config, alongside the real config-editor and settings services.
+ * @param config - the raw `console-bridge` entry config to compose.
+ * @returns the booted root context.
  */
-async function boot(settingsYaml: string): Promise<{ ctx: Context; settingsPath: string }> {
-  root = await mkdtemp(join(tmpdir(), 'dsh-console-bridge-composition-'))
-  const settingsPath = join(root, 'settings.yaml')
-  await writeFile(settingsPath, settingsYaml)
-
-  const agents = {
-    name: 'test-agents',
-    apply: (ctx: Context) => {
-      ctx.provide('agents', { create: () => Promise.reject(new Error('no agents in test')) })
-    },
+async function bootComposition(config: Record<string, unknown>): Promise<Context> {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-console-bridge-composition-')))
+  const dir = join(home, 'profiles', 'test')
+  onTestFinished(() => { rmSync(home, { recursive: true, force: true }) })
+  initProfile(dir, ['test-bundle'])
+  const bundle = join(dir, 'node_modules', 'test-bundle')
+  mkdirSync(bundle, { recursive: true })
+  writeFileSync(join(home, 'package.json'), '{"name":"test-installation"}\n')
+  writeFileSync(join(bundle, 'package.json'), JSON.stringify({
+    name: 'test-bundle',
+    version: '1.0.0',
+    dsh: { bundle: { patch: 'cordis.patch.yml' } },
+  }))
+  writeFileSync(join(bundle, 'cordis.patch.yml'), JSON.stringify([{ insert: [
+    { id: 'config-editor', name: 'cordis:editor' },
+    { id: 'settings', name: 'cordis:settings' },
+    { id: 'agents', name: 'cordis:console-bridge-agents' },
+    { id: 'console-bridge', name: 'cordis:console-bridge', config },
+  ] }]))
+  writeFileSync(join(dir, 'cordis.yml'), '[]\n')
+  const profile: ProfileContext = {
+    name: 'test',
+    startedBundles: ['test-bundle'],
+    dir,
+    patchPath: join(dir, 'cordis.patch.yml'),
+    installAnchor: join(home, 'package.json'),
+    cwd: home,
+    home,
+    overlays: [],
+    telemetryDisabledEnv: undefined,
   }
-
-  const configPath = join(root, 'cordis.yml')
-  await writeFile(configPath, [
-    '- id: settings',
-    "  name: '@deepseek-ai/dsh-settings-file'",
-    '  config:',
-    `    path: ${JSON.stringify(settingsPath)}`,
-    '    debounceMs: 10',
-    '- id: agents',
-    '  name: test-agents',
-    '- id: console-bridge',
-    "  name: '@deepseek-ai/dsh-console-bridge'",
-    '  config:',
-    '    autoStart: false',
-    '',
-  ].join('\n'))
-
-  const ctx = new Context()
-  context = ctx
-  ctx.baseUrl = pathToFileURL(root).href + '/'
-  await ctx.plugin(Loader)
-  ctx.loader.builtins.include = Include
-  const modules = new Map<string, unknown>([
-    ['@deepseek-ai/dsh-settings-file', FileSettingsProvider],
-    ['test-agents', agents],
-    ['@deepseek-ai/dsh-console-bridge', consoleBridge],
-  ])
-  ctx.loader.internal = {
-    version: 'v2',
-    async import(specifier: string) {
-      if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
-      return modules.get(specifier)
-    },
-  } as unknown as NonNullable<typeof ctx.loader.internal>
-  await ctx.loader.create({
-    name: 'cordis:include',
-    config: { path: pathToFileURL(configPath).href },
+  const ctx = await boot('test', join(dir, 'cordis.yml'), readProfilePatches('test', profile), (booted) => {
+    booted.provide('profileContext', profile)
+    booted.provide('appReady', { onReady: (listener: () => void) => { listener(); return () => undefined } })
+    Object.assign(booted.loader.builtins, {
+      editor: ConfigEditor,
+      settings: Settings,
+      'console-bridge-agents': agents,
+      'console-bridge': consoleBridge,
+    })
   })
-  await ctx.loader.await()
-  return { ctx, settingsPath }
+  onTestFinished(async () => { await ctx.fiber.dispose() })
+  return ctx
+}
+
+/** The console-bridge descriptor the settings service projects, or undefined. */
+function bridgeDescriptor(ctx: Context) {
+  return ctx.settings.describe().find(descriptor => String(descriptor.ns) === 'console-bridge')
 }
 
 describe('console-bridge real composition', () => {
-  it('registers the settings namespace under the web row config (autoStart only)', async () => {
-    const { ctx, settingsPath } = await boot('')
-
-    // The namespace the settings form binds; its presence is what turns the
-    // tab from an empty page into the editable connection form.
-    const settings = ctx.get('settings')!
-    expect(settings.describe().map(entry => entry.ns)).toContain('console-bridge')
-    // Disabled boot writes nothing and subscribes nothing.
-    expect(await readFile(settingsPath, 'utf8')).toBe('')
+  it('registers the console-bridge entry in the settings describe output', async () => {
+    // The entry's presence in `describe()` is what renders its editable card;
+    // the removed settings namespaces are gone.
+    const ctx = await bootComposition({ enabled: false })
+    const names = ctx.settings.describe().map(descriptor => String(descriptor.ns))
+    expect(names).toContain('console-bridge')
+    expect(names).not.toContain('console-pricing')
   })
 
-  it('registers console-pricing so the plugins tab renders its card', async () => {
-    const { ctx } = await boot([
-      'console-pricing:',
-      '  models:',
-      '    - baseUrl: https://api.deepseek.com',
-      '      provider: deepseek-official',
-      '      model: deepseek-v4-flash',
-      '      peak:',
-      '        cacheHit: 0.1',
-      '        cacheMiss: 0.5',
-      '        output: 1.5',
-      '      offPeak:',
-      '        cacheHit: 0.05',
-      '        cacheMiss: 0.25',
-      '        output: 0.75',
-      '',
-    ].join('\n'))
-
-    const settings = ctx.get('settings')!
-    // The plugins tab builds one card per described namespace, so a namespace
-    // missing from `describe()` has no card however well its card is registered.
-    expect(settings.describe().map(entry => entry.ns)).toContain('console-pricing')
-    // The stored table is what the card reads and stages; the document loads
-    // asynchronously after plugin apply.
-    await vi.waitFor(() => {
-      expect(settings.get('console-pricing')).toEqual({
-        models: [
-          {
-            baseUrl: 'https://api.deepseek.com',
-            provider: 'deepseek-official',
-            model: 'deepseek-v4-flash',
-            peak: { cacheHit: 0.1, cacheMiss: 0.5, output: 1.5 },
-            offPeak: { cacheHit: 0.05, cacheMiss: 0.25, output: 0.75 },
-          },
-        ],
-      })
-    })
+  it('projects the composed price table and off-peak window through the entry', async () => {
+    const offPeak = { start: '22:30', end: '06:15', timezone: 'Asia/Kolkata' }
+    const models = [{
+      baseUrl: 'https://api.deepseek.com',
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      peak: { cacheHit: 0.1, cacheMiss: 0.5, output: 1.5 },
+      offPeak: { cacheHit: 0.05, cacheMiss: 0.25, output: 0.75 },
+    }]
+    const ctx = await bootComposition({ enabled: false, models, offPeak })
+    const value = bridgeDescriptor(ctx)?.value
+    // The stored table and window are what the settings card reads and stages.
+    expect(value).toMatchObject({ enabled: false, transport: 'mqtt', models, offPeak })
   })
 
-  it('treats an absent and an empty price table as valid', async () => {
-    const { ctx } = await boot('console-pricing:\n  models: []\n')
-    const settings = ctx.get('settings')!
-    await vi.waitFor(() => {
-      expect(settings.get('console-pricing')).toEqual({ models: [] })
-    })
-  })
-
-  it('resolves a stored off-peak window alongside the price table', async () => {
-    // YAML reads an unquoted `22:30` as a sexagesimal number, so the window's
-    // times are quoted in every document an operator writes.
-    const { ctx } = await boot([
-      'console-pricing:',
-      '  offPeak:',
-      '    start: "22:30"',
-      '    end: "06:15"',
-      '    timezone: Asia/Kolkata',
-      '',
-    ].join('\n'))
-
-    const settings = ctx.get('settings')!
-    await vi.waitFor(() => {
-      expect(settings.get('console-pricing')).toEqual({
-        models: [],
-        offPeak: { start: '22:30', end: '06:15', timezone: 'Asia/Kolkata' },
-      })
-    })
-  })
-
-  it('refuses to load a stored window no fold could read', async () => {
-    // The window decides which band a token is charged in, so an unreadable one
-    // is refused at load rather than left to silently price everything at peak.
-    await expect(boot([
-      'console-pricing:',
-      '  offPeak:',
-      '    start: "25:00"',
-      '    end: "06:15"',
-      '    timezone: Asia/Kolkata',
-      '',
-    ].join('\n'))).rejects.toThrow('console-pricing: offPeak.start is not an HH:MM time: "25:00"')
-
-    await expect(boot([
-      'console-pricing:',
-      '  offPeak:',
-      '    start: "22:30"',
-      '    end: "06:15"',
-      '    timezone: Mars/Olympus',
-      '',
-    ].join('\n'))).rejects.toThrow('console-pricing: offPeak.timezone is not an IANA time zone: "Mars/Olympus"')
+  it('treats an empty price table as valid', async () => {
+    const ctx = await bootComposition({ enabled: false, models: [] })
+    expect(bridgeDescriptor(ctx)?.value).toMatchObject({ models: [] })
   })
 })

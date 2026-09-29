@@ -17,11 +17,11 @@
  */
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ModelPrice } from './pricing.ts'
 
-/** The `console-pricing` settings namespace holding the operator's table. */
-export const CONSOLE_PRICING_NAMESPACE = 'console-pricing'
+/** The `console-bridge` settings namespace holding the operator's table. */
+export const CONSOLE_PRICING_NAMESPACE = 'console-bridge'
 
 /** The pricing namespace's fields these readers read. */
 interface ConsolePricingSetting {
@@ -37,8 +37,8 @@ export class PriceTablePolicy {
   /** Reactive current table; empty until the Host serves a section. */
   readonly prices: SnapshotStore<readonly ModelPrice[]> = createSnapshotStore<readonly ModelPrice[]>(NO_PRICES)
 
-  /** @param host - the `console-pricing` settings scope. */
-  constructor(private readonly host: SettingsScope<ConsolePricingSetting>) {
+  /** @param host - the `console-pricing` settings form. */
+  constructor(private readonly host: ConfigForm<ConsolePricingSetting>) {
     host.subscribe(() => { this.adopt() })
     this.adopt()
   }

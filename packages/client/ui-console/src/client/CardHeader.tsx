@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from 'react'
-import { IconChevronDownOutline14, IconChevronUpOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronDownOutlineRegular, IconChevronUpOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConsoleKey } from './locales.ts'
 import css from './console.module.css'
 
@@ -44,7 +44,7 @@ export function CardHeader({ t, title, collapsed, onToggleCollapse, actions, aft
           aria-label={collapsed === true ? t('expand') : t('collapse')}
           onClick={onToggleCollapse}
         >
-          {collapsed === true ? <IconChevronDownOutline14 /> : <IconChevronUpOutline14 />}
+          {collapsed === true ? <IconChevronDownOutlineRegular /> : <IconChevronUpOutlineRegular />}
         </button>
       )}
     </div>

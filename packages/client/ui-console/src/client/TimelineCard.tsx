@@ -7,7 +7,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  formatAmount, IconSendOutline16, totalCost, type CostTotal, type ModelPrice,
+  formatAmount, IconSendOutlineRegular, totalCost, type CostTotal, type ModelPrice,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
 import type { TimelineEntry, TimelineMode } from './consoleStore.ts'
@@ -349,7 +349,7 @@ export function Composer({ t, composer, composerActions }: ComposerProps) {
             disabled={!ready || draft.trim() === ''}
             onClick={() => { composerActions.submit() }}
           >
-            <IconSendOutline16 size={16} />
+            <IconSendOutlineRegular size={16} />
           </button>
         </div>
       </div>

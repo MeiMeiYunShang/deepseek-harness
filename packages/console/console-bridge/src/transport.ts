@@ -1,4 +1,4 @@
-import type { ConsoleBridgeConfig, DownCmdEnvelope } from './types.ts'
+import type { DownCmdEnvelope, PlainResolvedConfig } from './types.ts'
 
 /** Bidirectional transport between the bridge and the console. */
 export interface ConsoleTransport {
@@ -25,7 +25,7 @@ class MqttTransport implements ConsoleTransport {
   private client: import('mqtt').MqttClient | undefined
 
   constructor(
-    private readonly config: ConsoleBridgeConfig,
+    private readonly config: PlainResolvedConfig,
     private readonly logger: { warn(message: string): void },
   ) {}
 
@@ -116,7 +116,7 @@ class HttpTransport implements ConsoleTransport {
   private stopped = false
 
   constructor(
-    private readonly config: ConsoleBridgeConfig,
+    private readonly config: PlainResolvedConfig,
     private readonly logger: { warn(message: string): void },
   ) {}
 
@@ -168,7 +168,7 @@ class HttpTransport implements ConsoleTransport {
         } catch (error: unknown) {
           this.logger.warn(`console-bridge: down/cmd poll failed: ${String(error)}`)
         }
-        await delay(this.config.pollIntervalMs ?? 2000)
+        await delay(this.config.pollIntervalMs)
       }
     })()
     return Promise.resolve(() => {
@@ -189,7 +189,7 @@ class HttpTransport implements ConsoleTransport {
  * @returns the configured transport (HTTP or MQTT).
  */
 export function createTransport(
-  config: ConsoleBridgeConfig,
+  config: PlainResolvedConfig,
   logger: { warn(message: string): void },
 ): ConsoleTransport {
   if (config.transport === 'http') return new HttpTransport(config, logger)

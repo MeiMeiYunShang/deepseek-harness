@@ -1,8 +1,8 @@
 /**
  * The band decision the `sessionStats` fold applies to an event time: the
- * `console-pricing` section is narrowed to a window, each window edge is
- * decided from the event's own wall-clock time in the window's zone, and the
- * window is what the unit's persisted-cache version stands for.
+ * `console-bridge` entry's price-table section is narrowed to a window, each
+ * window edge is decided from the event's own wall-clock time in the window's
+ * zone, and the window is what the unit's persisted-cache version stands for.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -19,8 +19,8 @@ function utc(hour: number, minute: number): number {
 }
 
 describe('offPeakWindowOf', () => {
-  it('names the console pricing namespace', () => {
-    expect(CONSOLE_PRICING_NAMESPACE).toBe('console-pricing')
+  it('names the console-bridge settings entry', () => {
+    expect(CONSOLE_PRICING_NAMESPACE).toBe('console-bridge')
   })
 
   it('reads a well-formed window out of the section', () => {
@@ -35,7 +35,7 @@ describe('offPeakWindowOf', () => {
   it('answers "no window" for a section the namespace never registered or left empty', () => {
     expect(offPeakWindowOf(undefined)).toBeUndefined()
     expect(offPeakWindowOf(null)).toBeUndefined()
-    expect(offPeakWindowOf('console-pricing')).toBeUndefined()
+    expect(offPeakWindowOf('console-bridge')).toBeUndefined()
     expect(offPeakWindowOf({})).toBeUndefined()
     expect(offPeakWindowOf({ models: [] })).toBeUndefined()
     expect(offPeakWindowOf({ offPeak: null })).toBeUndefined()
@@ -44,7 +44,7 @@ describe('offPeakWindowOf', () => {
   it('answers "no window" for an off-peak member this fold could not read', () => {
     expect(offPeakWindowOf({ offPeak: { start: '08:00', end: '18:00' } })).toBeUndefined()
     expect(offPeakWindowOf({ offPeak: { start: 8, end: '18:00', timezone: 'UTC' } })).toBeUndefined()
-    // The console-pricing owner rejects these at its write boundary; a document
+    // The console-bridge owner rejects these at its write boundary; a document
     // edited around it must not reach the fold as a split it cannot compute.
     expect(offPeakWindowOf({ offPeak: { start: '8:00', end: '18:00', timezone: 'UTC' } })).toBeUndefined()
     expect(offPeakWindowOf({ offPeak: { start: '08:00', end: '24:00', timezone: 'UTC' } })).toBeUndefined()

@@ -12,22 +12,28 @@ import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
 import type { AgentRegistry } from '@deepseek-ai/dsh-agent'
-import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 
 import {
   type ConsoleBridgeConfig,
+  type ConsolePricingOffPeak,
+  type ConsolePricingRow,
   type DownCmdEnvelope,
+  type PlainResolvedConfig,
   type UpCmdAckPayload,
   type UpResultPayload,
   type UpStatusPayload,
 } from './types.ts'
+
+export type { ConsolePricingBandPrice, ConsolePricingOffPeak, ConsolePricingRow } from './types.ts'
+
 import { createTransport, type ConsoleTransport } from './transport.ts'
 import { runDshTask } from './runner.ts'
 import ConsoleBridgeRemote from './remote.ts'
 
 export const name = 'console-bridge'
-/** The bridge creates and owns agents and registers the console's settings namespaces. */
-export const inject = ['agents', 'settings']
+/** The bridge creates and owns agents. */
+export const inject = ['agents']
 
 /** User-editable console-connection settings, surfaced as a settings tab. */
 export interface ConsoleBridgeSettings {
@@ -46,56 +52,10 @@ export interface ConsoleBridgeSettings {
   enabled: boolean
 }
 
-/** One price band's rates, in currency units per million tokens. */
-export interface ConsolePricingBandPrice {
-  /** Price of one million cache-read (cache-hit) input tokens. */
-  cacheHit: number
-  /**
-   * Price of one million uncached input tokens, and of one million cache-write
-   * input tokens: a cache write is charged at the miss rate.
-   */
-  cacheMiss: number
-  /** Price of one million output tokens. */
-  output: number
-}
-
-/**
- * One model route's price, in currency units per million tokens.
- *
- * A route is keyed by `(baseUrl, provider, model)`: the same model reached
- * through two endpoints is two routes at two prices, and the accounting matches
- * reported tokens on the route the provider actually served.
- */
-export interface ConsolePricingRow {
-  /** Endpoint the route is reached through. */
-  baseUrl: string
-  /** Provider id of the route, exactly as the model catalog spells it. */
-  provider: string
-  /** Model id of the route, exactly as the model catalog spells it. */
-  model: string
-  /** Rates charged for the tokens served inside the peak band. */
-  peak: ConsolePricingBandPrice
-  /** Rates charged for the tokens served inside the off-peak window. */
-  offPeak: ConsolePricingBandPrice
-}
-
-/**
- * The daily off-peak window: `[start, end)` as local wall-clock times in one
- * IANA zone, wrapping past midnight when `end` is not later than `start`.
- */
-export interface ConsolePricingOffPeak {
-  /** Window start, `HH:MM` local to `timezone`; the window includes this minute. */
-  start: string
-  /** Window end, `HH:MM` local to `timezone`; the window excludes this minute. */
-  end: string
-  /** IANA zone the two wall-clock times are local to. */
-  timezone: string
-}
-
-/** The operator's price table, as stored in the `console-pricing` settings namespace. */
+/** The operator's price table, as stored in the `console-bridge` settings namespace. */
 export interface ConsolePricingSettings {
   /** The recorded price table; absent until an operator saves one. */
-  models?: ConsolePricingRow[]
+  models?: readonly ConsolePricingRow[]
   /**
    * The daily off-peak window, which is what splits each route's tokens into
    * price bands. Absent means every hour is charged at the peak price.
@@ -104,38 +64,44 @@ export interface ConsolePricingSettings {
 }
 
 /**
- * Schema for the `console-pricing` settings namespace: the price table the
- * console cost view charges each `(baseUrl, provider, model)` route against. An
- * absent `models` and an empty one both mean "no prices recorded" and are valid
- * — a route with no row is reported as unpriced, which is not the same fact as
- * a free model. An absent `offPeak` is likewise valid and means "peak only".
+ * Schema for the price-table fields the `console-bridge` entry records: the
+ * table the console cost view charges each `(baseUrl, provider, model)` route
+ * against and the window that splits tokens into bands. An absent `models` and
+ * an empty one both mean "no prices recorded" and are valid — a route with no
+ * row is reported as unpriced, which is not the same fact as a free model. An
+ * absent `offPeak` is likewise valid and means "peak only".
  */
-export const ConsolePricingSettingsSchema = z.object({
-  models: z.array(z.object({
-    baseUrl: z.string().required(),
-    provider: z.string().required(),
-    model: z.string().required(),
-    peak: z.object({
-      cacheHit: z.number().min(0).required(),
-      cacheMiss: z.number().min(0).required(),
-      output: z.number().min(0).required(),
-    }),
-    offPeak: z.object({
-      cacheHit: z.number().min(0).required(),
-      cacheMiss: z.number().min(0).required(),
-      output: z.number().min(0).required(),
-    }),
-  })).required(false),
-  // An object schema resolves an absent value from its own `{}` default, which
-  // would then demand every field from a window the operator never declared.
-  // Absent has to stay absent — it means "peak only", not "an unreadable
-  // window" — and schemastery types `default` as the declared object type, so
-  // the one value that is not one takes the cast.
+const ConsolePricingModelsSchema = z.array(z.object({
+  baseUrl: z.string().required(),
+  provider: z.string().required(),
+  model: z.string().required(),
+  peak: z.object({
+    cacheHit: z.number().min(0).required(),
+    cacheMiss: z.number().min(0).required(),
+    output: z.number().min(0).required(),
+  }),
   offPeak: z.object({
-    start: z.string().required(),
-    end: z.string().required(),
-    timezone: z.string().required(),
-  }).default(undefined as unknown as ConsolePricingOffPeak),
+    cacheHit: z.number().min(0).required(),
+    cacheMiss: z.number().min(0).required(),
+    output: z.number().min(0).required(),
+  }),
+})).required(false)
+
+// An object schema resolves an absent value from its own `{}` default, which
+// would then demand every field from a window the operator never declared.
+// Absent has to stay absent — it means "peak only", not "an unreadable
+// window" — and schemastery types `default` as the declared object type, so
+// the one value that is not one takes the cast.
+const ConsolePricingOffPeakSchema = z.object({
+  start: z.string().required(),
+  end: z.string().required(),
+  timezone: z.string().required(),
+}).default(undefined as unknown as ConsolePricingOffPeak)
+
+/** The price-table fields as the console cost view and the `sessionStats` off-peak fold read them. */
+export const ConsolePricingSettingsSchema = z.object({
+  models: ConsolePricingModelsSchema,
+  offPeak: ConsolePricingOffPeakSchema,
 })
 
 /** `HH:MM` on a 24-hour clock, 00:00 through 23:59. */
@@ -179,15 +145,18 @@ const PRICE_RATES = ['cacheHit', 'cacheMiss', 'output'] as const
  * wall-clock strings and its zone is resolved by the runtime, so neither is
  * expressible in the schema, and a window the fold cannot read would silently
  * charge every token at the peak price.
- * @param value - the resolved `console-pricing` section.
+ * @param value - the resolved `console-bridge` price-table section.
  * @throws {TypeError} when a row carries a non-finite rate, or the off-peak window is not a usable `HH:MM` time and IANA zone.
  */
-export function validateConsolePricing(value: ConsolePricingSettings): void {
+export function validateConsolePricing(value: {
+  models?: readonly ConsolePricingRow[] | undefined
+  offPeak?: ConsolePricingOffPeak | undefined
+}): void {
   for (const [index, row] of (value.models ?? []).entries()) {
     for (const band of PRICE_BANDS) {
       for (const rate of PRICE_RATES) {
         if (!Number.isFinite(row[band][rate])) {
-          throw new TypeError(`console-pricing: models[${index}].${band}.${rate} is not a finite number`)
+          throw new TypeError(`console-bridge: models[${index}].${band}.${rate} is not a finite number`)
         }
       }
     }
@@ -195,13 +164,13 @@ export function validateConsolePricing(value: ConsolePricingSettings): void {
   const offPeak = value.offPeak
   if (offPeak === undefined) return
   if (!OFF_PEAK_TIME.test(offPeak.start)) {
-    throw new TypeError(`console-pricing: offPeak.start is not an HH:MM time: ${JSON.stringify(offPeak.start)}`)
+    throw new TypeError(`console-bridge: offPeak.start is not an HH:MM time: ${JSON.stringify(offPeak.start)}`)
   }
   if (!OFF_PEAK_TIME.test(offPeak.end)) {
-    throw new TypeError(`console-pricing: offPeak.end is not an HH:MM time: ${JSON.stringify(offPeak.end)}`)
+    throw new TypeError(`console-bridge: offPeak.end is not an HH:MM time: ${JSON.stringify(offPeak.end)}`)
   }
   if (!isResolvableTimeZone(offPeak.timezone)) {
-    throw new TypeError(`console-pricing: offPeak.timezone is not an IANA time zone: ${JSON.stringify(offPeak.timezone)}`)
+    throw new TypeError(`console-bridge: offPeak.timezone is not an IANA time zone: ${JSON.stringify(offPeak.timezone)}`)
   }
 }
 
@@ -217,47 +186,61 @@ export const ConsoleBridgeSettingsSchema = z.object({
   enabled: z.boolean().default(false),
 })
 
-/** Plugin config: console identity, transport, and per-task agent/model selection. */
-export const Config: z<ConsoleBridgeConfig> = z.object({
-  agentId: z.string(),
-  transport: z.union(['mqtt', 'http']).default('mqtt'),
-  brokerUrl: z.string().required(false),
-  consoleBaseUrl: z.string().required(false),
-  token: z.string().role('secret').required(false),
-  mqttUsername: z.string().required(false),
-  mqttPassword: z.string().role('secret').required(false),
-  provider: z.string().required(false),
-  model: z.string().required(false),
-  cwd: z.string().required(false),
-  execTimeoutS: z.number().default(10),
-  pollIntervalMs: z.number().default(2000),
-  statusIntervalMs: z.number().default(5000),
-  autoStart: z.boolean().default(true),
-  enabled: z.boolean().default(false),
+/** Plugin config: console identity, transport, per-task agent/model selection, and the price table. */
+export const Config = z.object({
+  agentId: z.string().volatile(),
+  transport: z.union(['mqtt', 'http']).default('mqtt').volatile(),
+  brokerUrl: z.string().required(false).volatile(),
+  consoleBaseUrl: z.string().required(false).volatile(),
+  token: z.string().role('secret').required(false).volatile(),
+  mqttUsername: z.string().required(false).volatile(),
+  mqttPassword: z.string().role('secret').required(false).volatile(),
+  provider: z.string().required(false).volatile(),
+  model: z.string().required(false).volatile(),
+  cwd: z.string().required(false).volatile(),
+  execTimeoutS: z.number().default(10).volatile(),
+  pollIntervalMs: z.number().default(2000).volatile(),
+  statusIntervalMs: z.number().default(5000).volatile(),
+  autoStart: z.boolean().default(true).volatile(),
+  enabled: z.boolean().default(false).volatile(),
+  models: ConsolePricingModelsSchema.volatile(),
+  offPeak: ConsolePricingOffPeakSchema.volatile(),
 })
 
-/** Cordis config as the settings `base` layer, so the UI overrides only what it sets. */
-function settingsBase(config: ConsoleBridgeConfig): Partial<ConsoleBridgeSettings> {
-  const base: Partial<ConsoleBridgeSettings> = {
-    transport: config.transport,
-    enabled: config.enabled ?? config.autoStart ?? false,
+/**
+ * Read the current value of every live config reference.
+ * @param config - the plugin config carrying live references.
+ * @returns the ordinary values the bridge runs with.
+ */
+function readConfig(config: ConsoleBridgeConfig): PlainResolvedConfig {
+  return {
+    agentId: config.agentId.get(),
+    transport: config.transport.get(),
+    brokerUrl: config.brokerUrl.get(),
+    consoleBaseUrl: config.consoleBaseUrl.get(),
+    token: config.token.get(),
+    mqttUsername: config.mqttUsername.get(),
+    mqttPassword: config.mqttPassword.get(),
+    provider: config.provider.get(),
+    model: config.model.get(),
+    cwd: config.cwd.get(),
+    execTimeoutS: config.execTimeoutS.get(),
+    pollIntervalMs: config.pollIntervalMs.get(),
+    statusIntervalMs: config.statusIntervalMs.get(),
+    autoStart: config.autoStart.get(),
+    enabled: config.enabled.get(),
+    models: config.models.get(),
+    offPeak: config.offPeak.get(),
   }
-  if (config.agentId) base.agentId = config.agentId
-  if (config.brokerUrl) base.brokerUrl = config.brokerUrl
-  if (config.consoleBaseUrl) base.consoleBaseUrl = config.consoleBaseUrl
-  if (config.token) base.token = config.token
-  if (config.mqttUsername) base.mqttUsername = config.mqttUsername
-  if (config.mqttPassword) base.mqttPassword = config.mqttPassword
-  return base
 }
 
 /**
  * Merge the settings document over cordis config, treating empty strings as unset.
- * @param config - cordis composition config, the settings `base` layer.
+ * @param config - the ordinary cordis composition config, the settings `base` layer.
  * @param doc - the stored `console-bridge` settings document the operator edited.
  * @returns the effective config to run the bridge with.
  */
-export function effectiveConfig(config: ConsoleBridgeConfig, doc: ConsoleBridgeSettings): ConsoleBridgeConfig {
+export function effectiveConfig(config: PlainResolvedConfig, doc: ConsoleBridgeSettings): PlainResolvedConfig {
   return {
     ...config,
     ...(doc.agentId ? { agentId: doc.agentId } : {}),
@@ -302,36 +285,25 @@ export function normalizeExecTimeoutS(raw: unknown): number {
 /**
  * Mount the console bridge.
  * @param ctx - Cordis context carrying the agent factory and session events.
- * @param config - console identity, transport, and agent/model selection.
+ * @param config - console identity, transport, per-task agent/model selection, and the price table.
  */
 export function apply(ctx: Context, config: ConsoleBridgeConfig): void {
   const logger = ctx.logger
   const agents: AgentRegistry = ctx.agents
-  const settings: SettingsProvider = ctx.settings
-  // Register the connection settings page; cordis config forms the base layer
-  // the UI overrides. Address/identity changes require a restart.
-  const scope = settings.register('console-bridge', ConsoleBridgeSettingsSchema, {
-    base: settingsBase(config),
-    applies: 'restart',
-  })
-  // The price table this console's cost view charges against. Nothing in the
-  // composition supplies prices — they are operator data rather than
-  // connection configuration — so the namespace is registered with its schema
-  // and the resolved value comes from the settings document alone. Registering
-  // is what makes the namespace appear in `settings.describe()`, and therefore
-  // what makes the console pricing card render at all.
-  settings.register('console-pricing', ConsolePricingSettingsSchema, {
-    validate: validateConsolePricing,
-  })
-  let effective = effectiveConfig(config, scope.get())
+  const initial = readConfig(config)
+  // The schema expresses neither finiteness nor an `HH:MM`/IANA window, so the
+  // resolved price table is checked here; a stored table no charge could be
+  // computed from fails the mount loudly rather than silently pricing at zero.
+  validateConsolePricing(initial)
+  let effective = initial
   // Expose a Web Remote so the settings card can probe the connection without
   // subscribing to commands. The probe resolves the connection config from the
-  // current stored document, not a client echo: secret fields never ride a
+  // current live references, not a client echo: secret fields never ride a
   // client response, so only the host can read them back for the transport.
   ctx.plugin({
     name: 'console-bridge.remote',
     apply: (child) => {
-      new ConsoleBridgeRemote(child, () => effectiveConfig(config, scope.get()))
+      new ConsoleBridgeRemote(child, () => readConfig(config))
     },
   })
   let seq = 0
@@ -341,7 +313,7 @@ export function apply(ctx: Context, config: ConsoleBridgeConfig): void {
   let closed = false
   let startPromise: Promise<void> = Promise.resolve()
 
-  const agentIdOf = (cfg: ConsoleBridgeConfig): string => cfg.agentId ?? ''
+  const agentIdOf = (cfg: PlainResolvedConfig): string => cfg.agentId ?? ''
 
   /** The live transport, asserting the bridge already connected. */
   const requireTransport = (): ConsoleTransport => {
@@ -429,7 +401,7 @@ export function apply(ctx: Context, config: ConsoleBridgeConfig): void {
     // The console marks a terminal offline after three missed heartbeat
     // periods, so publish `up/status` on the configured cadence and once
     // immediately on subscribe to bring it online without waiting a full cycle.
-    const period = Math.min(60_000, Math.max(1_000, effective.statusIntervalMs ?? 5_000))
+    const period = Math.min(60_000, Math.max(1_000, effective.statusIntervalMs))
     /* v8 ignore next -- only reached after a successful subscribe, so `transport`
        is always set and `closed` is always false at this call site. */
     if (transport === undefined || closed) return
@@ -460,16 +432,16 @@ export function apply(ctx: Context, config: ConsoleBridgeConfig): void {
     startHeartbeat()
   }
 
-  // Arm the bridge from the CURRENT stored document, not the value captured at
-  // apply time. The settings file loads asynchronously after plugin apply, so a
-  // one-shot `if (effective.enabled) start()` could miss a document that only
-  // becomes available later. `scope.watch` re-evaluates on every committed
-  // change; an identity/address change restarts the transport (restart semantics).
+  // Arm the bridge from the CURRENT live config, not the value captured at
+  // apply time. The settings document loads asynchronously after plugin apply,
+  // so a one-shot `if (effective.enabled) start()` could miss a document that
+  // only becomes available later. A committed settings change re-evaluates; an
+  // identity/address change restarts the transport (restart semantics).
   startPromise = start().catch((error: unknown) => {
     logger.error(`console-bridge: start failed: ${String(error)}`)
   })
-  const offWatch = scope.watch(() => {
-    const next = effectiveConfig(config, scope.get())
+  const reevaluate = (): void => {
+    const next = readConfig(config)
     const identityChanged = next.agentId !== effective.agentId
     const wasStarted = transport !== undefined || unsubscribe !== undefined
     effective = next
@@ -486,11 +458,14 @@ export function apply(ctx: Context, config: ConsoleBridgeConfig): void {
         logger.error(`console-bridge: start failed: ${String(error)}`)
       })
     }
+  }
+  const offSettings = ctx.on('settings/document-updated', (ns) => {
+    if (String(ns) === name) reevaluate()
   })
 
   ctx.effect(() => async () => {
     closed = true
-    offWatch()
+    offSettings()
     if (statusTimer !== undefined) clearInterval(statusTimer)
     await startPromise
     unsubscribe?.()

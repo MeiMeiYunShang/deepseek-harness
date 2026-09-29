@@ -27,6 +27,7 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     id: id as SessionSummary['id'],
     displayTitle: id,
     running: false,
+    retainedBy: {},
     blank: false,
     updatedAt: 0,
     ...overrides,
@@ -37,13 +38,16 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
 const FILTER_ROWS: Record<string, SessionSummary> = {
   sRunning: session('sRunning', { running: true }),
   sPending: session('sPending'),
-  sCompleted: session('sCompleted', { completed: true }),
+  sCompleted: session('sCompleted'),
   sIdle: session('sIdle'),
   sArchived: session('sArchived'),
 }
 
 /** The pending interaction of the one awaiting-input row above. */
 const PENDING_KIND = (id: string): string | undefined => (id === 'sPending' ? 'question' : undefined)
+
+/** The status feed's unacknowledged-completion bit for the one completed row. */
+const COMPLETED_OF = (id: string): boolean => id === 'sCompleted'
 
 /** The archived id among those same rows. */
 const ARCHIVED_IDS = ['sArchived']
@@ -61,6 +65,7 @@ function renderCard(overrides: {
   selected?: string
   archived?: readonly string[]
   pendingKindOf?: (id: string) => string | undefined
+  completedOf?: (id: string) => boolean
   t?: (key: ConsoleKey) => string
   setSessionView?: (view: 'stats' | 'grid') => void
   toggleSessionBucket?: (bucket: SessionBucket) => void
@@ -84,13 +89,14 @@ function renderCard(overrides: {
   const card = (sessionBuckets: readonly SessionBucket[]) => (
     <SessionStatusCard
       t={overrides.t ?? t}
-      byId={overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }}
+      byId={overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2') }}
       current={overrides.current}
       sessionView={overrides.sessionView ?? 'stats'}
       sessionBuckets={sessionBuckets}
       selected={overrides.selected}
       isArchived={id => (overrides.archived ?? []).includes(id)}
       pendingKindOf={overrides.pendingKindOf ?? (() => undefined)}
+      completedOf={overrides.completedOf ?? (() => false)}
       setSessionView={setSessionView}
       toggleSessionBucket={toggleSessionBucket}
       selectSession={selectSession}
@@ -216,7 +222,7 @@ describe('SessionStatusCard', () => {
   })
 
   it('names a filtered-out grid instead of claiming there are no sessions', () => {
-    renderCard({ sessionView: 'grid', sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS })
+    renderCard({ sessionView: 'grid', sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, completedOf: COMPLETED_OF, archived: ARCHIVED_IDS })
     expect(screen.getByText(en.noSessionMatch)).toBeTruthy()
     expect(screen.queryByText(en.noSession)).toBeNull()
   })
@@ -232,7 +238,7 @@ describe('SessionStatusCard', () => {
   })
 
   it('counts every session in the stats view whatever the filter hides', () => {
-    renderCard({ sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS })
+    renderCard({ sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, completedOf: COMPLETED_OF, archived: ARCHIVED_IDS })
     // No bucket is selected at all, and the tiles still count the whole list:
     // the filter narrows the grid squares, never the statistics.
     expect(screen.getByText('5', { exact: true })).toBeTruthy()
@@ -242,7 +248,7 @@ describe('SessionStatusCard', () => {
 
 describe('SessionStatusCard grid filter', () => {
   const grid = (overrides: Parameters<typeof renderCard>[0] = {}) => renderCard({
-    sessionView: 'grid', byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS, ...overrides,
+    sessionView: 'grid', byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, completedOf: COMPLETED_OF, archived: ARCHIVED_IDS, ...overrides,
   })
 
   const openFilter = () => { fireEvent.click(screen.getByRole('button', { name: en.sessionFilter })) }

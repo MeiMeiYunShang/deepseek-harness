@@ -18,7 +18,7 @@ import type { StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import type { SettingsNamespace, SettingsProvider } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import * as SessionStatsPlugin from '@deepseek-ai/dsh-session-stats'
 import { CONSOLE_PRICING_NAMESPACE, sessionStatsStateVersion } from '@deepseek-ai/dsh-session-stats/src/off-peak.ts'
 import type { OffPeakWindow } from '@deepseek-ai/dsh-session-stats/src/off-peak.ts'
@@ -792,7 +792,11 @@ describe('sessionStats off-peak window wiring', () => {
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionProjectionRegistry)
     if (withSettings) {
-      ctx.provide('settings', { get: () => section } as unknown as SettingsProvider)
+      // The plugin reads the off-peak window from the `console-bridge`
+      // descriptor's projected value, not a namespace getter.
+      ctx.provide('settings', {
+        describe: () => [{ ns: CONSOLE_PRICING_NAMESPACE as SettingsNamespace, value: section }],
+      } as never)
     }
     if (mount) await ctx.plugin(SessionStatsPlugin)
     return ctx
@@ -832,7 +836,7 @@ describe('sessionStats off-peak window wiring', () => {
 
     const night: OffPeakWindow = { start: '22:00', end: '06:00', timezone: 'Asia/Kolkata' }
     section = { offPeak: night }
-    ctx.emit('settings/updated', CONSOLE_PRICING_NAMESPACE as SettingsNamespace, section, section, 'update')
+    ctx.emit('settings/document-updated', CONSOLE_PRICING_NAMESPACE as SettingsNamespace, 1)
     const edited = installedVersion(ctx, session)
     expect(edited).toBe(sessionStatsStateVersion(night))
     expect(edited).not.toBe(windowed)
@@ -840,7 +844,7 @@ describe('sessionStats off-peak window wiring', () => {
     // A commit on another namespace, and a re-read of the same section, both
     // leave the live unit in place: re-registering costs every live session a
     // refold, so only an actual change does it.
-    ctx.emit('settings/updated', 'console-bridge' as SettingsNamespace, {}, {}, 'update')
+    ctx.emit('settings/document-updated', 'ui-settings' as SettingsNamespace, 1)
     ctx.sessions.create(SessionId('unchanged'))
     expect(installedVersion(ctx, session)).toBe(edited)
   })

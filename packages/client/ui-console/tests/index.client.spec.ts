@@ -8,7 +8,7 @@ import type { InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent, SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
-import { TestRemote, TestSessions, TestWorkspaces, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { TestRemote, TestSessions, TestWorkspaces, stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
@@ -58,6 +58,10 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
   const workspaces = new TestWorkspaces(stabilize)
   ctx.provide('sessions', sessions)
   ctx.provide('workspaces', workspaces)
+  // Session navigation belongs to the Workspace UI service, not the Session
+  // Controller: the console's open verb calls this face.
+  const uiWorkspace = { openSession: vi.fn(), startSession: vi.fn() }
+  ctx.provide('uiWorkspace', uiWorkspace as never)
   // The shared input machine the console composer drives, resolved per Agent
   // scope: the fake answers the same `input.for(scope)` registry the real
   // Conversation service exposes, keyed by the scope's own session tag.
@@ -84,16 +88,13 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
   }
   const directoryPicker = { pick: vi.fn(async () => (erroring ? { ok: false, error: remoteError } : await remoteResult(null))) }
   const remote = new TestRemote(ctx, { llm: { chat, listProviders: vi.fn() }, agentPresets, directoryPicker })
-  // The two settings scopes apply binds: the console-bridge section read once at
-  // load for the Smart Q&A default model, and the console-pricing table adopted
-  // from every section the Host accepts.
-  const bridge = stubSettingsScope<{ smartQaModel?: string }>()
-  if (setting !== undefined) bridge.publish({ status: 'ready', value: setting, revision: 1 })
-  const pricing = stubSettingsScope<{ models?: ModelPrice[] }>()
-  ctx.provide('settingsScope', {
-    bind: ({ namespace }: { namespace: string }) => namespace === 'console-pricing' ? pricing.scope : bridge.scope,
-  } as never)
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, agentPresets, directoryPicker, chat, pricing, machines }
+  // The settings form apply reads: the `console-bridge` namespace carries both
+  // the section read once at load for the Smart Q&A default model and the price
+  // table adopted from every section the Host accepts.
+  const settingsForm = stubConfigForm<{ smartQaModel?: string; models?: ModelPrice[] }>()
+  if (setting !== undefined) settingsForm.publish({ status: 'ready', value: setting, revision: 1 })
+  ctx.provide('configForms', { get: () => settingsForm.scope } as never)
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, uiWorkspace, agentPresets, directoryPicker, chat, pricing: settingsForm, machines }
 }
 
 function declareSidebar(slots: SlotRegistry): () => void {
@@ -101,6 +102,17 @@ function declareSidebar(slots: SlotRegistry): () => void {
     name: 'root',
     children: { 'sidebar.footer.action': { kind: 'list', scope: 'root' } },
   } as never, () => null)
+}
+
+/**
+ * Add a Session fixture and retain it, as the Workspace main selection does:
+ * the console resolves a scoped machine and conversation through a retained
+ * generation's binding, so every row a test later scopes is retained here.
+ */
+async function addRetained(sessions: TestSessions, fixture: Parameters<TestSessions['add']>[0]): Promise<SessionId> {
+  const id = await sessions.add(fixture)
+  sessions.retain(id)
+  return id
 }
 
 /** The console sidebar action's registered inject face: store hook plus its write set. */
@@ -168,7 +180,7 @@ function replyEntry(seq: number, text: string): SessionLiveEventEntry {
 
 describe('ui-console apply', () => {
   it('declares the services it uses', () => {
-    expect(inject).toEqual(['slots', 'locale', 'remote', 'sessions', 'workspaces', 'settingsScope'])
+    expect(inject).toEqual(['slots', 'locale', 'remote', 'sessions', 'workspaces', 'uiWorkspace', 'configForms'])
   })
 
   it('registers one sidebar footer action and the console dictionary', async () => {
@@ -247,8 +259,8 @@ describe('ui-console apply', () => {
   it('backfills one history row per known session when the workbench first opens', async () => {
     const { ctx, slots, sessions } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's-newer', summary: { updatedAt: 300 } }, { current: false })
-    await sessions.add({ id: 's-older', summary: { updatedAt: 100 } }, { current: false })
+    await addRetained(sessions, { id: 's-newer', summary: { updatedAt: 300 } })
+    await addRetained(sessions, { id: 's-older', summary: { updatedAt: 100 } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -268,7 +280,7 @@ describe('ui-console apply', () => {
   it('does not backfill again when the workbench is reopened', async () => {
     const { ctx, slots, sessions } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -302,7 +314,7 @@ describe('ui-console apply', () => {
   it('leaves a timeline that already holds a live row alone', async () => {
     const { ctx, slots, sessions, remote } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -333,7 +345,7 @@ describe('ui-console apply', () => {
   it('derives the scoped session conversation from that session event window and follows it', async () => {
     const { ctx, slots, sessions } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'Repair the composer'), replyEntry(2, 'Done.')] }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'Repair the composer'), replyEntry(2, 'Done.')] })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -358,8 +370,8 @@ describe('ui-console apply', () => {
   it('swaps the conversation when the console scope changes, leaving no subscription behind', async () => {
     const { ctx, slots, sessions } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'first session')] }, { current: false })
-    await sessions.add({ id: 's2', summary: { updatedAt: 200 }, events: [promptEntry(1, 'second session')] }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'first session')] })
+    await addRetained(sessions, { id: 's2', summary: { updatedAt: 200 }, events: [promptEntry(1, 'second session')] })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -384,8 +396,8 @@ describe('ui-console apply', () => {
   it('reads the scoped session turn buckets and republishes when the projection moves', async () => {
     const { ctx, slots, sessions } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'Repair the composer'), replyEntry(2, 'Done.')] }, { current: false })
-    await sessions.add({ id: 's2', summary: { updatedAt: 200 }, events: [promptEntry(1, 'another session')] }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'Repair the composer'), replyEntry(2, 'Done.')] })
+    await addRetained(sessions, { id: 's2', summary: { updatedAt: 200 }, events: [promptEntry(1, 'another session')] })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -411,7 +423,7 @@ describe('ui-console apply', () => {
   it('publishes no conversation for a selected session without a binding', async () => {
     const { ctx, slots, sessions } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -428,7 +440,7 @@ describe('ui-console apply', () => {
   it('stops following the session event window when the fiber is disposed', async () => {
     const { ctx, slots, sessions } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -444,7 +456,7 @@ describe('ui-console apply', () => {
   it('leaves a published conversation untouched when the window revision changes nothing rendered', async () => {
     const { ctx, slots, sessions } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -466,8 +478,8 @@ describe('ui-console apply', () => {
   it('drives the shared input machine for the console scope and publishes its draft', async () => {
     const { ctx, slots, sessions, machines } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
-    await sessions.add({ id: 's2', summary: { updatedAt: 200 } }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 } })
+    await addRetained(sessions, { id: 's2', summary: { updatedAt: 200 } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -509,7 +521,7 @@ describe('ui-console apply', () => {
   it('submits the composed draft through the machine once, multi-line text included', async () => {
     const { ctx, slots, sessions, machines } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -530,8 +542,8 @@ describe('ui-console apply', () => {
   it('republishes only when a projected fact moves, and follows the session send failure', async () => {
     const { ctx, slots, sessions, machines } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
-    await sessions.add({ id: 's2', summary: { updatedAt: 200 } }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 } })
+    await addRetained(sessions, { id: 's2', summary: { updatedAt: 200 } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -570,7 +582,7 @@ describe('ui-console apply', () => {
   it('stops following the scoped machine when the fiber is disposed', async () => {
     const { ctx, slots, sessions, machines } = await bench()
     declareSidebar(slots)
-    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = consoleFace(slots)
@@ -618,13 +630,13 @@ describe('ui-console apply', () => {
   })
 
   it('drives the session and workspace verbs through the service faces', async () => {
-    const { ctx, slots, sessions, workspaces, agentPresets } = await bench()
+    const { ctx, slots, sessions, workspaces, uiWorkspace, agentPresets } = await bench()
     declareSidebar(slots)
     const rename = vi.fn(async (title: string) => ({ ok: true, value: { title, seq: 1 as SessionSeq } } as const))
     const prompt = vi.fn(async () => ({ ok: true, value: { accepted: true } } as const))
     const s1 = 's1' as SessionId
     const snew = 'snew' as SessionId
-    await sessions.add({ id: s1, session: { rename, prompt }, summary: { running: false } })
+    await addRetained(sessions, { id: s1, session: { rename, prompt }, summary: { running: false } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
 
@@ -633,7 +645,7 @@ describe('ui-console apply', () => {
     })()
 
     services.open(s1)
-    expect(sessions.calls.some(call => call.method === 'open')).toBe(true)
+    expect(uiWorkspace.openSession).toHaveBeenCalledWith(s1)
 
     await services.rename(s1, 'Renamed')
     expect(rename).toHaveBeenCalledWith('Renamed')
@@ -649,7 +661,7 @@ describe('ui-console apply', () => {
 
     workspaces.stub('create', async input => ({ workspaceId: `ws-${input.path}` as never, title: input.path, path: input.path, sessionIds: [] } as never))
     const snewPrompt = vi.fn(async () => ({ ok: true, value: { accepted: true } } as const))
-    await sessions.add({ id: snew, session: { prompt: snewPrompt }, summary: { running: false } })
+    await addRetained(sessions, { id: snew, session: { prompt: snewPrompt }, summary: { running: false } })
     sessions.stubCreate(async () => snew)
     const created = await services.create({ workspaceId: 'w1', presetId: undefined, instruction: '' })
     expect(created).toBe(snew)

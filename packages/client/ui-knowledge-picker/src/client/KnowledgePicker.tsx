@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { Button, IconDatabaseOutline16, IconSearchOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconDatabaseOutlineRegular, IconSearchOutlineRegular, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { KnowledgeEntryId } from '@deepseek-ai/dsh-knowledge/types'
 import type { KnowledgePickerEntry, KnowledgePickerSource, KnowledgePickerState } from './store.ts'
@@ -76,7 +76,7 @@ function PickerDialog({ state, toggle, confirm, onClose, t }: {
       )}
     >
       <label className={css.searchInput}>
-        <IconSearchOutline16 aria-hidden="true" />
+        <IconSearchOutlineRegular aria-hidden="true" />
         <input
           type="text"
           placeholder={t('search')}
@@ -137,7 +137,7 @@ export function KnowledgePicker({ load, toggle, useKnowledgePicker, t }: Knowled
         disabled={loading}
         onClick={() => { setOpen(value => !value) }}
       >
-        <span className={css.chipIcon}><IconDatabaseOutline16 size={14} /></span>
+        <span className={css.chipIcon}><IconDatabaseOutlineRegular size={14} /></span>
         {label}
       </button>
       {open ? (

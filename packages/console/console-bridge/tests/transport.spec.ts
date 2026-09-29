@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { createTransport } from '../src/transport.ts'
-import type { ConsoleBridgeConfig } from '../src/types.ts'
+import type { PlainResolvedConfig } from '../src/types.ts'
+import { plainConfig } from './config.ts'
 
 interface MockMqttClient {
   handlers: Record<string, Array<(...a: unknown[]) => void>>
@@ -59,12 +60,12 @@ vi.mock('mqtt', () => {
 const flush = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
 
 const logger = { debug() {}, info() {}, warn: vi.fn(), error() {} }
-const mqttConfig = (over: Partial<ConsoleBridgeConfig> = {}): ConsoleBridgeConfig =>
-  ({ transport: 'mqtt', ...over })
+const mqttConfig = (over: Partial<PlainResolvedConfig> = {}): PlainResolvedConfig =>
+  plainConfig({ transport: 'mqtt', ...over })
 
 describe('createTransport', () => {
   it('returns an HttpTransport for transport "http"', async () => {
-    const t = createTransport({ transport: 'http', consoleBaseUrl: 'http://x' }, logger)
+    const t = createTransport(plainConfig({ transport: 'http', consoleBaseUrl: 'http://x' }), logger)
     expect(typeof t.connect).toBe('function')
     expect(typeof t.publish).toBe('function')
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })))
@@ -92,7 +93,7 @@ describe('HttpTransport', () => {
   it('connect is a no-op and publish POSTs with a leading slash and token header', async () => {
     const fetchMock = vi.fn(async () => ({ ok: true, status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
-    const t = createTransport({ transport: 'http', consoleBaseUrl: 'http://host', token: 'tok' }, logger)
+    const t = createTransport(plainConfig({ transport: 'http', consoleBaseUrl: 'http://host', token: 'tok' }), logger)
     await t.connect()
     await t.publish('v1/agent/a/up/result', { x: 1 })
     expect(fetchMock).toHaveBeenCalledWith(
@@ -106,7 +107,7 @@ describe('HttpTransport', () => {
 
   it('publish throws when the uplink POST is not ok', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500 })))
-    const t = createTransport({ transport: 'http' }, logger)
+    const t = createTransport(plainConfig({ transport: 'http' }), logger)
     await expect(t.publish('v1/a', {})).rejects.toThrow('uplink POST')
   })
 
@@ -121,7 +122,7 @@ describe('HttpTransport', () => {
       }
       return { ok: true, json: async () => ({ items: [] }) }
     }))
-    const t = createTransport({ transport: 'http', consoleBaseUrl: 'http://h', pollIntervalMs: 100 }, logger)
+    const t = createTransport(plainConfig({ transport: 'http', consoleBaseUrl: 'http://h', pollIntervalMs: 100 }), logger)
     const stop = await t.subscribe('v1/a/down/cmd', (p) => { received.push(p) })
     await vi.advanceTimersByTimeAsync(1)
     expect(received).toHaveLength(1)
@@ -134,7 +135,7 @@ describe('HttpTransport', () => {
       .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
       .mockRejectedValueOnce(new Error('network down'))
     vi.stubGlobal('fetch', fetchMock)
-    const t = createTransport({ transport: 'http', pollIntervalMs: 100 }, logger)
+    const t = createTransport(plainConfig({ transport: 'http', pollIntervalMs: 100 }), logger)
     const stop = await t.subscribe('v1/a/down/cmd', () => undefined)
     await vi.advanceTimersByTimeAsync(1)
     await vi.advanceTimersByTimeAsync(200)
@@ -145,7 +146,7 @@ describe('HttpTransport', () => {
 
   it('dispose stops the poll loop', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ items: [] }) })))
-    const t = createTransport({ transport: 'http', pollIntervalMs: 100 }, logger)
+    const t = createTransport(plainConfig({ transport: 'http', pollIntervalMs: 100 }), logger)
     const stop = await t.subscribe('v1/a/down/cmd', () => undefined)
     await t.dispose()
     stop()
@@ -155,7 +156,7 @@ describe('HttpTransport', () => {
   it('publishes a topic that already carries a leading slash', async () => {
     const fetchMock = vi.fn(async () => ({ ok: true, status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
-    const t = createTransport({ transport: 'http' }, logger)
+    const t = createTransport(plainConfig({ transport: 'http' }), logger)
     await t.connect()
     await t.publish('/v1/agent/a/up/result', { x: 1 })
     expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8080/v1/agent/a/up/result', expect.anything())
@@ -164,7 +165,7 @@ describe('HttpTransport', () => {
 
   it('skips a poll response that has no items array', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })))
-    const t = createTransport({ transport: 'http', pollIntervalMs: 100 }, logger)
+    const t = createTransport(plainConfig({ transport: 'http', pollIntervalMs: 100 }), logger)
     const stop = await t.subscribe('v1/a/down/cmd', () => undefined)
     await vi.advanceTimersByTimeAsync(1)
     stop()
@@ -174,7 +175,7 @@ describe('HttpTransport', () => {
   it('warns when a polled handler throws and falls back to the default interval', async () => {
     const env = { id: 'c', seq: 1, ts: 0, agentId: 'a', type: 'cmd' as const, payload: { cmdId: 'c1', command: 'hi', execTimeoutS: 60, riskLevel: 'normal', priority: 'normal' } }
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ items: [env] }) })))
-    const t = createTransport({ transport: 'http' }, logger)
+    const t = createTransport(plainConfig({ transport: 'http' }), logger)
     const stop = await t.subscribe('v1/a/down/cmd', () => { throw new Error('boom') })
     await vi.advanceTimersByTimeAsync(1)
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('handler failed'))

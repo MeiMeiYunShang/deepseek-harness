@@ -22,8 +22,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 // Type-only: pulls the Conversation Context merge (ctx.conversation) and the
 // per-session input machine contract the console composer drives.
 import type { SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
-// Type-only: pulls the settingsScope Context merge so the console-bridge setting can be read.
+// Type-only: pulls the configForms Context merge so the console-bridge setting can be read.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: pulls the uiWorkspace Context merge (session navigation).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { CONSOLE_PRICING_NAMESPACE, PriceTablePolicy } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -57,8 +59,8 @@ interface ConsoleBridgeSmartQaSetting {
   smartQaModel?: string
 }
 
-/** Required services for locale, sidebar slot, sessions/workspaces, settings, and Remote. */
-export const inject = ['slots', 'locale', 'remote', 'sessions', 'workspaces', 'settingsScope']
+/** Required services for locale, sidebar slot, sessions/workspaces/navigation, settings, and Remote. */
+export const inject = ['slots', 'locale', 'remote', 'sessions', 'workspaces', 'uiWorkspace', 'configForms']
 
 /**
  * Client plugin body: register the dictionaries and the sidebar footer action,
@@ -233,12 +235,12 @@ export function apply(ctx: ClientContext): void {
   // Resolve the Smart Q&A default model once at load from the console-bridge
   // setting (`provider/model`); an unset or malformed override leaves it null,
   // so the panel stays disabled until the operator configures a model.
-  const settings = ctx.settingsScope.bind<ConsoleBridgeSmartQaSetting>({ namespace: 'console-bridge' })
+  const settings = ctx.configForms.get<ConsoleBridgeSmartQaSetting>('console-bridge')
   // The price table is adopted instead of read: the `console-pricing` namespace
-  // answers after `bind` returns, so one synchronous read would leave the cost
+  // answers after `get` returns, so one synchronous read would leave the cost
   // figure unpriced for the life of the page.
   const priceTable = new PriceTablePolicy(
-    ctx.settingsScope.bind({ namespace: CONSOLE_PRICING_NAMESPACE }),
+    ctx.configForms.get(CONSOLE_PRICING_NAMESPACE),
   )
   const defaultModel = ((): { provider: string; model: string } | null => {
     const override = settings.getSnapshot().value?.smartQaModel?.trim()
@@ -250,7 +252,7 @@ export function apply(ctx: ClientContext): void {
   })()
 
   const services: ConsoleServices = {
-    open: (sessionId) => { ctx.sessions.open(sessionId) },
+    open: (sessionId) => { ctx.uiWorkspace.openSession(sessionId) },
     rename: async (sessionId, title) => {
       const session = ctx.sessions.binding(sessionId)?.session
       if (session === undefined) throw new Error(`console: session ${sessionId} has no binding`)

@@ -10,7 +10,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
-import type { ConsoleBridgeConfig, ConsoleBridgeTestRequest, ConsoleBridgeTestResult } from './types.ts'
+import type { ConsoleBridgeTestRequest, ConsoleBridgeTestResult, PlainResolvedConfig } from './types.ts'
 import { createTransport } from './transport.ts'
 
 /**
@@ -18,7 +18,7 @@ import { createTransport } from './transport.ts'
  * @extends TypertRemoteService - binds the `consoleBridge` Remote namespace.
  */
 export default class ConsoleBridgeRemote extends TypertRemoteService {
-  private readonly getConfig: () => ConsoleBridgeConfig
+  private readonly getConfig: () => PlainResolvedConfig
 
   /**
    * @param ctx - Cordis context.
@@ -26,7 +26,7 @@ export default class ConsoleBridgeRemote extends TypertRemoteService {
    * config; the host owns the document, so this includes secret values a
    * client response never carries back.
    */
-  constructor(ctx: Context, getConfig: () => ConsoleBridgeConfig) {
+  constructor(ctx: Context, getConfig: () => PlainResolvedConfig) {
     super(ctx, 'consoleBridge')
     this.getConfig = getConfig
   }
@@ -42,7 +42,7 @@ export default class ConsoleBridgeRemote extends TypertRemoteService {
    */
   @Remote('testConnection')
   async testConnection(input: ConsoleBridgeTestRequest): Promise<ConsoleBridgeTestResult> {
-    const config: ConsoleBridgeConfig = {
+    const config: PlainResolvedConfig = {
       ...this.getConfig(),
       agentId: input.agentId,
       transport: input.transport,

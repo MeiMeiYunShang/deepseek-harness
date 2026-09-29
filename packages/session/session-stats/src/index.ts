@@ -30,15 +30,15 @@ export const inject = ['sessionProjections']
  * Register the `sessionStats` unit for the off-peak window currently in
  * effect, replacing the previous registration when that window changed.
  *
- * The window's owner is a different plugin (dsh-console-bridge registers the
- * `console-pricing` namespace), and the Loader activates rows of one
- * composition concurrently, so this plugin may well mount before that
- * namespace exists. Every install therefore re-reads the section, and two
- * triggers re-run it: a new session, which detects a namespace that appeared
- * after this plugin mounted, and a settings commit on the namespace, which
- * carries an operator's edit. Re-registering is what makes a changed window
- * take effect: the registry drops the previous unit's cells, so live sessions
- * refold under the new window, and the new unit's window-derived
+ * The window's owner is a different plugin (dsh-console-bridge owns the
+ * `console-bridge` entry whose price-table fields declare the window), and the
+ * Loader activates rows of one composition concurrently, so this plugin may
+ * well mount before that entry exists. Every install therefore re-reads the
+ * section, and two triggers re-run it: a new session, which detects an entry
+ * that appeared after this plugin mounted, and a settings commit on the entry,
+ * which carries an operator's edit. Re-registering is what makes a changed
+ * window take effect: the registry drops the previous unit's cells, so live
+ * sessions refold under the new window, and the new unit's window-derived
  * `stateVersion` makes every cached row folded under the old window unusable.
  * @param ctx - registrant context carrying the projection registry.
  */
@@ -46,7 +46,11 @@ export function apply(ctx: Context): void {
   let installedVersion: number | undefined
   let unregister: (() => void) | undefined
   const install = (): void => {
-    const window = offPeakWindowOf(ctx.get('settings')?.get(CONSOLE_PRICING_NAMESPACE))
+    const section = ctx.get('settings')
+      ?.describe()
+      .find(descriptor => String(descriptor.ns) === CONSOLE_PRICING_NAMESPACE)
+      ?.value
+    const window = offPeakWindowOf(section)
     const version = sessionStatsStateVersion(window)
     if (version === installedVersion) return
     unregister?.()
@@ -55,7 +59,7 @@ export function apply(ctx: Context): void {
   }
   install()
   ctx.on('session/created', install)
-  ctx.on('settings/updated', (ns) => {
-    if (ns === CONSOLE_PRICING_NAMESPACE) install()
+  ctx.on('settings/document-updated', (ns) => {
+    if (String(ns) === CONSOLE_PRICING_NAMESPACE) install()
   })
 }

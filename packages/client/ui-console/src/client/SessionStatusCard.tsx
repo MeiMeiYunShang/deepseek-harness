@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
-import { IconPlusOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPlusOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionView } from './consoleStore.ts'
 import type { ConsoleKey } from './locales.ts'
@@ -101,6 +101,8 @@ export interface SessionStatusCardProps {
   isArchived: (id: string) => boolean
   /** The pending interaction kind for a session, if any. */
   pendingKindOf: (id: string) => string | undefined
+  /** Whether a session carries an unacknowledged completion. */
+  completedOf: (id: string) => boolean
   /** Switch the stats/grid view. */
   setSessionView: (view: SessionView) => void
   /** Toggle one grid-filter bucket. */
@@ -121,17 +123,17 @@ export interface SessionStatusCardProps {
 
 /** Session status card: the header row plus the selected view body. */
 export function SessionStatusCard({
-  t, byId, current, sessionView, sessionBuckets, selected, isArchived, pendingKindOf,
+  t, byId, current, sessionView, sessionBuckets, selected, isArchived, pendingKindOf, completedOf,
   setSessionView, toggleSessionBucket, selectSession, clearScope, onContextMenu, onNewSession,
   collapsed, onToggleCollapse,
 }: SessionStatusCardProps) {
   const sessions = Object.values(byId)
   const running = sessions.filter(session => session.running).length
-  const completed = sessions.filter(session => session.completed === true).length
+  const completed = sessions.filter(session => completedOf(session.id)).length
   const pending = sessions.filter(session => pendingKindOf(session.id) !== undefined).length
   // The filter narrows the squares alone: the counts above stay over the whole list.
   const tiled = sessions.filter(session =>
-    sessionBuckets.includes(sessionBucket(session, pendingKindOf(session.id), isArchived(session.id))))
+    sessionBuckets.includes(sessionBucket(session, pendingKindOf(session.id), isArchived(session.id), completedOf(session.id))))
 
   return (
     <div className={clsx(css.card, sessionView === 'stats' && css.cardAuto, collapsed && css.cardCollapsed)}>
@@ -176,7 +178,7 @@ export function SessionStatusCard({
                 </button>
               )}
             <button type="button" className={css.newSessionButton} onClick={onNewSession}>
-              <IconPlusOutline16 size={14} />
+              <IconPlusOutlineRegular size={14} />
               <span>{t('newSession')}</span>
             </button>
           </>

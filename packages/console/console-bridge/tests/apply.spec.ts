@@ -13,7 +13,8 @@ import {
   type ConsoleBridgeSettings,
   type ConsolePricingRow,
 } from '../src/index.ts'
-import type { ConsoleBridgeConfig, DownCmdEnvelope } from '../src/types.ts'
+import type { ConsoleBridgeConfig, DownCmdEnvelope, PlainResolvedConfig } from '../src/types.ts'
+import { makeConfig, plainConfig, setConfig } from './config.ts'
 
 interface MockTransport {
   connect: ReturnType<typeof vi.fn>
@@ -35,7 +36,7 @@ const ctl = vi.hoisted(() => ({
 }))
 
 vi.mock('../src/transport.ts', () => ({
-  createTransport: vi.fn((_config: ConsoleBridgeConfig, _logger: unknown) => {
+  createTransport: vi.fn((_config: PlainResolvedConfig, _logger: unknown) => {
     const t = {
       connect: vi.fn(async () => { if (ctl.connectError) throw ctl.connectError }),
       publish: vi.fn(async (topic: string) => { if (ctl.rejectTopics.has(topic)) throw new Error(`publish ${topic} failed`) }),
@@ -81,48 +82,44 @@ interface Bundle {
     error: ReturnType<typeof vi.fn>
     debug: ReturnType<typeof vi.fn>
   }
-  holder: { doc: ConsoleBridgeSettings }
-  triggerWatch: () => void
+  triggerSettings: () => void
   getEffect: () => (() => void) | undefined
-  registerOpts: (ns: string) => unknown
 }
 
-function makeBundle(initialDoc: ConsoleBridgeSettings, _config: ConsoleBridgeConfig): Bundle {
-  const holder = { doc: initialDoc }
-  let watchCb: (() => void) | undefined
+/**
+ * Build the plugin context and seed the live config with the effective values.
+ * The settings document is no longer a separate layer: the Loader writes its
+ * user values into the same volatile references, so `initial` is committed onto
+ * `config` and a settings commit is simulated by {@link setConfig} followed by
+ * {@link Bundle.triggerSettings}.
+ * @param initial - the effective connection values the composition starts from.
+ * @param config - the volatile plugin config the applied plugin reads.
+ * @returns the harness the apply tests drive.
+ */
+function makeBundle(initial: Partial<PlainResolvedConfig>, config: ConsoleBridgeConfig): Bundle {
+  setConfig(config, initial)
+  let settingsCb: ((ns: unknown) => void) | undefined
   let effectDisposer: (() => void) | undefined
-  const registerOpts = new Map<string, unknown>()
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
   }
-  const scope = {
-    get: () => holder.doc,
-    watch: (cb: () => void) => { watchCb = cb; return () => { watchCb = undefined } },
-  }
   const childCtx = new CordisContext()
   ;(childCtx as unknown as { logger: unknown }).logger = { debug() {}, info() {}, warn() {}, error() {} }
   const ctx = {
     logger,
     agents: {} as unknown,
-    settings: {
-      register: vi.fn((ns: unknown, _schema: unknown, opts: unknown) => {
-        registerOpts.set(String(ns), opts)
-        return scope
-      }),
-    },
     plugin: vi.fn((spec: { apply?: (c: Context) => void }) => { spec.apply?.(childCtx); return () => undefined }),
+    on: vi.fn((_event: string, cb: (ns: unknown) => void) => { settingsCb = cb; return () => { settingsCb = undefined } }),
     effect: vi.fn((factory: () => (() => void) | undefined) => { effectDisposer = factory() ?? undefined; return () => undefined }),
   } as unknown as Context
   return {
     ctx,
     logger,
-    holder,
-    triggerWatch: () => watchCb?.(),
+    triggerSettings: () => settingsCb?.('console-bridge'),
     getEffect: () => effectDisposer,
-    registerOpts: (ns: string) => registerOpts.get(ns),
   }
 }
 
@@ -157,7 +154,7 @@ afterEach(() => {
 describe('console-bridge plugin exports', () => {
   it('exposes name, inject, schemas, and Config', () => {
     expect(name).toBe('console-bridge')
-    expect(inject).toEqual(['agents', 'settings'])
+    expect(inject).toEqual(['agents'])
     expect(ConsoleBridgeSettingsSchema).toBeTruthy()
     expect(Config).toBeTruthy()
   })
@@ -215,13 +212,13 @@ describe('validateConsolePricing', () => {
   it('refuses a window edge that is not an HH:MM time, naming the value', () => {
     expect(() => {
       validateConsolePricing({ offPeak: { start: '8:00', end: '18:00', timezone: 'UTC' } })
-    }).toThrow('console-pricing: offPeak.start is not an HH:MM time: "8:00"')
+    }).toThrow('console-bridge: offPeak.start is not an HH:MM time: "8:00"')
     expect(() => {
       validateConsolePricing({ offPeak: { start: '08:00', end: '24:00', timezone: 'UTC' } })
-    }).toThrow('console-pricing: offPeak.end is not an HH:MM time: "24:00"')
+    }).toThrow('console-bridge: offPeak.end is not an HH:MM time: "24:00"')
     expect(() => {
       validateConsolePricing({ offPeak: { start: '08:00', end: '18:60', timezone: 'UTC' } })
-    }).toThrow('console-pricing: offPeak.end is not an HH:MM time: "18:60"')
+    }).toThrow('console-bridge: offPeak.end is not an HH:MM time: "18:60"')
   })
 
   it('refuses a time zone Intl cannot resolve, naming the value', () => {
@@ -229,12 +226,12 @@ describe('validateConsolePricing', () => {
     // rather than left to a fold that would silently price every token at peak.
     expect(() => {
       validateConsolePricing({ offPeak: { start: '08:00', end: '18:00', timezone: 'Mars/Olympus' } })
-    }).toThrow('console-pricing: offPeak.timezone is not an IANA time zone: "Mars/Olympus"')
+    }).toThrow('console-bridge: offPeak.timezone is not an IANA time zone: "Mars/Olympus"')
   })
 })
 
 describe('effectiveConfig', () => {
-  const config: ConsoleBridgeConfig = {
+  const config = plainConfig({
     transport: 'mqtt',
     agentId: 'c',
     brokerUrl: 'b',
@@ -243,7 +240,7 @@ describe('effectiveConfig', () => {
     mqttUsername: 'u',
     mqttPassword: 'p',
     enabled: true,
-  }
+  })
 
   it('overlays a fully-populated document over config', () => {
     const doc: ConsoleBridgeSettings = {
@@ -278,63 +275,15 @@ describe('effectiveConfig', () => {
   })
 })
 
-describe('settingsBase via apply', () => {
-  it('seeds the base with every provided field and enabled flag', async () => {
-    const config: ConsoleBridgeConfig = {
-      transport: 'http',
-      agentId: 'a',
-      brokerUrl: 'b',
-      consoleBaseUrl: 'cb',
-      token: 't',
-      mqttUsername: 'u',
-      mqttPassword: 'p',
-      autoStart: false,
-      enabled: true,
-    }
-    const bundle = makeBundle({ enabled: false, transport: 'http' }, config)
-    apply(bundle.ctx, config)
-    expect(bundle.registerOpts('console-bridge')).toEqual({
-      base: {
-        transport: 'http',
-        enabled: true,
-        agentId: 'a',
-        brokerUrl: 'b',
-        consoleBaseUrl: 'cb',
-        token: 't',
-        mqttUsername: 'u',
-        mqttPassword: 'p',
-      },
-      applies: 'restart',
-    })
-    bundle.getEffect()?.()
-  })
-
-  it('seeds only transport and the autoStart-derived enabled when minimal', async () => {
-    const config: ConsoleBridgeConfig = { transport: 'mqtt' }
-    const bundle = makeBundle({ enabled: false, transport: 'mqtt' }, config)
-    apply(bundle.ctx, config)
-    expect(bundle.registerOpts('console-bridge')).toEqual({ base: { transport: 'mqtt', enabled: false }, applies: 'restart' })
-    bundle.getEffect()?.()
-  })
-
-  it('uses autoStart when enabled is unset', async () => {
-    const config: ConsoleBridgeConfig = { transport: 'mqtt', autoStart: true }
-    const bundle = makeBundle({ enabled: false, transport: 'mqtt' }, config)
-    apply(bundle.ctx, config)
-    expect(bundle.registerOpts('console-bridge')).toEqual({ base: { transport: 'mqtt', enabled: true }, applies: 'restart' })
-    bundle.getEffect()?.()
-  })
-})
-
 describe('apply happy path (start at boot, command, heartbeat, dispose)', () => {
   it('subscribes, runs a command, and disposes cleanly', async () => {
-    const config: ConsoleBridgeConfig = {
+    const config = makeConfig({
       transport: 'http',
       statusIntervalMs: 1000,
       cwd: '/work',
       provider: 'p',
       model: 'm',
-    }
+    })
     const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
@@ -359,7 +308,7 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
   it('reports a task failure through the result envelope and tolerates a rejected result publish', async () => {
     ctl.runError = new Error('kaboom')
     ctl.rejectTopics.add('v1/agent/a/up/result')
-    const config: ConsoleBridgeConfig = { transport: 'http' }
+    const config = makeConfig({ transport: 'http' })
     const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
@@ -373,7 +322,7 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
   it('warns when a heartbeat publish fails', async () => {
     vi.useFakeTimers()
     ctl.rejectTopics.add('v1/agent/a/up/status')
-    const config: ConsoleBridgeConfig = { transport: 'http', statusIntervalMs: 1000 }
+    const config = makeConfig({ transport: 'http', statusIntervalMs: 1000 })
     const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
@@ -387,7 +336,7 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
   it('clamps the heartbeat period to 1000..60000', async () => {
     vi.useFakeTimers()
     for (const statusIntervalMs of [500, 70_000]) {
-      const config: ConsoleBridgeConfig = { transport: 'http', statusIntervalMs }
+      const config = makeConfig({ transport: 'http', statusIntervalMs })
       const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
       apply(bundle.ctx, config)
       await flush()
@@ -397,14 +346,14 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
   })
 
   it('starts from a watch event when the document enables the bridge', async () => {
-    const config: ConsoleBridgeConfig = { transport: 'http' }
+    const config = makeConfig({ transport: 'http' })
     const bundle = makeBundle({ enabled: false, agentId: '', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
     expect(ctl.current).toBeNull()
     ctl.subscribeError = new Error('late subscribe fail')
-    bundle.holder.doc = { enabled: true, agentId: 'a', transport: 'http' }
-    bundle.triggerWatch()
+    setConfig(config, { enabled: true, agentId: 'a', transport: 'http' })
+    bundle.triggerSettings()
     await flush()
     expect(ctl.current).not.toBeNull()
     await ctl.subscribeHandler!(downCmd('late start'))
@@ -416,14 +365,14 @@ describe('apply happy path (start at boot, command, heartbeat, dispose)', () => 
 
 describe('apply stop and restart transitions', () => {
   it('stops the transport when the document disables the bridge', async () => {
-    const config: ConsoleBridgeConfig = { transport: 'http', statusIntervalMs: 1000 }
+    const config = makeConfig({ transport: 'http', statusIntervalMs: 1000 })
     const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
     const transport = ctl.current!
     ctl.disposeError = new Error('stop dispose fail')
-    bundle.holder.doc = { enabled: false, agentId: 'a', transport: 'http' }
-    bundle.triggerWatch()
+    setConfig(config, { enabled: false, agentId: 'a', transport: 'http' })
+    bundle.triggerSettings()
     await flush()
     expect(transport.dispose).toHaveBeenCalled()
     bundle.getEffect()?.()
@@ -431,14 +380,14 @@ describe('apply stop and restart transitions', () => {
   })
 
   it('restarts the transport when the agent identity changes', async () => {
-    const config: ConsoleBridgeConfig = { transport: 'http' }
+    const config = makeConfig({ transport: 'http' })
     const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
     const first = ctl.current!
     ctl.connectError = new Error('restart connect fail')
-    bundle.holder.doc = { enabled: true, agentId: 'b', transport: 'http' }
-    bundle.triggerWatch()
+    setConfig(config, { enabled: true, agentId: 'b', transport: 'http' })
+    bundle.triggerSettings()
     await flush()
     expect(first.dispose).toHaveBeenCalled()
     expect(ctl.current).not.toBe(first)
@@ -449,15 +398,15 @@ describe('apply stop and restart transitions', () => {
   })
 
   it('refuses to subscribe when enabled but the agentId is unset', async () => {
-    const config: ConsoleBridgeConfig = { transport: 'http' }
+    const config = makeConfig({ transport: 'http' })
     const bundle = makeBundle({ enabled: true, agentId: '', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
     expect(ctl.current).toBeNull()
     expect(bundle.logger.error).toHaveBeenCalledWith(expect.stringContaining('agentId is unset'))
     // also covers stop() early-return with no transport
-    bundle.holder.doc = { enabled: false, agentId: '', transport: 'http' }
-    bundle.triggerWatch()
+    setConfig(config, { enabled: false, agentId: '', transport: 'http' })
+    bundle.triggerSettings()
     await flush()
     bundle.getEffect()?.()
     await flush()
@@ -467,7 +416,7 @@ describe('apply stop and restart transitions', () => {
 describe('apply start failure', () => {
   it('logs a start failure and tolerates a rejected start in the effect disposer', async () => {
     ctl.connectError = new Error('broker down')
-    const config: ConsoleBridgeConfig = { transport: 'http' }
+    const config = makeConfig({ transport: 'http' })
     const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
@@ -480,7 +429,7 @@ describe('apply start failure', () => {
 
 describe('apply remote probe', () => {
   it('exposes a getConfig closure that resolves the effective config', async () => {
-    const config: ConsoleBridgeConfig = { transport: 'http' }
+    const config = makeConfig({ transport: 'http' })
     const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
@@ -510,13 +459,13 @@ describe('normalizeExecTimeoutS', () => {
 
 describe('apply watch with no identity change', () => {
   it('leaves the transport untouched on a no-op watch', async () => {
-    const config: ConsoleBridgeConfig = { transport: 'http' }
+    const config = makeConfig({ transport: 'http' })
     const bundle = makeBundle({ enabled: true, agentId: 'a', transport: 'http' }, config)
     apply(bundle.ctx, config)
     await flush()
     const transport = ctl.current!
-    bundle.holder.doc = { enabled: true, agentId: 'a', transport: 'http' }
-    bundle.triggerWatch()
+    setConfig(config, { enabled: true, agentId: 'a', transport: 'http' })
+    bundle.triggerSettings()
     await flush()
     expect(ctl.current).toBe(transport)
     bundle.getEffect()?.()

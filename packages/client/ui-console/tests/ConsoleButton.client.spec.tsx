@@ -46,6 +46,7 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     id: id as SessionSummary['id'],
     displayTitle: id,
     running: false,
+    retainedBy: {},
     blank: false,
     updatedAt: 0,
     ...overrides,
@@ -85,10 +86,8 @@ function services(double: Partial<ConsoleServices> = {}): ConsoleServices {
 
 function renderConsole(overrides: {
   byId?: Record<string, SessionSummary>
-  current?: SessionSummary['id']
   store?: ConsoleStoreState
   defaultModel?: ConsoleQaModel | null
-  pending?: Map<string, unknown>
   archived?: readonly string[]
   workspaces?: readonly { id: string; label: string }[]
   services?: Partial<ConsoleServices>
@@ -135,13 +134,17 @@ function renderConsole(overrides: {
     t,
     useSessions: (selector: (value: {
       byId: Record<string, SessionSummary>
-      current: SessionSummary['id'] | undefined
     }) => unknown) => selector({
-      byId: overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) },
-      current: overrides.current,
+      byId: overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2') },
     }),
-    useSessionPendingInteraction: (selector: (value: Map<string, unknown>) => unknown) => selector(overrides.pending ?? new Map([
-      ['s1', { key: 'q1', kind: 'question', sessionId: 's1' }],
+    // The status feed carries both the pending interaction kind and the
+    // unacknowledged completion bit the grid phases and buckets derive from.
+    useSessionStatus: (selector: (value: Map<string, {
+      pendingInteraction: { kind: string } | undefined
+      completionUnread: boolean
+    }>) => unknown) => selector(new Map([
+      ['s1', { pendingInteraction: { kind: 'question' }, completionUnread: false }],
+      ['s2', { pendingInteraction: undefined, completionUnread: false }],
     ])),
     useWorkspaces: (selector: (value: {
       items: readonly { workspaceId: string; title: string }[]
@@ -186,7 +189,6 @@ describe('ConsoleButton', () => {
       byId: {
         s1: session('s1', { running: true }),
         s2: session('s2', {
-          completed: true,
           projectionValues: {
             sessionStats: {
               turns: 3, steps: 5, llmMs: 1200, toolMs: 800,
@@ -251,7 +253,7 @@ describe('ConsoleButton', () => {
 
   it('resolves a session title through the workbench rename flow', async () => {
     renderConsole({
-      byId: { s1: session('s1', { title: 'My Session' }), s2: session('s2', { completed: true }) },
+      byId: { s1: session('s1', { title: 'My Session' }), s2: session('s2') },
       store: makeStore({ sessionView: 'grid', selectedSession: 's1' }),
     })
     fireEvent.click(screen.getByRole('button', { name: en.trigger }))

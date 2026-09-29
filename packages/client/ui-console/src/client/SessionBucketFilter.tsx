@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react'
-import { IconChevronDownOutline14, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConsoleKey } from './locales.ts'
 import { SESSION_BUCKETS, sessionBucketLabel } from './sessionState.ts'
@@ -54,7 +54,7 @@ export function SessionBucketFilter({ t, selected, onToggle }: SessionBucketFilt
           onClick={() => { setOpen(value => !value) }}
         >
           <span>{t('sessionFilter')}</span>
-          <IconChevronDownOutline14 />
+          <IconChevronDownOutlineRegular />
         </button>
       )}
       items={bucketItems(t)}

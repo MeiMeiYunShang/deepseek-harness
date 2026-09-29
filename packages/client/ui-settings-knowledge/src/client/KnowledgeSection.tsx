@@ -8,8 +8,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  IconChevronDownOutline14, IconCloseOutline16, IconEditOutline16, IconPlusOutline16,
-  IconSearchOutline16, IconTrashOutline16,
+  IconChevronDownOutlineRegular, IconCloseOutlineRegular, IconEditOutlineRegular, IconPlusOutlineRegular,
+  IconSearchOutlineRegular, IconTrashOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
@@ -102,17 +102,17 @@ function EntryRow({ entry, expanded, onToggle, onEdit, onDelete, groupName, t }:
     <li className={css.entry} data-entry-id={String(entry.id)}>
       <div className={css.entryHead}>
         <button type="button" className={css.entryToggle} aria-expanded={expanded} onClick={onToggle}>
-          <IconChevronDownOutline14 className={css.chevron} aria-hidden="true" />
+          <IconChevronDownOutlineRegular className={css.chevron} aria-hidden="true" />
           <strong className={css.entryTitle}>{entry.title}</strong>
           <span className={css.entryCategory}>{entry.category}</span>
           <span className={css.entryGroup}>{groupName ?? t('unspecified')}</span>
         </button>
         <span className={css.entryActions}>
           <button type="button" className={css.actionButton} aria-label={t('edit')} onClick={onEdit}>
-            <IconEditOutline16 />
+            <IconEditOutlineRegular />
           </button>
           <button type="button" className={css.actionButton} aria-label={t('delete')} onClick={onDelete}>
-            <IconTrashOutline16 />
+            <IconTrashOutlineRegular />
           </button>
         </span>
       </div>
@@ -246,7 +246,7 @@ export function KnowledgeSection({
 
       <div className={css.toolbar}>
         <label className={css.search}>
-          <IconSearchOutline16 aria-hidden="true" />
+          <IconSearchOutlineRegular aria-hidden="true" />
           <input
             type="search"
             placeholder={t('search')}
@@ -264,7 +264,7 @@ export function KnowledgeSection({
           {state.groups.map(group => <option key={String(group.id)} value={String(group.id)}>{group.name}</option>)}
         </select>
         <button type="button" className={css.primaryButton} onClick={openCreate}>
-          <IconPlusOutline16 /> {t('create')}
+          <IconPlusOutlineRegular /> {t('create')}
         </button>
       </div>
 
@@ -275,7 +275,7 @@ export function KnowledgeSection({
           <div className={css.groupPanelHead}>
             <h3 className={css.groupTitle}>{t('group')}</h3>
             <button type="button" className={css.actionButton} aria-label={t('createGroup')} onClick={() => { setGroupFormOpen(value => !value) }}>
-              <IconPlusOutline16 />
+              <IconPlusOutlineRegular />
             </button>
           </div>
           {groupFormOpen ? (
@@ -284,7 +284,7 @@ export function KnowledgeSection({
               <input className={css.input} placeholder={t('groupDescription')} value={groupDescription} onChange={(e) => { setGroupDescription(e.currentTarget.value) }} />
               <div className={css.groupFormActions}>
                 <button type="button" className={css.primaryButton} onClick={() => { void submitGroup() }}>{t('save')}</button>
-                <button type="button" className={css.actionButton} aria-label={t('cancel')} onClick={() => { setGroupFormOpen(false) }}><IconCloseOutline16 /></button>
+                <button type="button" className={css.actionButton} aria-label={t('cancel')} onClick={() => { setGroupFormOpen(false) }}><IconCloseOutlineRegular /></button>
               </div>
             </div>
           ) : null}
@@ -299,7 +299,7 @@ export function KnowledgeSection({
                     <span className={css.groupCount}>{t('entryCount', { count: String(group.entryIds.length) })}</span>
                   </button>
                   <button type="button" className={css.actionButton} aria-label={t('deleteGroup')} onClick={() => { setConfirm({ kind: 'group', id: group.id }) }}>
-                    <IconTrashOutline16 />
+                    <IconTrashOutlineRegular />
                   </button>
                 </li>
               ))}
@@ -326,7 +326,7 @@ export function KnowledgeSection({
           <input className={css.input} placeholder={t('tags')} value={draft.tags} onChange={(e) => { setDraft({ ...draft, tags: e.currentTarget.value }) }} />
           <div className={css.editorActions}>
             <button type="button" className={css.primaryButton} onClick={() => { void submitEditor() }}>{t('save')}</button>
-            <button type="button" className={css.actionButton} aria-label={t('cancel')} onClick={() => { setEditor(null) }}><IconCloseOutline16 /></button>
+            <button type="button" className={css.actionButton} aria-label={t('cancel')} onClick={() => { setEditor(null) }}><IconCloseOutlineRegular /></button>
           </div>
         </div>
       ) : null}

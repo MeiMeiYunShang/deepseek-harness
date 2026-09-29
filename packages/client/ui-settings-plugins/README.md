@@ -29,22 +29,6 @@ Open **Built-in plugins** in Settings. [ui-settings-plugin-inventory](../ui-sett
 
 To contribute a tab, register into `settings.plugins.tab` with an `id`, an `order`, and a localized `label`; the section renders the entries in order and mounts a tab on its first selection. Feature copy stays in the registering plugin's dictionary.
 
-The **Model pricing** card records what each `(endpoint, provider, model)` route costs, in currency units per million tokens. Every route carries a peak and an off-peak set of three rates — cache-hit input, cache-miss input, and output — because the console charges a step's tokens at the rate of the band that step was served in; a cache write has no rate of its own and is charged at the cache-miss rate. Rows are added, corrected, and removed in place, and one save writes the whole table; a row missing its endpoint, provider, or model, a rate that is missing or negative, or an exact repeat of another row's endpoint, provider, and model blocks the save and names the row to fix. An empty table is a normal state rather than an error.
-
-### What appears here
-
-The tab reads which settings namespaces the Host serves and dispatches one slot key per namespace, so what renders is the intersection of two ledgers: the namespaces a live Host plugin registered, and the cards registered under those keys. A served namespace no card claims renders nothing, and a card whose namespace this deployment does not serve is never dispatched. The empty line waits for the Host's first answer, so an unanswered read never reads as "this deployment configures no plugin".
-
-### Editing and saving
-
-A card stages what the user types and writes it only when they save. Each control renders staged text, so what is on screen is exactly what a save would store; **Discard** drops the drafts, and a card holding unsaved edits says so on its header even while collapsed. A successful save collapses the card after the read-back confirms the writes; a failed save keeps the card open, reports the failure, and retains the drafts for correction. A reset stages the composed default rather than writing immediately, and a draft the field does not accept blocks the save instead of being dropped. The Host is the only authority on whether a value was accepted.
-
-The Subagent card stages its permission switch and exact model checkboxes together. Enabling requires at least one selected adapter route. Saving submits `enabled` and `allowedModels` in one mutation fenced by the revision where that draft began; a newer Host revision marks the draft failed instead of restoring a revoked route. Disabling retains the selected routes for later reuse. Available models are grouped by provider, while saved routes absent from the current catalog appear last and remain removable. Adapter names and model descriptions remain live directory metadata and are not stored, and the card refreshes them after adapter changes, settings commits, and reconnects.
-
-### Secret-role fields
-
-A key control starts blank, reports only whether one is configured, and writes through the credentials domain rather than the settings section; a blank draft writes nothing and keeps the stored key.
-
 -----
 
 <a id="understand-the-implementation"></a>

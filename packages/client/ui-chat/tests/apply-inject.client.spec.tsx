@@ -60,7 +60,7 @@ async function bench(initialSettings?: ChatSettings, withBrowserRegistry = true,
   runtime.ctx.provide('configForms', {
     developerTools: { enabled: createSnapshotStore(true) },
     get: (id: string) => id === CHAT_SETTINGS_NAMESPACE ? chatSettings.scope
-      : id === 'console-pricing' ? pricing.scope
+      : id === 'console-bridge' ? pricing.scope
         : stubConfigForm().scope,
   } as never)
   const layout = { closeRightbar: vi.fn(), openRightbar: vi.fn() }
@@ -410,7 +410,7 @@ describe('Chat inject API', () => {
   it('serves the operator price table the Turn cost figure prices against', async () => {
     const b = await bench()
     const { injected } = b.chatViewApi(b.rootReference)
-    // The `console-pricing` namespace has not answered yet, so nothing is priced.
+    // The `console-bridge` namespace has not answered yet, so nothing is priced.
     expect(injected.hooks.prices.getSnapshot()).toEqual([])
 
     const flash: ModelPrice = {

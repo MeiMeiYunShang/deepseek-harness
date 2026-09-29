@@ -1,8 +1,8 @@
 /**
  * Band selection for the provider tokens the `sessionStats` fold accumulates:
- * the daily off-peak window the `console-pricing` settings namespace declares,
- * the decision one event time falls under, and the persisted-cache version
- * that decision forces.
+ * the daily off-peak window the `console-bridge` entry's price-table fields
+ * declare, the decision one event time falls under, and the persisted-cache
+ * version that decision forces.
  *
  * The window is read here, not in the fold: a projection unit's `init`/`apply`
  * receive only state and the next event (see `ProjectionDefinition` in
@@ -13,7 +13,7 @@
  */
 
 /** The settings namespace declaring the off-peak window. */
-export const CONSOLE_PRICING_NAMESPACE = 'console-pricing'
+export const CONSOLE_PRICING_NAMESPACE = 'console-bridge'
 
 /**
  * A daily off-peak window: `[start, end)` as local wall-clock times in one
@@ -53,12 +53,12 @@ function isResolvableTimeZone(timezone: string): boolean {
 }
 
 /**
- * Read the off-peak window one `console-pricing` section declares. The section
- * arrives from the settings service as `unknown`, so it is narrowed here; a
- * namespace the operator never registered, an absent `offPeak`, and a window
- * this fold could not read all answer the same way, because every one of them
- * means "no off-peak hours" rather than "an unknown split".
- * @param section - the resolved `console-pricing` section, or undefined while unregistered.
+ * Read the off-peak window one `console-bridge` price-table section declares.
+ * The section arrives from the settings service as `unknown`, so it is narrowed
+ * here; a namespace the operator never registered, an absent `offPeak`, and a
+ * window this fold could not read all answer the same way, because every one of
+ * them means "no off-peak hours" rather than "an unknown split".
+ * @param section - the resolved `console-bridge` section, or undefined while unregistered.
  * @returns the window, or undefined when there is none to apply.
  */
 export function offPeakWindowOf(section: unknown): OffPeakWindow | undefined {
