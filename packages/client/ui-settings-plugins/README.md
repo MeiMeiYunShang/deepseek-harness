@@ -1,5 +1,5 @@
 ---
-description: "Plugins settings section for the dsh web client: feature-owned tabs, the configurable host-plane plugin cards, and the settings.plugin.item extension point."
+description: "Built-in plugins settings section for the dsh web client: the Settings navigation entry and the tab chrome that feature-owned tabs register into."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use the **Plugins** settings section to configure the plugins exposed by the current deployment and to open feature-specific plugin pages. The **Plugin configuration** tab presents one expandable card for each supported plugin, shows which values the user overrode, and lets the user reset them to deployment defaults. Cards keep edits local until save. If the configuration changed after the card loaded, the save is rejected instead of overwriting the newer values.
+Use the **Built-in plugins** settings section to inspect the plugins this deployment ships. The section is a shell: it owns the navigation entry and the tab row, and every tab in it is registered by another plugin — the read-only inventory ships one. Configuring a built-in plugin happens on the sidebar's Plugins page, where each official plugin's own companion package registers its page.
 
 ## Table of Contents
 
@@ -25,7 +25,9 @@ Use the **Plugins** settings section to configure the plugins exposed by the cur
 <a id="use-this-package"></a>
 ## Use this package
 
-Open the Plugins section in Settings and select the **Plugin configuration** tab to edit the host-plane plugins this deployment composes. The cards appear in this order: the shell executor (`bash`), the agent loop's tool-call parallelism (`agent-loop`), subagent model selection (`subagent-model-selection`), and the DeepSeek search provider (`web-search-deepseek`).
+Open **Built-in plugins** in Settings. [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.md) contributes the inventory as the section's one tab, shown as the page itself; a second registered tab turns the row into tabs. A deployment whose composition contributes no tab shows the section's empty line.
+
+To contribute a tab, register into `settings.plugins.tab` with an `id`, an `order`, and a localized `label`; the section renders the entries in order and mounts a tab on its first selection. Feature copy stays in the registering plugin's dictionary.
 
 The **Model pricing** card records what each `(endpoint, provider, model)` route costs, in currency units per million tokens. Every route carries a peak and an off-peak set of three rates — cache-hit input, cache-miss input, and output — because the console charges a step's tokens at the rate of the band that step was served in; a cache write has no rate of its own and is charged at the cache-miss rate. Rows are added, corrected, and removed in place, and one save writes the whole table; a row missing its endpoint, provider, or model, a rate that is missing or negative, or an exact repeat of another row's endpoint, provider, and model blocks the save and names the row to fix. An empty table is a normal state rather than an error.
 
@@ -51,15 +53,7 @@ A key control starts blank, reports only whether one is configured, and writes t
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The section is one extension point and one dispatch rule: feature plugins own their cards; the tab pairs served namespaces with registered cards by slot key.
-
-### The tab extension point
-
-The section declares `settings.plugins.tab`, a root list slot whose labels become ordered tabs; a tab stays mounted after its first selection so local drafts and read-only snapshots survive tab switches. The package registers its own `configurable` contribution, which declares the nested `settings.plugin.item` slot — keyed on the settings namespace a card edits. A plugin that ships a browser half registers its own card under its own namespace and owns every part of it: chrome, controls, and copy. Tabs follow the contribution's `order`; cards follow registration order.
-
-### The write path
-
-Saving writes staged fields through the client settings scope, which fences each write or ordered mutation with the namespace revision the draft read, so a form that has drifted from the document is refused rather than overwriting a concurrent change. A field's presence in the raw user layer — not its value — is what marks it overridden; a reset clears that field so it re-inherits the composition layer. Secret-role fields never ride a response; the card re-reads on the forwarded `credentials/reference-updated` event for the reference it watches.
+The section declares `settings.plugins.tab`, a root list slot whose labels become ordered tabs; a lone contribution renders as the page itself, and a tab stays mounted after its first selection so search and the inventory snapshot survive switching. The section's `inject` projects the slot's ledger into ordered rows whose labels follow the active locale, cached until the ledger version or the locale revision moves. The Host half is an empty `apply`, present only so the package holds a Loader row the client module system serves the browser half for.
 
 </details>
 
@@ -68,13 +62,10 @@ Saving writes staged fields through the client settings scope, which fences each
 <a id="further-exploration"></a>
 ## Further Exploration
 
-These pages cover the settings base, the inventory tab, and the durable seams behind the cards.
-
-- [ui-settings](../ui-settings/README.md) — the domain base declaring `settings.plugins.tab` and the settings scope.
-- [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.md) — the read-only Plugin list tab in the same section.
-- [settings](../../settings/README.md) — the durable user-settings seam and its file provider.
-- [credentials](../../credentials/README.md) — the credential-reference seam secret fields write through.
-- [ui-settings-general](../ui-settings-general/README.md) — the settings shell hosting this section.
+- [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.md) — the read-only inventory tab.
+- [ui-settings](../ui-settings/README.md) — the domain base declaring `settings.section`.
+- [ui-plugin-manager](../ui-plugin-manager/README.md) — the Plugins page where official plugins are configured.
+- [ui-settings-shell](../ui-settings-shell/README.md), [ui-settings-agent-loop](../ui-settings-agent-loop/README.md), [ui-settings-subagent](../ui-settings-subagent/README.md), [ui-settings-web-search](../ui-settings-web-search/README.md) — the official configuration pages, one companion package each.
 
 -----
 
@@ -91,13 +82,8 @@ None; this package neither assembles nor sends a provider request.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-
-These limits define which plugins appear and how fresh the list is; they are current package constraints.
-
-- **Only host-plane plugins appear** — a plugin an agent preset mounts carries its configuration inline in that preset's `agent.cordis.yml` and cannot register a settings namespace at all, so this section lists nothing for it. Editing those values remains the preset editor's job.
-- **A card still needs a browser bundle** — the browser half must be a `dsh.client` package built in the client module system's lazy-CJS factory format, and the `clientBundle` preset that emits it lives in `../../../packages/client/tsdown.client.ts` rather than a published package, so a plugin outside this repository has to reproduce that build itself.
-- **The served namespaces re-read on two signals only** — the wire announces settings-document commits and connection resets, not registrations, so a namespace whose owner registers after the tab's read joins the list on the next document commit or reconnect.
-- **The shell card follows the composed executor** — the POSIX and PowerShell executor families share the `bash` namespace because a host composes exactly one of them, so the served schema differs by platform (PowerShell adds `pwshPath`) even though the card edits the same two fields on both.
+- **The section has no tab of its own** — it renders its empty line until a feature plugin registers one; the shell cannot fill the section alone.
+- **Runtime invariant:** No companion is published. The section owns no relationship beyond the slot ledger it projects.
 
 <a id="dev-note"></a>
 ### Dev Note
@@ -108,5 +94,3 @@ These limits define which plugins appear and how fresh the list is; they are cur
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. This is a browser-side settings surface whose node half owns no event stream or mutable runtime data; the layering and write refusals are Host contracts covered by the owning plugins and the api-proxy.

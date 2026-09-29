@@ -1,4 +1,4 @@
-/** Locale bundles for the plugin configuration section and its plugin cards. */
+/** Locale bundles for the built-in plugins settings section. */
 
 /** Locale keys these surfaces render. */
 export type PluginsSettingsLocaleKey =
@@ -35,9 +35,9 @@ export type PluginsSettingsLocaleKey =
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
-  nav: 'Plugins',
-  title: 'Plugins',
-  intro: 'Configure and inspect the plugins installed in this deployment.',
+  nav: 'Built-in plugins',
+  title: 'Built-in plugins',
+  intro: 'Inspect the plugins this deployment ships.',
   tabs: 'Plugin views',
   configurableTab: 'Plugin configuration',
   empty: 'This deployment exposes no plugin settings.',
@@ -130,9 +130,9 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
 
 /** Simplified Chinese copy. */
 export const zh: Record<PluginsSettingsLocaleKey, string> = {
-  nav: '插件',
-  title: '插件',
-  intro: '配置和查看本部署已安装的插件。',
+  nav: '内置插件',
+  title: '内置插件',
+  intro: '查看内置部署的插件列表',
   tabs: '插件视图',
   configurableTab: '插件配置',
   empty: '本部署没有开放任何插件设置。',
