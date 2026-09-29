@@ -1,20 +1,70 @@
 import { describe, expect, it } from 'vitest'
-import { createConsoleStore } from '../src/client/consoleStore.ts'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { createConsoleStore, historyEntries } from '../src/client/consoleStore.ts'
+
+/** One list row for the history projection. */
+function summary(id: string, updatedAt: number, displayTitle = id): SessionSummary {
+  return { id: id as SessionId, displayTitle, running: false, blank: false, updatedAt }
+}
+
+/** A session-list snapshot in host order. */
+function list(rows: readonly SessionSummary[]): SessionListState {
+  return {
+    ids: rows.map(row => row.id),
+    byId: Object.fromEntries(rows.map(row => [row.id, row])),
+    current: undefined,
+    phase: 'ready',
+    subagentsByParent: {},
+    jobsBySession: {},
+    currentAddress: undefined,
+  }
+}
 
 describe('createConsoleStore', () => {
-  it('starts empty with a bounded timeline and default views', () => {
+  it('starts empty with a bounded timeline, showing every kind by default', () => {
     const store = createConsoleStore().create()
+    // The console holds one scope, not two: `selectedSession` is the whole set
+    // of state a grid click can move. The grid opens on the buckets still in
+    // flight, so a completed or archived square waits for the operator to tick it.
     expect(store.getSnapshot()).toEqual({
+      open: false,
       timeline: [],
       seq: 0,
       systemStatus: null,
-      timelineMode: 'brief',
+      timelineMode: 'all',
       sessionView: 'stats',
+      sessionBuckets: ['running', 'pending', 'available'],
       selectedSession: undefined,
-      timelineScope: undefined,
       layout: 'balanced',
       collapsed: {},
     })
+  })
+
+  it('selects and clears one grid-filter bucket at a time', () => {
+    const store = createConsoleStore().create()
+
+    store.actions.toggleSessionBucket('completed')
+    expect(store.getSnapshot().sessionBuckets).toEqual(['running', 'pending', 'available', 'completed'])
+
+    store.actions.toggleSessionBucket('running')
+    expect(store.getSnapshot().sessionBuckets).toEqual(['pending', 'available', 'completed'])
+
+    // The selection is a set the filter tests membership against; the order the
+    // filter lists its rows in is the bucket list's own, not this array's.
+    store.actions.toggleSessionBucket('running')
+    expect(store.getSnapshot().sessionBuckets).toEqual(['pending', 'available', 'completed', 'running'])
+  })
+
+  it('tracks the workbench open state the sidebar trigger drives', () => {
+    const store = createConsoleStore().create()
+    expect(store.getSnapshot().open).toBe(false)
+
+    store.actions.setOpen(true)
+    expect(store.getSnapshot().open).toBe(true)
+
+    store.actions.setOpen(false)
+    expect(store.getSnapshot().open).toBe(false)
   })
 
   it('appends timeline entries with monotonically increasing ids', () => {
@@ -58,11 +108,6 @@ describe('createConsoleStore', () => {
     store.actions.setSelectedSession(undefined)
     expect(store.getSnapshot().selectedSession).toBeUndefined()
 
-    store.actions.setTimelineScope('s1')
-    expect(store.getSnapshot().timelineScope).toBe('s1')
-    store.actions.setTimelineScope(undefined)
-    expect(store.getSnapshot().timelineScope).toBeUndefined()
-
     store.actions.setLayout('timeline')
     expect(store.getSnapshot().layout).toBe('timeline')
     store.actions.setLayout('compact')
@@ -72,5 +117,29 @@ describe('createConsoleStore', () => {
     expect(store.getSnapshot().collapsed.session).toBe(true)
     store.actions.toggleCollapsed('session')
     expect(store.getSnapshot().collapsed.session).toBe(false)
+  })
+})
+
+describe('historyEntries', () => {
+  it('projects one history row per listed session, oldest update first, each with its display title', () => {
+    expect(historyEntries(list([
+      summary('newer', 300, 'Newer work'),
+      summary('older', 100, 'Older work'),
+    ]))).toEqual([
+      { sessionId: 'older', time: 100, kind: 'history', title: 'Older work' },
+      { sessionId: 'newer', time: 300, kind: 'history', title: 'Newer work' },
+    ])
+  })
+
+  it('seeds nothing from an empty list', () => {
+    expect(historyEntries(list([]))).toEqual([])
+  })
+
+  it('skips a listed id that carries no row', () => {
+    const orphaned: SessionListState = {
+      ...list([summary('listed', 100)]),
+      ids: ['listed' as SessionId, 'gone' as SessionId],
+    }
+    expect(historyEntries(orphaned)).toEqual([{ sessionId: 'listed', time: 100, kind: 'history', title: 'listed' }])
   })
 })

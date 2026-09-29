@@ -15,29 +15,38 @@ export interface CardHeaderProps {
   t: (key: ConsoleKey) => string
   /** Card title. */
   title: string
-  /** Whether the card body is collapsed. */
-  collapsed: boolean
-  /** Toggle the collapsed state. */
-  onToggleCollapse: () => void
+  /** Whether the card body is collapsed; omit with `onToggleCollapse` for a card that cannot fold. */
+  collapsed?: boolean
+  /** Toggle the collapsed state; omitted, the header renders no fold control. */
+  onToggleCollapse?: () => void
   /** Right-aligned actions (e.g. the new-session button, a mode toggle). */
   actions?: ReactNode
+  /** Control rendered directly after the title, before the free space. */
+  afterTitle?: ReactNode
 }
 
 /** Card title row with a fold toggle and an optional actions area. */
-export function CardHeader({ t, title, collapsed, onToggleCollapse, actions }: CardHeaderProps) {
+export function CardHeader({ t, title, collapsed, onToggleCollapse, actions, afterTitle }: CardHeaderProps) {
   return (
     <div className={css.cardHeader}>
-      <h3 className={css.cardTitle}>{title}</h3>
+      {/* The group grows so the title stays left, a control placed after it
+          lands beside the title rather than against the actions. */}
+      <div className={css.cardTitleGroup}>
+        <h3 className={css.cardTitle}>{title}</h3>
+        {afterTitle}
+      </div>
       {actions !== undefined && <div className={css.cardHeaderActions}>{actions}</div>}
-      <button
-        type="button"
-        className={css.foldButton}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? t('expand') : t('collapse')}
-        onClick={onToggleCollapse}
-      >
-        {collapsed ? <IconChevronDownOutline14 /> : <IconChevronUpOutline14 />}
-      </button>
+      {onToggleCollapse !== undefined && (
+        <button
+          type="button"
+          className={css.foldButton}
+          aria-expanded={collapsed !== true}
+          aria-label={collapsed === true ? t('expand') : t('collapse')}
+          onClick={onToggleCollapse}
+        >
+          {collapsed === true ? <IconChevronDownOutline14 /> : <IconChevronUpOutline14 />}
+        </button>
+      )}
     </div>
   )
 }

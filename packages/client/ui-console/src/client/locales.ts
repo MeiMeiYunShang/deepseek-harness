@@ -17,11 +17,13 @@ export type ConsoleKey = 'console'
   | 'sessionViewToggleAria'
   | 'sessionStatsView'
   | 'sessionGridView'
+  | 'sessionFilter'
   | 'sessionTotal'
   | 'sessionRunning'
   | 'sessionPending'
   | 'sessionCompleted'
   | 'sessionArchived'
+  | 'sessionIdle'
   | 'sessionCurrent'
   | 'taskStats'
   | 'taskAllSessions'
@@ -31,6 +33,10 @@ export type ConsoleKey = 'console'
   | 'taskSteps'
   | 'taskLlmMs'
   | 'taskToolMs'
+  | 'taskCost'
+  | 'taskCostUnpriced'
+  | 'taskCostAmbiguous'
+  | 'taskCostUnit'
   | 'systemStatus'
   | 'cpu'
   | 'ram'
@@ -40,14 +46,20 @@ export type ConsoleKey = 'console'
   | 'pendingPlanReview'
   | 'noPending'
   | 'timeline'
-  | 'timelineScopeAll'
+  | 'timelineScopeLabel'
   | 'timelineClear'
   | 'timelineStatus'
   | 'timelineActivity'
+  | 'timelineHistory'
   | 'timelineModeAria'
   | 'timelineEmpty'
+  | 'timelineNoMessages'
+  | 'timelineUsage'
+  | 'timelineTokens'
+  | 'timelineCost'
   | 'timelineExpand'
   | 'timelineCollapse'
+  | 'timelineMore'
   | 'sessionPrefix'
   | 'knowledge'
   | 'knowledgeEmpty'
@@ -62,6 +74,7 @@ export type ConsoleKey = 'console'
   | 'send'
   | 'stop'
   | 'qaError'
+  | 'open'
   | 'rename'
   | 'renameTitle'
   | 'renameInputAria'
@@ -94,7 +107,9 @@ export type ConsoleKey = 'console'
   | 'sessionStatus.archived'
   | 'na'
   | 'selectedSession'
+  | 'scopeAllSessions'
   | 'noSession'
+  | 'noSessionMatch'
   | 'updatedAt'
   | 'askUserTitle'
   | 'askUserRecommend'
@@ -126,11 +141,13 @@ export const en: Record<ConsoleKey, string> = {
   sessionViewToggleAria: 'Session view',
   sessionStatsView: 'Stats',
   sessionGridView: 'Grid',
+  sessionFilter: 'Filter',
   sessionTotal: 'Total',
   sessionRunning: 'Running',
   sessionPending: 'Awaiting input',
   sessionCompleted: 'Completed',
   sessionArchived: 'Archived',
+  sessionIdle: 'Idle',
   sessionCurrent: 'current',
   taskStats: 'Task statistics',
   taskAllSessions: 'All sessions',
@@ -140,6 +157,10 @@ export const en: Record<ConsoleKey, string> = {
   taskSteps: 'Steps',
   taskLlmMs: 'LLM time',
   taskToolMs: 'Tool time',
+  taskCost: 'Cost',
+  taskCostUnpriced: 'Unpriced',
+  taskCostAmbiguous: 'Ambiguous price',
+  taskCostUnit: '¥ per million tokens',
   systemStatus: 'System status',
   cpu: 'CPU',
   ram: 'Memory',
@@ -149,13 +170,19 @@ export const en: Record<ConsoleKey, string> = {
   pendingPlanReview: 'Plan review',
   noPending: 'None',
   timeline: 'Timeline',
-  timelineScopeAll: 'All sessions',
+  timelineScopeLabel: 'Scope',
   timelineClear: 'Clear',
   timelineStatus: 'Status',
   timelineActivity: 'Activity',
+  timelineHistory: 'History',
   timelineModeAria: 'Timeline mode',
   timelineEmpty: 'No session activity yet.',
+  timelineNoMessages: 'This session has no messages in the loaded window.',
+  timelineUsage: 'Usage {count}',
+  timelineTokens: '{count} tok',
+  timelineCost: '¥{amount}',
   timelineExpand: 'Expand',
+  timelineMore: 'Show {count} earlier events',
   timelineCollapse: 'Collapse',
   sessionPrefix: 'Session',
   knowledge: 'Knowledge base',
@@ -165,12 +192,13 @@ export const en: Record<ConsoleKey, string> = {
   qaEmpty: 'Ask a question to start.',
   qaThinking: 'Thinking…',
   inputPlaceholder: 'Ask about the sessions',
-  composerPlaceholder: 'Send an instruction to the session…',
+  composerPlaceholder: 'Message or run a task, / commands, @ files or sessions',
   composerDisabled: 'Select a session to send instructions',
   composerError: 'Instruction failed',
   send: 'Send',
   stop: 'Stop',
   qaError: 'Request failed',
+  open: 'Open',
   rename: 'Rename',
   renameTitle: 'Rename session',
   renameInputAria: 'Session title',
@@ -198,12 +226,14 @@ export const en: Record<ConsoleKey, string> = {
   'sessionStatus.running': 'Running',
   'sessionStatus.planning': 'Planning',
   'sessionStatus.pending': 'Pending',
-  'sessionStatus.waiting': 'Waiting',
+  'sessionStatus.waiting': 'Waiting for approval',
   'sessionStatus.available': 'Available',
   'sessionStatus.archived': 'Archived',
   na: 'N/A',
   selectedSession: 'selected',
+  scopeAllSessions: 'All sessions',
   noSession: 'No session selected',
+  noSessionMatch: 'No sessions match the filter',
   updatedAt: 'updated',
   askUserTitle: 'Question',
   askUserRecommend: 'Recommended',
@@ -233,11 +263,13 @@ export const zh: Record<ConsoleKey, string> = {
   sessionViewToggleAria: '会话视图',
   sessionStatsView: '统计',
   sessionGridView: '网格',
+  sessionFilter: '筛选',
   sessionTotal: '总数',
   sessionRunning: '运行中',
   sessionPending: '等待输入',
   sessionCompleted: '已完成',
   sessionArchived: '已归档',
+  sessionIdle: '空闲',
   sessionCurrent: '当前',
   taskStats: '任务统计',
   taskAllSessions: '全部会话',
@@ -247,6 +279,10 @@ export const zh: Record<ConsoleKey, string> = {
   taskSteps: '步骤数',
   taskLlmMs: 'LLM 耗时',
   taskToolMs: '工具耗时',
+  taskCost: '费用',
+  taskCostUnpriced: '未定价',
+  taskCostAmbiguous: '价格不唯一',
+  taskCostUnit: '¥ / 百万 token',
   systemStatus: '系统状态',
   cpu: 'CPU',
   ram: '内存',
@@ -256,13 +292,19 @@ export const zh: Record<ConsoleKey, string> = {
   pendingPlanReview: '计划审阅',
   noPending: '无',
   timeline: '时间线',
-  timelineScopeAll: '全部会话',
+  timelineScopeLabel: '作用域',
   timelineClear: '清除',
   timelineStatus: '状态',
   timelineActivity: '活动',
+  timelineHistory: '历史',
   timelineModeAria: '时间线模式',
   timelineEmpty: '暂无会话活动。',
+  timelineNoMessages: '已加载的窗口内没有该会话的消息。',
+  timelineUsage: '用量 {count}',
+  timelineTokens: '{count} tok',
+  timelineCost: '¥{amount}',
   timelineExpand: '展开',
+  timelineMore: '显示更早的 {count} 条',
   timelineCollapse: '收起',
   sessionPrefix: '会话',
   knowledge: '知识库',
@@ -272,12 +314,13 @@ export const zh: Record<ConsoleKey, string> = {
   qaEmpty: '输入问题开始。',
   qaThinking: '思考中…',
   inputPlaceholder: '询问会话相关内容',
-  composerPlaceholder: '向会话发送指令…',
+  composerPlaceholder: '发消息或创建任务, / 调用指令, @ 文件或对话',
   composerDisabled: '请选择会话后再发送指令',
   composerError: '指令发送失败',
   send: '发送',
   stop: '停止',
   qaError: '请求失败',
+  open: '打开',
   rename: '重命名',
   renameTitle: '重命名会话',
   renameInputAria: '会话标题',
@@ -305,12 +348,14 @@ export const zh: Record<ConsoleKey, string> = {
   'sessionStatus.running': '运行中',
   'sessionStatus.planning': '规划中',
   'sessionStatus.pending': '等待输入',
-  'sessionStatus.waiting': '等待中',
+  'sessionStatus.waiting': '等待审批',
   'sessionStatus.available': '可用',
   'sessionStatus.archived': '已归档',
   na: 'N/A',
   selectedSession: '已选',
+  scopeAllSessions: '全部会话',
   noSession: '未选择会话',
+  noSessionMatch: '没有符合筛选的会话',
   updatedAt: '更新于',
   askUserTitle: '问题',
   askUserRecommend: '推荐',

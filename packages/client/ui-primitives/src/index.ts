@@ -43,6 +43,11 @@ export { writeClipboard } from './clipboard.ts'
 export { relativeTime } from './relative-time.ts'
 export { rankByName } from './rank-by-name.ts'
 export type { RelativeTime, RelativeTimeUnit } from './relative-time.ts'
+export { costOf, formatAmount, priceOf, totalCost } from './pricing.ts'
+export type {
+  BandPrice, BandTokens, CostTotal, ModelPrice, PriceMatch, RouteTokens,
+} from './pricing.ts'
+export { CONSOLE_PRICING_NAMESPACE, PriceTablePolicy } from './price-table.ts'
 export { JsonTree } from './JsonTree.tsx'
 export type { JsonTreeProps, JsonTreeLabels } from './JsonTree.tsx'
 export { TerminalBlock, DEFAULT_TERMINAL_MAX_LINES } from './TerminalBlock.tsx'

@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ChatNodeViewProps, TurnTailOwnerProps } from '../contract/slots.ts'
 import { MessageIconActions } from './MessageIconActions.tsx'
+import { TurnCostFigure } from './TurnCostFigure.tsx'
 import { TurnTimePanel, TurnUsagePanel } from './TurnUsagePanel.tsx'
 import { assistantText } from './turn-assistant.ts'
 import css from './TurnTailNodeView.module.css'
@@ -11,7 +12,7 @@ type TurnTailNodeViewProps = ChatNodeViewProps<'turn-tail'>
 
 /** Turn-local actions and feature tail over the Location index, independent of Assistant placement. */
 export const TurnTailNodeView = memo(function TurnTailNodeView({
-  node, openFile, forkAt, renderSlot, renderSlotChain, t, useChat,
+  node, openFile, forkAt, prices, renderSlot, renderSlotChain, t, useChat, useProjection,
 }: TurnTailNodeViewProps) {
   const data = node.data
   const hasLaterChatNode = useChat(snapshot =>
@@ -60,6 +61,7 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
                 t={t}
               />
             )}
+            <TurnCostFigure turn={data.turn} prices={prices} useProjection={useProjection} t={t} />
           </>
         )}
         t={t}

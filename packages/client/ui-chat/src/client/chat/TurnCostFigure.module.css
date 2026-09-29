@@ -1,0 +1,12 @@
+/* Turn-cost figure in the assistant action row. It sits after the usage and
+   time pills and, like the row's clock, is a plain reading rather than a
+   control: it opens nothing, so it wears no pill affordance and no hover
+   background. */
+
+.figure {
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  font-variant-numeric: tabular-nums;
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}

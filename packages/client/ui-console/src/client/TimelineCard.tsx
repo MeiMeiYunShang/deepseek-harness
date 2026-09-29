@@ -1,17 +1,25 @@
 /**
- * Timeline card: a toolbar (scope pill + brief/all toggle), the event list with
- * collapsible details, and the bottom instruction composer.
+ * Timeline card: a toolbar (the scope label + brief/all toggle), the event list
+ * with collapsible details, and the bottom instruction composer.
  */
 
-import { useState } from 'react'
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import clsx from 'clsx'
+import {
+  formatAmount, IconSendOutline16, totalCost, type CostTotal, type ModelPrice,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
 import type { TimelineEntry, TimelineMode } from './consoleStore.ts'
+import { replyTokenTotal, type TimelineMessage } from './timelineMessages.ts'
 import type { ConsoleKey } from './locales.ts'
 import { FOLD_LIMIT, foldText, shortId, timelineLabelKey } from './timelineText.ts'
-import { formatTime } from './format.ts'
+import { formatTime, formatTokens } from './format.ts'
 import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
+
+/** One page of timeline rows; older events need another click. */
+const TIMELINE_PAGE = 40
 
 /** A timeline row's decorative tone class suffix. */
 export type RowTone = 'info' | 'action' | 'warn' | 'error' | 'neutral' | 'hollow'
@@ -29,62 +37,79 @@ export interface TimelineDetail {
 /** Props for the timeline card. */
 export interface TimelineCardProps {
   /** Translator. */
-  t: (key: ConsoleKey) => string
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
   /** Unfiltered timeline entries. */
   timeline: readonly TimelineEntry[]
   /** Selected verbosity. */
   timelineMode: TimelineMode
-  /** Timeline scope: one session id, or undefined for the whole list. */
-  scope: string | undefined
-  /** The grid-selected session id (composer target), or undefined. */
-  selected: string | undefined
+  /**
+   * The console's selected session: the card renders its conversation, while
+   * `undefined` lists every session's coarse rows.
+   */
+  selectedSession: string | undefined
+  /**
+   * The selected session's conversation, in log order. The apply closure owns
+   * the subscription behind it, so the card only renders what it is handed.
+   */
+  messages: readonly TimelineMessage[]
+  /** The operator's model price table, for a reply's turn cost. */
+  prices: readonly ModelPrice[]
+  /** Resolve a session's display title for the scope label. */
+  titleOf: (id: string) => string | undefined
   /** Set the verbosity. */
   setTimelineMode: (mode: TimelineMode) => void
-  /** Clear the scope pill. */
-  clearScope: () => void
-  /** Send one instruction over the composer. */
-  sendInstruction: (text: string) => Promise<unknown>
-  /** Whether the card body is collapsed. */
-  collapsed: boolean
-  /** Toggle the collapsed state. */
-  onToggleCollapse: () => void
+  /**
+   * The same session's composer projection, from the shared input machine the
+   * apply closure resolves and follows.
+   */
+  composer: ConsoleComposerState
+  /** The scoped machine's writers, for the field and the send action. */
+  composerActions: ConsoleComposerActions
 }
 
 /** Dot tone for a timeline entry kind. */
 export function rowTone(kind: string): RowTone {
-  return kind === 'status' ? 'action' : 'info'
+  if (kind === 'status') return 'action'
+  if (kind === 'history') return 'neutral'
+  return 'info'
 }
 
 /** Props for the timeline list body. */
 export interface TimelineListProps {
-  t: (key: ConsoleKey) => string
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
   timeline: readonly TimelineEntry[]
-  scope: string | undefined
   detailOf: (entry: TimelineEntry) => TimelineDetail | undefined
 }
 
-/** The event list with per-row folding and optional ask-card detail. */
-export function TimelineList({ t, timeline, scope, detailOf }: TimelineListProps) {
+/** The cross-session event list with per-row folding, a newest-first page window, and optional ask-card detail. */
+export function TimelineList({ t, timeline, detailOf }: TimelineListProps) {
   const [expandedSeq, setExpandedSeq] = useState<number | null>(null)
-  const scoped = scope === undefined ? [...timeline] : timeline.filter(entry => entry.sessionId === scope)
-  if (scoped.length === 0) return <span className={css.emptyHint}>{t('timelineEmpty')}</span>
-  const reversed = scoped.reverse()
+  const [visible, setVisible] = useState(TIMELINE_PAGE)
+  if (timeline.length === 0) return <span className={css.emptyHint}>{t('timelineEmpty')}</span>
+  // Newest first, but only one page in the DOM: the store keeps a 200-entry
+  // window, and rendering all of it costs a row per event on every push.
+  const reversed = [...timeline].reverse()
+  const shown = reversed.slice(0, visible)
+  const hidden = reversed.length - shown.length
   return (
     <>
-      {reversed.map((entry, index) => {
+      {shown.map((entry, index) => {
         const label = t(timelineLabelKey(entry.kind))
         const detail = detailOf(entry)
-        const fullText = `${t('sessionPrefix')} ${shortId(entry.sessionId)} ${label}`
+        const header = `${t('sessionPrefix')} ${shortId(entry.sessionId)} ${label}`
+        // The collapsed line stays the session header; a row that carries a
+        // title — the backfilled history row — reveals it on expansion.
+        const fullText = entry.title === undefined ? header : `${header} · ${entry.title}`
         const isExpanded = expandedSeq === entry.id
-        const text = isExpanded ? fullText : foldText(fullText, FOLD_LIMIT)
-        const folding = fullText.length > FOLD_LIMIT
-        const showToggle = folding || detail !== undefined
+        const text = isExpanded ? fullText : foldText(header, FOLD_LIMIT)
+        const folding = header.length > FOLD_LIMIT
+        const showToggle = folding || entry.title !== undefined || detail !== undefined
         return (
           <TimelineRow
             key={entry.id}
             time={formatTime(entry.time)}
             tone={rowTone(entry.kind)}
-            last={index === reversed.length - 1}
+            last={index === shown.length - 1 && hidden === 0}
             text={text}
             showToggle={showToggle}
             expanded={isExpanded}
@@ -95,7 +120,87 @@ export function TimelineList({ t, timeline, scope, detailOf }: TimelineListProps
           </TimelineRow>
         )
       })}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className={css.timelineMore}
+          onClick={() => { setVisible(count => count + TIMELINE_PAGE) }}
+        >
+          {t('timelineMore', { count: String(hidden) })}
+        </button>
+      )}
     </>
+  )
+}
+
+/** Props for the scoped conversation stream. */
+export interface MessageStreamProps {
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
+  /** The selected session's conversation, in log order. */
+  messages: readonly TimelineMessage[]
+  /** The operator's model price table, for a reply's turn cost; an empty table leaves every route unpriced. */
+  prices: readonly ModelPrice[]
+}
+
+/** The charge text for one priced turn, or the reason the table could not price it. */
+function costText(cost: CostTotal, t: (key: ConsoleKey, params?: Record<string, unknown>) => string): string {
+  if (cost.ambiguous.length > 0) return t('taskCostAmbiguous')
+  if (cost.unpriced.length > 0) return t('taskCostUnpriced')
+  return t('timelineCost', { amount: formatAmount(cost.amount) })
+}
+
+/**
+ * The reply's own token total and, on the reply that closes its turn, that
+ * turn's charge. A reply the event carried no usage for renders no usage chip,
+ * and a turn whose buckets the projection never reported renders no cost chip:
+ * an absent figure is not a zero.
+ */
+function MessageFigures({ message, prices, t }: {
+  message: TimelineMessage
+  prices: readonly ModelPrice[]
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
+}) {
+  const { usage, turnCost } = message
+  return (
+    <>
+      {usage !== undefined && (
+        <span className={css.messageMetaChip}>
+          {t('timelineUsage', { count: t('timelineTokens', { count: formatTokens(replyTokenTotal(usage)) }) })}
+        </span>
+      )}
+      {turnCost !== undefined && (
+        <span className={css.messageMetaChip}>{costText(totalCost(prices, turnCost), t)}</span>
+      )}
+    </>
+  )
+}
+
+/**
+ * The scoped session's conversation: a right-aligned bubble per operator
+ * message and left-aligned text per assistant reply, with the reply's own
+ * timestamp and the figures that reply can source — its own token counts from
+ * the `assistant/message` event, and the charge of the turn it closes.
+ */
+export function MessageStream({ t, messages, prices }: MessageStreamProps) {
+  if (messages.length === 0) return <span className={css.emptyHint}>{t('timelineNoMessages')}</span>
+  return (
+    <div className={css.messageStream}>
+      {messages.map(message => message.role === 'user'
+        ? (
+          <div key={message.key} className={css.messageUser} data-role="user">
+            <p className={css.messageUserBubble}>{message.text}</p>
+          </div>
+        )
+        : (
+          <div key={message.key} className={css.messageAssistant} data-role="assistant">
+            <p className={css.messageAssistantText}>{message.text}</p>
+            <span className={css.messageMeta}>
+              {formatTime(message.time)}
+              <MessageFigures message={message} prices={prices} t={t} />
+            </span>
+          </div>
+        ))}
+    </div>
   )
 }
 
@@ -186,113 +291,126 @@ export function AskCardBody({ detail, t }: { detail: TimelineDetail; t: (key: Co
 
 /** Props for the instruction composer. */
 export interface ComposerProps {
-  t: (key: ConsoleKey) => string
-  selected: string | undefined
-  sendInstruction: (text: string) => Promise<unknown>
+  t: (key: ConsoleKey, params?: Record<string, unknown>) => string
+  /** The console scope's projection of the shared input machine. */
+  composer: ConsoleComposerState
+  /** That machine's writers. */
+  composerActions: ConsoleComposerActions
 }
 
-/** Instruction composer: a disabled-aware input plus a send action. */
-export function Composer({ t, selected, sendInstruction }: ComposerProps) {
-  const [draft, setDraft] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const disabled = selected === undefined || draft.trim() === '' || busy
+/**
+ * Instruction composer: the chat composer's field, driven by the same
+ * per-session input machine, so the draft typed here is the draft the chat view
+ * shows and the send rides the one submission path. Enter submits and
+ * Shift+Enter breaks the line, matching the chat keymap; the field grows with
+ * its content up to a CSS cap and then scrolls, so the send action stays
+ * reachable at any height.
+ */
+export function Composer({ t, composer, composerActions }: ComposerProps) {
+  const { ready, draft, failed } = composer
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null)
 
-  async function submit(): Promise<void> {
-    /* v8 ignore next -- the disabled button cannot fire the handler, so the
-     * guard only protects the async re-entry path the UI never reaches. */
-    if (disabled) return
-    const text = draft.trim()
-    setBusy(true)
-    setError(null)
-    try {
-      await sendInstruction(text)
-      setDraft('')
-    } catch {
-      setError(t('composerError'))
-    } finally {
-      setBusy(false)
-    }
+  // A textarea never reports its content height, so the box is reset to auto
+  // and re-measured against the rendered draft; the CSS cap then scrolls it.
+  useLayoutEffect(() => {
+    const field = fieldRef.current
+    /* v8 ignore next -- the ref is attached before layout effects run. */
+    if (field === null) return
+    field.style.height = 'auto'
+    field.style.height = `${field.scrollHeight}px`
+  }, [draft])
+
+  const onSubmit = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    // Shift+Enter is the line break; a composing Enter belongs to the IME.
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    composerActions.submit()
   }
 
   return (
     <div className={css.composer}>
-      <div className={css.composerRow}>
-        <input
-          type="text"
+      <div className={css.composerCard}>
+        <textarea
+          ref={fieldRef}
           className={css.composerInput}
-          placeholder={selected === undefined ? t('composerDisabled') : t('composerPlaceholder')}
+          rows={1}
           value={draft}
-          disabled={selected === undefined}
-          aria-disabled={selected === undefined}
-          onChange={(event) => { setDraft(event.target.value) }}
+          disabled={!ready}
+          aria-disabled={!ready}
+          placeholder={t(ready ? 'composerPlaceholder' : 'composerDisabled')}
+          onChange={(event) => { composerActions.setDraft(event.target.value) }}
+          onKeyDown={onSubmit}
         />
-        <button
-          type="button"
-          className={css.sendButton}
-          disabled={disabled}
-          aria-disabled={disabled}
-          onClick={() => { void submit() }}
-        >
-          {busy ? t('stop') : t('send')}
-        </button>
+        <div className={css.composerRow}>
+          <button
+            type="button"
+            className={css.composerSend}
+            aria-label={t('send')}
+            disabled={!ready || draft.trim() === ''}
+            onClick={() => { composerActions.submit() }}
+          >
+            <IconSendOutline16 size={16} />
+          </button>
+        </div>
       </div>
-      {error !== null && <div className={css.composerError} role="alert">{error}</div>}
+      {failed && <div className={css.composerError} role="alert">{t('composerError')}</div>}
     </div>
   )
 }
 
-/** The timeline card: toolbar, list, and composer. */
+/** The timeline card: toolbar, list, and composer. It is the middle column's
+ * only card, so folding it would leave an empty column rather than free room;
+ * it renders no fold control and is always expanded. */
 export function TimelineCard(props: TimelineCardProps) {
-  const { t, timeline, timelineMode, scope, selected, setTimelineMode, clearScope, sendInstruction, collapsed, onToggleCollapse } = props
+  const {
+    t, timeline, timelineMode, selectedSession, messages, prices, titleOf, setTimelineMode,
+    composer, composerActions,
+  } = props
+  const scoped = selectedSession !== undefined
   const byMode = timelineMode === 'all'
     ? timeline
     : timeline.filter(entry => entry.kind === 'status')
   return (
-    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+    <div className={css.card}>
       <CardHeader
         t={t}
         title={t('timeline')}
-        collapsed={collapsed}
-        onToggleCollapse={onToggleCollapse}
-        actions={(
-          <>
-            <div className={css.timelineScope}>
-              {scope !== undefined && (
-                <button type="button" className={css.timelineScopePill} onClick={clearScope}>
-                  {t('timelineScopeAll')}
-                </button>
-              )}
-            </div>
-            <div className={css.timelineMode} role="group" aria-label={t('timelineModeAria')}>
-              <button
-                type="button"
-                className={clsx(css.modeButton, timelineMode === 'brief' && css.modeButtonActive)}
-                aria-pressed={timelineMode === 'brief'}
-                onClick={() => { setTimelineMode('brief') }}
-              >
-                {t('timelineStatus')}
-              </button>
-              <button
-                type="button"
-                className={clsx(css.modeButton, timelineMode === 'all' && css.modeButtonActive)}
-                aria-pressed={timelineMode === 'all'}
-                onClick={() => { setTimelineMode('all') }}
-              >
-                {t('timelineActivity')}
-              </button>
-            </div>
-          </>
+        /* The scope the stream below belongs to, named where it is read.
+           Clearing it is the session card header's single all-sessions pill. */
+        afterTitle={scoped && (
+          <span className={css.timelineScopeLabel}>
+            {t('timelineScopeLabel')}: {titleOf(selectedSession) ?? shortId(selectedSession)}
+          </span>
+        )}
+        /* The verbosity toggle filters the coarse rows, which only the unscoped
+           view renders; a scoped card shows the conversation itself. */
+        actions={!scoped && (
+          <div className={css.timelineMode} role="group" aria-label={t('timelineModeAria')}>
+            <button
+              type="button"
+              className={clsx(css.modeButton, timelineMode === 'brief' && css.modeButtonActive)}
+              aria-pressed={timelineMode === 'brief'}
+              onClick={() => { setTimelineMode('brief') }}
+            >
+              {t('timelineStatus')}
+            </button>
+            <button
+              type="button"
+              className={clsx(css.modeButton, timelineMode === 'all' && css.modeButtonActive)}
+              aria-pressed={timelineMode === 'all'}
+              onClick={() => { setTimelineMode('all') }}
+            >
+              {t('timelineActivity')}
+            </button>
+          </div>
         )}
       />
-      {!collapsed && (
-        <>
-          <div className={css.timeline}>
-            <TimelineList t={t} timeline={byMode} scope={scope} detailOf={() => undefined} />
-          </div>
-          <Composer t={t} selected={selected} sendInstruction={sendInstruction} />
-        </>
-      )}
+      <div className={css.timeline}>
+        {scoped
+          ? <MessageStream t={t} messages={messages} prices={prices} />
+          : <TimelineList t={t} timeline={byMode} detailOf={() => undefined} />}
+      </div>
+      <Composer t={t} composer={composer} composerActions={composerActions} />
     </div>
   )
 }

@@ -1,18 +1,51 @@
-﻿/** What the browser half registers and subscribes, and that it leaves with the fiber. */
+/** What the browser half registers and subscribes, and that it leaves with the fiber. */
 
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionEvent, SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
-import { TestRemote, TestSessions, TestWorkspaces } from '@deepseek-ai/dsh-client-test-runtime'
+import { TestRemote, TestSessions, TestWorkspaces, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
+import type { SessionStatsTurnRoute } from '@deepseek-ai/dsh-session-stats/types'
+import { UNBOUND_COMPOSER } from '../src/client/composer.ts'
+import type { ConsoleComposerState } from '../src/client/composer.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
+import type { ConsoleStoreState, ConsoleStoreWrite } from '../src/client/consoleStore.ts'
+import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 
 /** Stabilizer that lets TestSessions/TestWorkspaces write outside React act. */
 const stabilize = async (fn: () => void): Promise<void> => {
   fn()
+}
+
+/** One fake per-session input machine, over the fields the console reads. */
+function inputMachine() {
+  const state = createSnapshotStore<InputState>({
+    draft: '', attachmentIds: [], draftRev: 0, phase: 'plain', occurrences: [], queue: [],
+  })
+  return {
+    state,
+    setDraft: vi.fn((text: string) => { state.set({ ...state.getSnapshot(), draft: text }) }),
+    submit: vi.fn(),
+  }
+}
+
+/** One fake machine per session id, minted on first resolution. */
+type Machines = Map<string, ReturnType<typeof inputMachine>>
+
+/** One operator price row, adopted by the console-pricing namespace under test. */
+const FLASH: ModelPrice = {
+  baseUrl: 'https://api.deepseek.com',
+  provider: 'deepseek-official',
+  model: 'deepseek-v4-flash',
+  peak: { cacheHit: 0.25, cacheMiss: 1, output: 2 },
+  offPeak: { cacheHit: 0.125, cacheMiss: 0.5, output: 1 },
 }
 
 async function bench(setting?: { smartQaModel?: string }, erroring = false) {
@@ -25,6 +58,23 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
   const workspaces = new TestWorkspaces(stabilize)
   ctx.provide('sessions', sessions)
   ctx.provide('workspaces', workspaces)
+  // The shared input machine the console composer drives, resolved per Agent
+  // scope: the fake answers the same `input.for(scope)` registry the real
+  // Conversation service exposes, keyed by the scope's own session tag.
+  const machines: Machines = new Map()
+  ctx.provide('conversation', {
+    input: {
+      for: (actx: Context) => {
+        const id = sessions.scopeOf(actx) as string
+        let machine = machines.get(id)
+        if (machine === undefined) {
+          machine = inputMachine()
+          machines.set(id, machine)
+        }
+        return machine
+      },
+    },
+  })
   const chat = vi.fn(async function* () { /* no chunks */ })
   const remoteResult = async <T>(value: T): Promise<{ ok: true; value: T }> => ({ ok: true, value })
   const remoteError = { message: 'boom' }
@@ -34,11 +84,16 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
   }
   const directoryPicker = { pick: vi.fn(async () => (erroring ? { ok: false, error: remoteError } : await remoteResult(null))) }
   const remote = new TestRemote(ctx, { llm: { chat, listProviders: vi.fn() }, agentPresets, directoryPicker })
-  // The console-bridge settings scope: apply reads smartQaModel once at load.
+  // The two settings scopes apply binds: the console-bridge section read once at
+  // load for the Smart Q&A default model, and the console-pricing table adopted
+  // from every section the Host accepts.
+  const bridge = stubSettingsScope<{ smartQaModel?: string }>()
+  if (setting !== undefined) bridge.publish({ status: 'ready', value: setting, revision: 1 })
+  const pricing = stubSettingsScope<{ models?: ModelPrice[] }>()
   ctx.provide('settingsScope', {
-    bind: () => ({ getSnapshot: () => ({ value: setting }) }),
-  })
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, agentPresets, directoryPicker, chat }
+    bind: ({ namespace }: { namespace: string }) => namespace === 'console-pricing' ? pricing.scope : bridge.scope,
+  } as never)
+  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, agentPresets, directoryPicker, chat, pricing, machines }
 }
 
 function declareSidebar(slots: SlotRegistry): () => void {
@@ -48,13 +103,76 @@ function declareSidebar(slots: SlotRegistry): () => void {
   } as never, () => null)
 }
 
+/** The console sidebar action's registered inject face: store hook plus its write set. */
+function consoleFace(slots: SlotRegistry): {
+  hooks: {
+    console: { getSnapshot: () => ConsoleStoreState }
+    messages: { getSnapshot: () => readonly TimelineMessage[] }
+    composer: { getSnapshot: () => ConsoleComposerState }
+  }
+  store: ConsoleStoreWrite
+  composerActions: { setDraft: (text: string) => void; submit: () => void }
+} {
+  return (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
+    hooks: {
+      console: { getSnapshot: () => ConsoleStoreState }
+      messages: { getSnapshot: () => readonly TimelineMessage[] }
+      composer: { getSnapshot: () => ConsoleComposerState }
+    }
+    store: ConsoleStoreWrite
+    composerActions: { setDraft: (text: string) => void; submit: () => void }
+  })()
+}
+
+/** One operator prompt event. */
+function promptEntry(seq: number, text: string): SessionLiveEventEntry {
+  return {
+    type: 'event',
+    event: {
+      seq,
+      time: seq * 100,
+      type: 'user/message',
+      data: { id: `u${seq}`, role: 'user', content: [{ type: 'text', text }], source: { kind: 'user' } },
+    },
+  } as unknown as SessionLiveEventEntry
+}
+
+/** One turn's route bucket, in the sessionStats projection's own shape. */
+function turnBucket(turn: number, inputTokens: number): SessionStatsTurnRoute {
+  return {
+    turn,
+    provider: 'p',
+    model: 'm',
+    peak: { inputTokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    offPeak: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  }
+}
+
+/** One assembled assistant reply event. */
+function replyEntry(seq: number, text: string): SessionLiveEventEntry {
+  return {
+    type: 'event',
+    event: {
+      seq,
+      time: seq * 100,
+      type: 'assistant/message',
+      data: {
+        turn: 1,
+        step: 1,
+        message: { id: `a${seq}`, role: 'assistant', content: [{ type: 'text', text }], source: { kind: 'model', provider: 'p', model: 'm' } },
+        stream: [],
+      },
+    },
+  } as unknown as SessionLiveEventEntry
+}
+
 describe('ui-console apply', () => {
   it('declares the services it uses', () => {
     expect(inject).toEqual(['slots', 'locale', 'remote', 'sessions', 'workspaces', 'settingsScope'])
   })
 
   it('registers one sidebar footer action and the console dictionary', async () => {
-    const { ctx, slots } = await bench()
+    const { ctx, slots, pricing } = await bench()
     declareSidebar(slots)
 
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -63,10 +181,14 @@ describe('ui-console apply', () => {
     const entry = slots.entries('sidebar.footer.action')[0]!
     expect(entry.options).toMatchObject({ id: 'console', order: 40 })
     expect(resolveSlotLabel(entry.options.label)).toBe('Console')
-    // The injected face exposes the store hook, the service verb set, the chat
-    // fetcher, and the default model.
+    // The injected face exposes the store hook, the price table, the scoped
+    // conversation, the service verb set, the chat fetcher, and the default model.
     const face = (entry.inject as unknown as () => {
-      hooks: { console: { getSnapshot: () => unknown; subscribe: unknown } }
+      hooks: {
+        console: { getSnapshot: () => unknown; subscribe: unknown }
+        prices: { getSnapshot: () => readonly ModelPrice[] }
+        messages: { getSnapshot: () => readonly TimelineMessage[]; subscribe: unknown }
+      }
       store: unknown
       services: unknown
       chat: unknown
@@ -74,6 +196,14 @@ describe('ui-console apply', () => {
     })()
     expect(typeof face.hooks.console.getSnapshot).toBe('function')
     expect(typeof face.hooks.console.subscribe).toBe('function')
+    expect(typeof face.hooks.messages.getSnapshot).toBe('function')
+    expect(typeof face.hooks.messages.subscribe).toBe('function')
+    expect(face.hooks.messages.getSnapshot()).toEqual([])
+    // The price table is served as a live source: the namespace answers after
+    // bind, so the value a read at bind time would have found is empty.
+    expect(face.hooks.prices.getSnapshot()).toEqual([])
+    pricing.publish({ status: 'ready', value: { models: [FLASH] }, revision: 1 })
+    expect(face.hooks.prices.getSnapshot()).toEqual([FLASH])
     expect(typeof face.store).toBe('object')
     expect(typeof face.services).toBe('object')
     expect(typeof face.chat).toBe('function')
@@ -83,20 +213,384 @@ describe('ui-console apply', () => {
     expect(slots.entries('sidebar.footer.action')).toHaveLength(0)
   })
 
-  it('subscribes the store to forwarded session and host-metrics events', async () => {
+  it('subscribes at apply time so forwarded events reach the store while the console is closed', async () => {
     const { ctx, slots, remote } = await bench()
     declareSidebar(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
 
-    // Forwarding must reach apply's subscribers without leaking a throw.
+    const face = (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
+      hooks: { console: { getSnapshot: () => ConsoleStoreState } }
+    })()
+    expect(face.hooks.console.getSnapshot().open).toBe(false)
+
+    // Forwarding must reach apply's subscribers without leaking a throw, and
+    // must reach them whether or not the workbench is showing.
     remote.emit('api-session/activity', ['s1', 1000])
     remote.emit('api-session/status', ['s1', true])
     remote.emit('host/metrics', [{ cpu: 10, memory: 20, gpu: null }])
-    await Promise.resolve()
 
+    const snapshot = face.hooks.console.getSnapshot()
+    expect(snapshot.timeline).toMatchObject([
+      { sessionId: 's1', time: 1000, kind: 'activity' },
+      { sessionId: 's1', kind: 'status' },
+    ])
+    expect(snapshot.systemStatus).toEqual({ cpu: 10, memory: 20, gpu: null })
+
+    // The subscriptions are effects of this fiber, so they leave with it.
     await fiber.dispose()
     expect(slots.entries('sidebar.footer.action')).toHaveLength(0)
+    remote.emit('api-session/activity', ['s2', 2000])
+    expect(face.hooks.console.getSnapshot().timeline).toHaveLength(2)
+  })
+
+  it('backfills one history row per known session when the workbench first opens', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's-newer', summary: { updatedAt: 300 } }, { current: false })
+    await sessions.add({ id: 's-older', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setOpen(true)
+
+    // Ascending insertion order, because the list renders the array reversed:
+    // the last seeded row is the newest snapshot. Every seeded row carries the
+    // summary's human-facing title, which is what the row reveals when opened.
+    expect(face.hooks.console.getSnapshot().timeline.map(row => [row.sessionId, row.time, row.kind, row.title])).toEqual([
+      ['s-older', 100, 'history', 's-older'],
+      ['s-newer', 300, 'history', 's-newer'],
+    ])
+    await fiber.dispose()
+  })
+
+  it('does not backfill again when the workbench is reopened', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setOpen(true)
+    face.store.setOpen(false)
+    face.store.setOpen(true)
+
+    expect(face.hooks.console.getSnapshot().timeline).toHaveLength(1)
+    await fiber.dispose()
+  })
+
+  it('keeps the grid filter selection across a workbench close and reopen', async () => {
+    const { ctx, slots } = await bench()
+    declareSidebar(slots)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // The selection is viewing state the store owns, not the card: closing and
+    // reopening the workbench remounts every card without touching it.
+    face.store.toggleSessionBucket('archived')
+    face.store.setOpen(true)
+    face.store.setOpen(false)
+    face.store.setOpen(true)
+
+    expect(face.hooks.console.getSnapshot().sessionBuckets).toEqual(['running', 'pending', 'available', 'archived'])
+    await fiber.dispose()
+  })
+
+  it('leaves a timeline that already holds a live row alone', async () => {
+    const { ctx, slots, sessions, remote } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    remote.emit('api-session/activity', ['s1', 5000])
+    face.store.setOpen(true)
+
+    expect(face.hooks.console.getSnapshot().timeline.map(row => row.kind)).toEqual(['activity'])
+    await fiber.dispose()
+  })
+
+  it('seeds nothing while the client holds no sessions', async () => {
+    const { ctx, slots, remote } = await bench()
+    declareSidebar(slots)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setOpen(true)
+    expect(face.hooks.console.getSnapshot().timeline).toEqual([])
+
+    // A live row still lands, and never triggers a backfill over it.
+    remote.emit('api-session/activity', ['s1', 1000])
+    expect(face.hooks.console.getSnapshot().timeline.map(row => row.kind)).toEqual(['activity'])
+    await fiber.dispose()
+  })
+
+  it('derives the scoped session conversation from that session event window and follows it', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'Repair the composer'), replyEntry(2, 'Done.')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // Nothing is scoped, so the card has no conversation to render.
+    expect(face.hooks.messages.getSnapshot()).toEqual([])
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot()).toEqual([
+      { key: 1, role: 'user', text: 'Repair the composer', time: 100 },
+      { key: 2, role: 'assistant', text: 'Done.', time: 200 },
+    ])
+
+    // The window is the live source: a later append reaches the published list.
+    await sessions.appendEvent('s1', promptEntry(3, 'And the tests.'))
+    expect(face.hooks.messages.getSnapshot().map(message => message.text))
+      .toEqual(['Repair the composer', 'Done.', 'And the tests.'])
+
+    await fiber.dispose()
+  })
+
+  it('swaps the conversation when the console scope changes, leaving no subscription behind', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'first session')] }, { current: false })
+    await sessions.add({ id: 's2', summary: { updatedAt: 200 }, events: [promptEntry(1, 'second session')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot().map(message => message.text)).toEqual(['first session'])
+
+    face.store.setSelectedSession('s2')
+    expect(face.hooks.messages.getSnapshot().map(message => message.text)).toEqual(['second session'])
+
+    // s1 is no longer followed: a window revision there publishes nothing.
+    await sessions.replaceEvents('s1', [promptEntry(1, 'first session'), replyEntry(2, 'stale reply')])
+    expect(face.hooks.messages.getSnapshot().map(message => message.text)).toEqual(['second session'])
+
+    // Clearing the scope empties the card without disturbing s2's own window.
+    face.store.setSelectedSession(undefined)
+    expect(face.hooks.messages.getSnapshot()).toEqual([])
+
+    await fiber.dispose()
+  })
+
+  it('reads the scoped session turn buckets and republishes when the projection moves', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'Repair the composer'), replyEntry(2, 'Done.')] }, { current: false })
+    await sessions.add({ id: 's2', summary: { updatedAt: 200 }, events: [promptEntry(1, 'another session')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // No projection value is served yet, so no reply carries a turn charge.
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot().map(message => message.turnCost)).toEqual([undefined, undefined])
+
+    // The projection face of the scoped session is the source, and it moves
+    // independently of the event window: the charged reply appears without a
+    // further window revision.
+    const buckets = [turnBucket(1, 32_400)]
+    sessions.behavior('s1').projections.set('sessionStats', { turnRoutes: buckets })
+    expect(face.hooks.messages.getSnapshot().map(message => message.turnCost)).toEqual([undefined, buckets])
+
+    // s2's own projection never reaches the scoped conversation.
+    sessions.behavior('s2').projections.set('sessionStats', { turnRoutes: [turnBucket(1, 7)] })
+    expect(face.hooks.messages.getSnapshot().map(message => message.turnCost)).toEqual([undefined, buckets])
+
+    await fiber.dispose()
+  })
+
+  it('publishes no conversation for a selected session without a binding', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot()).toHaveLength(1)
+
+    face.store.setSelectedSession('missing')
+    expect(face.hooks.messages.getSnapshot()).toEqual([])
+
+    await fiber.dispose()
+  })
+
+  it('stops following the session event window when the fiber is disposed', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.messages.getSnapshot()).toHaveLength(1)
+
+    await fiber.dispose()
+    await sessions.replaceEvents('s1', [promptEntry(1, 'scoped'), replyEntry(2, 'after disposal')])
+    expect(face.hooks.messages.getSnapshot().map(message => message.text)).toEqual(['scoped'])
+  })
+
+  it('leaves a published conversation untouched when the window revision changes nothing rendered', async () => {
+    const { ctx, slots, sessions } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 }, events: [promptEntry(1, 'scoped')] }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    const published = face.hooks.messages.getSnapshot()
+
+    // A revision that carries no renderable message republishes nothing, so the
+    // bound hook keeps one snapshot reference.
+    await sessions.appendEvent('s1', {
+      type: 'event',
+      event: { seq: 2, time: 200, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } } as unknown as SessionEvent,
+    })
+    expect(face.hooks.messages.getSnapshot()).toBe(published)
+
+    await fiber.dispose()
+  })
+
+  it('drives the shared input machine for the console scope and publishes its draft', async () => {
+    const { ctx, slots, sessions, machines } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    await sessions.add({ id: 's2', summary: { updatedAt: 200 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // Nothing is scoped, so nothing resolves a machine and a write reaches none.
+    expect(face.hooks.composer.getSnapshot()).toEqual(UNBOUND_COMPOSER)
+    face.composerActions.setDraft('unscoped')
+    face.composerActions.submit()
+    expect(machines.size).toBe(0)
+
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.composer.getSnapshot()).toEqual({ ready: true, draft: '', failed: false })
+
+    // Typing goes into the machine, and what the machine holds is what the field
+    // renders back: the console keeps no draft of its own.
+    face.composerActions.setDraft('Repair the composer')
+    expect(machines.get('s1')!.setDraft).toHaveBeenCalledWith('Repair the composer')
+    expect(face.hooks.composer.getSnapshot().draft).toBe('Repair the composer')
+
+    // The other session has its own machine and its own draft, and coming back
+    // to the first reads that machine again rather than a private copy.
+    face.store.setSelectedSession('s2')
+    expect(face.hooks.composer.getSnapshot().draft).toBe('')
+    face.store.setSelectedSession('s1')
+    expect(face.hooks.composer.getSnapshot().draft).toBe('Repair the composer')
+
+    // A scoped session that resolves nothing leaves the composer unbound, and no
+    // write lands on the machine the console left behind.
+    face.store.setSelectedSession('missing')
+    expect(face.hooks.composer.getSnapshot()).toEqual(UNBOUND_COMPOSER)
+    face.composerActions.setDraft('nowhere')
+    face.composerActions.submit()
+    expect(machines.get('s1')!.setDraft).toHaveBeenCalledTimes(1)
+    expect(machines.get('s1')!.submit).not.toHaveBeenCalled()
+
+    await fiber.dispose()
+  })
+
+  it('submits the composed draft through the machine once, multi-line text included', async () => {
+    const { ctx, slots, sessions, machines } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    face.composerActions.setDraft('line one\nline two')
+    face.composerActions.submit()
+
+    // The machine owns both the text and the submission, so one send carries the
+    // whole multi-line draft through the chat composer's own path.
+    const machine = machines.get('s1')!
+    expect(machine.submit).toHaveBeenCalledTimes(1)
+    expect(machine.state.getSnapshot().draft).toBe('line one\nline two')
+
+    await fiber.dispose()
+  })
+
+  it('republishes only when a projected fact moves, and follows the session send failure', async () => {
+    const { ctx, slots, sessions, machines } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    await sessions.add({ id: 's2', summary: { updatedAt: 200 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    const published = face.hooks.composer.getSnapshot()
+
+    // A machine revision that moves neither the draft nor the failure publishes
+    // nothing, so the bound hook keeps one snapshot reference.
+    await stabilize(() => {
+      const machine = machines.get('s1')!
+      machine.state.set({ ...machine.state.getSnapshot(), phase: 'submitting' })
+    })
+    expect(face.hooks.composer.getSnapshot()).toBe(published)
+
+    // The session's own prompt failure is the composer's error fact — the same
+    // object-layer value the chat composer announces for the same draft.
+    await sessions.updateSessionSnapshot('s1', (draft) => {
+      draft.promptError = { op: 'send', error: { code: 'session/prompt-failed', message: 'boom' } } as never
+    })
+    const errored = face.hooks.composer.getSnapshot()
+    expect(errored.failed).toBe(true)
+    expect(errored.draft).toBe('')
+
+    // A session revision that moves no projected fact publishes nothing either.
+    await sessions.updateSessionSnapshot('s1', (draft) => { draft.running = true })
+    expect(face.hooks.composer.getSnapshot()).toBe(errored)
+
+    // Another session's composer carries that session's own facts.
+    face.store.setSelectedSession('s2')
+    expect(face.hooks.composer.getSnapshot()).toEqual({ ready: true, draft: '', failed: false })
+
+    await fiber.dispose()
+  })
+
+  it('stops following the scoped machine when the fiber is disposed', async () => {
+    const { ctx, slots, sessions, machines } = await bench()
+    declareSidebar(slots)
+    await sessions.add({ id: 's1', summary: { updatedAt: 100 } }, { current: false })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+    face.composerActions.setDraft('scoped')
+    expect(face.hooks.composer.getSnapshot().draft).toBe('scoped')
+
+    await fiber.dispose()
+    await stabilize(() => {
+      const machine = machines.get('s1')!
+      machine.state.set({ ...machine.state.getSnapshot(), draft: 'after disposal' })
+    })
+    expect(face.hooks.composer.getSnapshot().draft).toBe('scoped')
+
+    // The writers no longer address any machine.
+    face.composerActions.setDraft('nowhere')
+    face.composerActions.submit()
+    expect(machines.get('s1')!.setDraft).toHaveBeenCalledTimes(1)
+    expect(machines.get('s1')!.submit).not.toHaveBeenCalled()
   })
 
   it('wires the remote-backed verbs over their namespaces', async () => {

@@ -79,7 +79,34 @@ plugins:
 <a id="settings-page"></a>
 ## Settings page
 
-The connection fields (`agentId`, `transport`, `brokerUrl`, `consoleBaseUrl`, `mqttUsername`, `mqttPassword`, `token`) are exposed as a **console-bridge** namespace in the configuration UI. The cordis plugin config forms the `base` layer that the page overrides, so the page only stores what an operator edits. `mqttPassword` and `token` are schema-declared secrets: the settings service redacts them from every wire view, a blank field writes nothing (so saving other fields never wipes a stored secret). Identity and transport changes `applies: 'restart'` — the bridge reconnects with the new connection only after a restart.
+The plugin owns two settings namespaces, and registering a namespace is what makes the plugins tab render a card for it. The cards themselves ship as client packages; this plugin supplies the Host half each one binds.
+
+**`console-bridge`** — the connection fields (`agentId`, `transport`, `brokerUrl`, `consoleBaseUrl`, `mqttUsername`, `mqttPassword`, `token`) are exposed as a **console-bridge** namespace in the configuration UI. The cordis plugin config forms the `base` layer that the page overrides, so the page only stores what an operator edits. `mqttPassword` and `token` are schema-declared secrets: the settings service redacts them from every wire view, a blank field writes nothing (so saving other fields never wipes a stored secret). Identity and transport changes `applies: 'restart'` — the bridge reconnects with the new connection only after a restart.
+
+**`console-pricing`** — the operator's price table, one row per `(baseUrl, provider, model)` route, plus the daily off-peak window that splits a session's tokens into price bands. Each row carries a `peak` and an `offPeak` set of three rates in currency units per million tokens: `cacheHit` for cache-read input, `cacheMiss` for uncached input, and `output`. A cache write has no rate of its own — it is charged at `cacheMiss`. The composition supplies no prices (they are operator data, not connection configuration), so this namespace declares no `base` layer and the stored settings document is its only source. Every row must name all three identity fields and all six rates, each rate finite and non-negative; an absent `models` key and an empty array both mean "no prices recorded" and are valid. A stored table is rejected loudly rather than silently repaired — schemastery cannot express finiteness, so the registration adds an owner check for it, naming the row, band, and rate it refused. Price edits apply live.
+
+```yaml
+console-pricing:
+  models:
+    - baseUrl: https://api.deepseek.com
+      provider: deepseek-official
+      model: deepseek-v4-flash
+      peak:
+        cacheHit: 0.1
+        cacheMiss: 0.5
+        output: 1.5
+      offPeak:
+        cacheHit: 0.05
+        cacheMiss: 0.25
+        output: 0.75
+  offPeak:
+    # Quote both times: YAML reads an unquoted 22:30 as the number 1350.
+    start: "22:30"
+    end: "06:15"
+    timezone: Asia/Kolkata
+```
+
+`offPeak` is optional, and absent means every hour is charged at the peak price. Its window is `[start, end)` as **local wall-clock** times in an IANA `timezone`, and it wraps past midnight when `end` is not later than `start` (so `22:30`–`06:15` covers the night in one entry). Both times must be `HH:MM` on a 24-hour clock and the zone must be one the runtime's `Intl` resolves; either violation refuses the write (and refuses the load of a hand-edited document), naming the rejected value, because a window the accounting cannot read would silently charge every token at the peak price. The session token accounting reads this window and decides each request's band at fold time from the event that reported its tokens, never from the clock at display time.
 
 -----
 

@@ -34,20 +34,13 @@
   color: inherit;
 }
 
-.dialog {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 320px;
-}
-
-.dialogHeading {
-  margin: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: 15px;
-}
-
+/* Dialog body: the search row and the catalog. The card geometry, title row,
+   padding, and scrolling all belong to the shared panel-sized Modal, so this
+   file styles only the catalog itself. */
 .searchInput {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 6px 10px;
   border: 0.5px solid var(--dsw-alias-border-l2);
@@ -58,11 +51,20 @@
   line-height: 20px;
 }
 
+.searchInput input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
 .entryList {
   display: flex;
   flex-direction: column;
-  max-height: 300px;
-  overflow: auto;
+  margin-top: 12px;
   gap: 2px;
 }
 
@@ -107,34 +109,9 @@
   font-size: 13px;
 }
 
-.dialogFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.dialogFooterActions {
+.dialogActions {
   display: flex;
   gap: 8px;
-}
-
-.actionButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.actionButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover-solid);
-  color: var(--dsw-alias-label-primary);
 }
 
 .selectedCount {

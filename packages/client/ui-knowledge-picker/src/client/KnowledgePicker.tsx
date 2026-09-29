@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { IconDatabaseOutline16, IconSearchOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconDatabaseOutline16, IconSearchOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { KnowledgeEntryId } from '@deepseek-ai/dsh-knowledge/types'
 import type { KnowledgePickerEntry, KnowledgePickerSource, KnowledgePickerState } from './store.ts'
@@ -59,45 +59,46 @@ function PickerDialog({ state, toggle, confirm, onClose, t }: {
   const entries = filterEntries(state.entries, query)
   const selectedCount = state.selectedIds.length
   return (
-    <Modal open onClose={onClose} title={t('dialogTitle')} headless>
-      <div className={css.dialog}>
-        <h3 className={css.dialogHeading}>{t('dialogTitle')}</h3>
-        <label className={css.searchInput}>
-          <IconSearchOutline16 aria-hidden="true" />
-          <input
-            type="text"
-            placeholder={t('search')}
-            aria-label={t('search')}
-            value={query}
-            onChange={(event) => { setQuery(event.currentTarget.value) }}
-          />
-        </label>
-        <div className={css.entryList}>
-          {entries.length === 0 ? <div className={css.empty}>{t('empty')}</div> : null}
-          {entries.map(entry => (
-            <label key={String(entry.id)} className={css.entryRow}>
-              <input
-                type="checkbox"
-                className={css.entryCheckbox}
-                checked={state.selectedIds.includes(entry.id)}
-                onChange={() => { toggle(entry.id) }}
-              />
-              <span className={css.entryTitle}>{entry.title}</span>
-              <span className={css.entryCategory}>{entry.category}</span>
-            </label>
-          ))}
-        </div>
-        <div className={css.dialogFooter}>
+    <Modal
+      open
+      onClose={onClose}
+      size="panel"
+      title={t('dialogTitle')}
+      closeLabel={t('close')}
+      footer={(
+        <>
           <span className={css.selectedCount}>{t('selected', { count: String(selectedCount) })}</span>
-          <div className={css.dialogFooterActions}>
-            <button type="button" className={css.actionButton} onClick={onClose}>
-              {t('cancel')}
-            </button>
-            <button type="button" className={css.chip} onClick={confirm}>
-              {t('confirm')}
-            </button>
+          <div className={css.dialogActions}>
+            <Button variant="outline" onClick={onClose}>{t('cancel')}</Button>
+            <Button variant="primary" onClick={confirm}>{t('confirm')}</Button>
           </div>
-        </div>
+        </>
+      )}
+    >
+      <label className={css.searchInput}>
+        <IconSearchOutline16 aria-hidden="true" />
+        <input
+          type="text"
+          placeholder={t('search')}
+          aria-label={t('search')}
+          value={query}
+          onChange={(event) => { setQuery(event.currentTarget.value) }}
+        />
+      </label>
+      <div className={css.entryList}>
+        {entries.length === 0 ? <div className={css.empty}>{t('empty')}</div> : null}
+        {entries.map(entry => (
+          <label key={String(entry.id)} className={css.entryRow}>
+            <input
+              type="checkbox"
+              className={css.entryCheckbox}
+              checked={state.selectedIds.includes(entry.id)}
+              onChange={() => { toggle(entry.id) }}
+            />
+            <span className={css.entryTitle}>{entry.title}</span>
+            <span className={css.entryCategory}>{entry.category}</span>
+          </label>
+        ))}
       </div>
     </Modal>
   )

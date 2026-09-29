@@ -16,27 +16,44 @@ console-bridge 迁移需要一个浏览器工作台，而旧的 apiproxy 界面�
 | --- | --- |
 | 会话列表 / 状态 / 当前 | 基于 `ctx.sessions.list` 的 `useSessions` |
 | 转发的会话活动 | `ctx.remote.$on('api-session/activity' \| 'status')` |
+| 首次打开时的时间线回填 | `apply` 中对 `ctx.sessions.list.getSnapshot()` 的一次性读取 |
+| 选中会话的对话 | `apply` 中由 `deriveTimelineMessages` 折叠的 `SessionBinding.eventSource` 与该会话的 `sessionStats` 投影面 |
+| 选中会话的输入框草稿与提交 | 该会话的 Agent 作用域：`ctx.sessions.scope(id)?.get('conversation')` 给出 Conversation 服务，其 `input.for(scope)` 给出该会话的输入机（`SessionInput`）；该机的 `state` store 是草稿的读取方，`setDraft`/`submit` 是它的写方法 |
 | 主机资源指标 | `ctx.remote.$on('host/metrics')` |
-| 待处理的 `ask_user_question` / `plan-review` | 基于 `ctx.uiSession.pendingInteractions` 的 `useSessionPendingInteraction` |
+| 任何待处理交互（`approval` / `question` / `plan-review`） | 基于 `ctx.uiSession.pendingInteractions` 的 `useSessionPendingInteraction` |
 | 累计任务统计 | `SessionSummary.projectionValues` 上的 `sessionStats` 投影 |
+| 模型费用 | 按 `console-pricing` 设置表计价的 `sessionStats.routes`（整会话）与 `sessionStats.turnRoutes`（单个轮次，记在关闭它的那条回复上） |
 | 侧栏底部操作 | `ctx.slots.inject('sidebar.footer.action', …)` |
 | 全屏遮罩 | `dsh-client-ui-primitives` 的 `Modal` |
 | 智能问答补全 | `ctx.remote.llm.chat(request)` -> `AsyncIterable<LlmChatChunk>` |
 
-store 由 `apply` 中转发来的 `api-session/*` 与 `host/metrics` 事件供给，并通过 register 的 `hooks` 命名空间暴露给组件（renderer 绑定出 `useConsole`），因此没有跨包值导入越过客户端打包纯度门。注册是标准的三面（`tsconfig.client.json`、web-app `cordis.patch.yml` 的 `dsh.client` 行、web-app 依赖），外加源码启动解析器需要的手写 `tsconfig.base.json` `paths` 别名。
+store 由 `apply` 中转发来的 `api-session/*` 与 `host/metrics` 事件供给 —— 三个订阅在页面存续期内无条件安装 —— 并在工作台首次于空时间线上打开时，从 `ctx.sessions.list` 一次性回填。同一个闭包还持有控制台作用域的订阅：每次 `selectedSession` 变化时，它先释放上一个会话的两个订阅，再解析 `ctx.sessions.binding(sessionId)`，并发布 `deriveTimelineMessages` 从该 binding 的事件窗口加上该会话的 `sessionStats.turnRoutes` 桶折叠出的消息 —— 回复自身的 token 总数来自 `assistant/message` 事件的 `usage`，而一个轮次的费用落在关闭它的那一条回复上 —— 因此卡片自身不新增任何订阅机制。它通过 register 的 `hooks` 命名空间暴露给组件（renderer 绑定出 `useConsole`、`usePrices`、`useMessages` 与 `useComposer`），因此没有跨包值导入越过客户端打包纯度门。同一个闭包还负责输入机的解析：作用域变化时它读取该会话的作用域、解析其输入机，并把该机的草稿与该会话快照的 `promptError` 发布进第二个 `hooks` 源；注入的 `composerActions` 调用该机自己的 `setDraft` 与 `submit`。因此控制台的输入框不持有自己的草稿 —— 在那里输入的草稿就是聊天视图显示的草稿，发送也走聊天自己的提交路径 —— 卡片也不新增任何订阅机制。注册是标准的三面（`tsconfig.client.json`、web-app `cordis.patch.yml` 的 `dsh.client` 行、web-app 依赖），外加源码启动解析器需要的手写 `tsconfig.base.json` `paths` 别名。
 
 ## Alternatives considered
 
 ### 完整移植源码工作台，包括其对话框与内联回答卡片
 
-已拒绝。源码对话框（带工作区/预设的新建会话、重命名/派生/归档右键菜单、内联编写器）调用的目标 API 无法干净映射（`api.sessions.prompt`、`api.agentPresets.*`、`api.workspace.*` 并非今日存在的 `ctx.sessions` 与 Remote 界面），而内联 `ask_user_question` 回答卡片需要具体的 `PendingQuestion` 呈现类，它位于 `ui-user-questions` —— 这是客户端打包纯度门禁止的跨功能运行期值导入。因此工作台做成了监控镜像：它标识哪些会话有待处理提问或计划审阅，但回答属于对话编辑器。
+已拒绝。源码对话框（带工作区/预设的新建会话、重命名/派生/归档右键菜单、内联编写器）调用的目标 API 无法干净映射（`api.sessions.prompt`、`api.agentPresets.*`、`api.workspace.*` 并非今日存在的 `ctx.sessions` 与 Remote 界面），而内联 `ask_user_question` 回答卡片需要具体的 `PendingQuestion` 呈现类，它位于 `ui-user-questions` —— 这是客户端打包纯度门禁止的跨功能运行期值导入。因此工作台做成了监控镜像：它标识哪些会话有待处理交互，但回答属于对话编辑器。
 
 ### 通过渲染出的 inject 值把 store 暴露给组件
 
 已拒绝。在 `apply` 中手工构造选择器钩子需要 `bindSnapshotSelector`，它位于 `ui-renderer` 且不是被许可的跨包值导入（打包纯度门会拒绝）。合法路径是 register 的 `hooks` 命名空间，由 renderer 在绑定点绑定为 `use<Name>` 选择器钩子。
 
+### 把扁平 token 总量按会话当前模型计价
+
+否决。一次会话可能中途换模型，而 `sessionStats` 每会话只报一个扁平 token 总量；按会话当下的模型给这个总量计价，会为每一步由其他路由服务的 token 多收或少收。因此投影折叠 `request/header`——它在步骤内记录，且只在头部变化时记录，所以折叠把路由向前携带——并按 `(provider, model)` 给 `assistant/message` 的用量分桶。
+
+### 把未定价的路由显示为 0
+
+否决。运营者配置的 `console-pricing` 表是唯一价格来源，表里没有的路由意味着费用未知，而不是免费；`totalCost` 把这类路由单独返回，卡片渲染「未定价」而不是数字。被表标价为零的路由仍然显示 0，因为那是一条已记录的事实。
+
 ## Consequences
 
-- 控制台是监控镜像，而非完整的对话界面：待处理交互只列出、不回答；时间线是对转发 `api-session/*` 事件的粗略标签，而非完整会话事件窗口。
+- 费用在两种作用域下都渲染，且限定作用域时是精确值：`aggregateSessionStats` 会跳过作用域之外的每个会话，只累加该会话自己的 `sessionStats.routes` 桶，因此总额计的是这次对话自身的费用，而不是共享价格表中的份额。
+- 一个会话方格一次手势只做一件事，工作台也只保留一个作用域。左键点击设置选中会话，这一个值同时驱动任务统计的作用域行与费用、时间线列出的行、以及输入框的目标；会话卡标题栏的「全部会话」pill 一次点击就把这三者都恢复到整个列表，而时间线通过在标题旁标出该会话来表明自己已被限定，不再自带第二个清除控件。右键菜单承载作用于该会话的动作：打开会切换应用当前会话，重命名、Fork、归档则修改它。打开是菜单项而不是点击，因为工作台是全屏的：一次切换应用会话的点击在面板关闭前没有任何可见效果。
+- 网格铺出哪些方块是第二个独立选择，同样存放在这个 store 里。`sessionBucket` 按已归档、运行中、等待输入、已完成、空闲的顺序为每个会话推导出五个互斥分桶之一，卡标题栏的筛选下拉则逐个切换它们；它默认勾选运行中、等待输入与空闲，因此已完成与已归档的方块在操作者勾选前不显示。它的等待输入分桶取「任何待处理交互」，而不是一串种类的枚举，这与统计视图统计「等待输入」计数所用的 `pendingKindOf(id) !== undefined` 是同一个判断，因此该计数不会算上一个随后被这个分桶排除的会话；具体是哪种交互仍由 `sessionPhase` 负责，因为画方块的是相位。筛选只收窄方块 —— 统计视图上报的每个计数仍统计整个会话列表 —— 而被它清空的网格会点名筛选条件，而不是声称没有会话。
+
+- 控制台不是完整的对话界面 —— 待处理交互只列出、不回答 —— 它的唯一作用域驱动两种时间线视图。未限定范围时保留粗略镜像：转发的 `api-session/*` 行，加上首次打开时列表已持有的每个会话一行回填的 `history`。限定到某个会话时则渲染该会话自身的对话，由 `apply` 从该会话的事件窗口折叠而来，而该窗口由 Session Controller 填入部分尾部以及它已取回的更早分页；卡片只渲染窗口持有的内容，从不抓取。每条回复携带来自 `assistant/message` 事件 usage 的自身 token 总数，每个轮次的费用则落在关闭该轮次的那条回复上，因此跨多个步骤的一个轮次只被计一次费。
 - 在配置 `console-bridge.smartQaModel`（形如 `provider/model`）之前，智能问答保持禁用；没有客户端模型目录 Remote 可用来种子一个默认值。
+- 控制台输入框只有输入框与发送操作，其无控件形态是刻意的：附件按钮，权限、工作区与模型控件，以及斜杠指令与 `@` 提及浮层，都属于对话入口自身的组件、经由它的子槽位到达，而槽位注册表对每个键只允许一个存续声明者 —— 该组合的第二份副本会在加载时抛错。它们留在聊天界面上。控制台的发送采用输入机自身的默认投递方式（`queue`），因为 busy-Enter 的「队列 / 实时插入」偏好是 `ui-conversation` 的提交策略，功能包无法以值的形式导入它。
 - `ctx.remote.llm.chat` 由控制台的智能问答面板端到端覆盖（wire 形态见 `chat` Remote 的 Agent Note）。

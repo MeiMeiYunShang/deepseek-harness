@@ -10,28 +10,32 @@ export type TimelineTone =
   | 'hollow'
 
 /** Dictionaries keys a timeline kind can render a label from. */
-export type TimelineLabelKey = 'timelineActivity' | 'timelineStatus'
+export type TimelineLabelKey = 'timelineActivity' | 'timelineStatus' | 'timelineHistory'
 
 /**
- * Label key for a timeline kind. The store only ever holds the `activity` and
- * `status` kinds (see {@link TimelineKind}), so an unknown kind degrades to the
- * activity label rather than rendering the raw kind.
+ * Label key for a timeline kind. The store only ever holds the `activity`,
+ * `status`, and `history` kinds, so an unknown kind degrades to the activity
+ * label rather than rendering the raw kind.
  * @param kind - coarse timeline kind.
  * @returns the dictionary key to translate.
  */
 export function timelineLabelKey(kind: string): TimelineLabelKey {
   if (kind === 'status') return 'timelineStatus'
+  if (kind === 'history') return 'timelineHistory'
   return 'timelineActivity'
 }
 
 /**
  * Leading-dot tone for a timeline kind. Status events read as completed
- * (green), everything else as the brand-blue informational dot.
+ * (green), a backfilled history row reads as the muted recorded snapshot it
+ * is, and everything else as the brand-blue informational dot.
  * @param kind - coarse timeline kind.
  * @returns the tone, which selects a CSS class suffix.
  */
 export function timelineTone(kind: string): TimelineTone {
-  return kind === 'status' ? 'action' : 'info'
+  if (kind === 'status') return 'action'
+  if (kind === 'history') return 'neutral'
+  return 'info'
 }
 
 /** Shorten a session id for display (keeps a trailing stable suffix).

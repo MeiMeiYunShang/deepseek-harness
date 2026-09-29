@@ -10,7 +10,7 @@ import type {
   SlotHookFactory, SnapshotSelectorHook,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { MarkdownFileMentions, ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { createChatStore } from '../stores.ts'
 import type { ToolCallId } from './store.ts'
@@ -90,6 +90,13 @@ export interface ChatNodeOwnerProps {
   loadImage: MessageImageLoader
   renderMessageImages: RenderMessageImages
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
+  /**
+   * The operator's model price table, read from the `console-pricing` settings
+   * namespace by the Chat target. A renderer that shows a charge prices the
+   * turn's own route buckets against it; an empty table leaves every route
+   * unpriced rather than free.
+   */
+  prices: readonly ModelPrice[]
   /** Turn-process state when this Node belongs to a projected Turn. */
   turnProcess?: TurnProcessOwnerProps | undefined
 }
@@ -130,6 +137,11 @@ export interface ChatViewInjected {
   hooks: {
     /** Persisted completed-Turn transcript presentation. */
     transcriptView: SnapshotStore<TranscriptViewMode>
+    /**
+     * The operator's model price table for the Turn cost figure; the policy
+     * adopts the `console-pricing` settings section as it arrives.
+     */
+    prices: SnapshotStore<readonly ModelPrice[]>
   }
   keyedHooks: {
     /** Resolve the stable source for one Chat Node key. */

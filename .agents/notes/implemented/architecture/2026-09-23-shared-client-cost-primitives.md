@@ -1,0 +1,50 @@
+# Agent Note: Shared client cost primitives
+
+Status: implemented
+
+English | [中文](2026-09-23-shared-client-cost-primitives.zh.md)
+
+## Problem
+
+Two client packages price the same tokens. The console's Task-statistics card renders a whole-session cost, and the chat action row renders a per-Turn cost; both are the operator's `console-pricing` table applied to provider-reported counts, so both need one set of charge rules — how a band's four disjoint counts map onto that band's three rates, which route a bucket belongs to, and what a route the table cannot price renders as.
+
+A feature plugin cannot hand those rules to another feature plugin. [packages/client/AGENTS.md](../../../../packages/client/AGENTS.md) forbids a feature plugin from runtime-importing or re-exporting another feature plugin's values, and forbids `dsh.client.external` as a way to obtain them, so the cheap move for the second money surface is a copy. The charge arithmetic itself left `ui-console` when the chat figure needed it; the price-table adoption policy — the other half of every figure — was written twice, one copy inside each feature package ([decision](../feature/2026-09-23-turn-cost-in-assistant-action-row.md)).
+
+Size is not what made the copy dangerous. The two policy copies were byte-identical in executable code, so prose was their only difference, and the rule they carried is the one a reader cannot check from a rendered figure: a route with no price row is unpriceable rather than free, and several rows naming one provider and model cannot be told apart because a reported bucket carries no endpoint, so neither may be charged at zero or at another endpoint's rate. A copy that loses that rule prints a plausible wrong number instead of showing no figure, and no test on either surface notices, because each surface only ever observes its own copy. The duplicate detector was what finally reported the pair, as 41 lines and 163 tokens of cloned TypeScript.
+
+## Decision
+
+**`@deepseek-ai/dsh-client-ui-primitives` is the one home of the client cost code both money surfaces share.** Two Cordis-free, React-free value modules carry it, and the package's index exports them beside its React atoms: [`src/pricing.ts`](../../../../packages/client/ui-primitives/src/pricing.ts) holds the band-aware charge arithmetic, and [`src/price-table.ts`](../../../../packages/client/ui-primitives/src/price-table.ts) holds `PriceTablePolicy`, the operator table adopted from the `console-pricing` settings namespace. The console cost figure and the chat Turn figure both import them from there, and neither feature package keeps a local copy.
+
+Ownership is half the decision; the rule also has to be findable. The [ui-primitives README](../../../../packages/client/ui-primitives/README.md) carries one catalog row naming all five cost exports and a cost-arithmetic section stating the unpriced/ambiguous rule, so an author adding a third money surface reads one file instead of searching feature packages. `packages/client/AGENTS.md` names `ui-primitives` as the narrow static owner shared client runtime code belongs in, beside `client/store` and a browser-safe utility package.
+
+This extends a rule the package already had. A control that a second client package needs lives in `ui-primitives` ([decision](2026-09-05-shared-client-control-primitives.md)); a value module two client packages need lives there for the same reason. `ui-primitives` is a library rather than a feature plugin — zero Cordis, zero slots — so importing it is not the cross-feature value import the export discipline forbids.
+
+## Why ui-primitives
+
+- **It is already a shared module identity.** The shell seeds `PLATFORM_MODULES` with `@deepseek-ai/dsh-client-ui-primitives` ([platform.ts](../../../../packages/client/web/src/platform.ts)), so every dynamic client bundle reaches one copy of it without a manifest entry, a `dsh.client.external` request, or a module-graph edge to declare.
+- **It already owned the arithmetic.** Promoting the policy anywhere else would have split one cost figure's two halves across two owners and left the shared arithmetic taking an input each consumer produced on its own terms.
+- **Its README is where a client author starts.** The component catalog is the checklist entry point for new client code, and the cost-arithmetic section sits in the same file as the catalog row.
+
+## Alternatives considered
+
+**A policy copy in each feature package.** Rejected. This is the state the promotion ended, and the copies made their own case: their executable code was byte-identical, so there was no deliberate difference to preserve, and the comments that did differ described the same behaviour from each reader's side. The duplication gate reports identical copies; it does not report a copy that drifts by a line, which is the failure the rule actually has — two surfaces rendering figures for the same tokens under two versions of the unpriceable-route rule.
+
+**Exporting the policy from `ui-chat`'s or `ui-console`'s `/client` entry.** Rejected. A feature plugin must not runtime-import or re-export another feature plugin's values, and a `/client` entry is a package's public browser API rather than a shelf for a shared helper. The dependency would also point the wrong way: the console's whole-session figure would depend on the chat feature package for arithmetic neither feature owns, and the next money surface would add a third edge.
+
+**A new package for the shared cost code.** Rejected. Neither module has a lifecycle — no service, no slot, no effect — so a new `packages/client/*` package would pay the full package skeleton (manifest, `dsh.client` row, bundle registration, tsconfig aggregate entry, README, published files list) for two pure modules. A dynamic client bundle could then reach it only through a new baseline identity seeded in the shell's module table, or through a `dsh.client.external` request that the export discipline permits only for infrastructure, transport, and generated assembly. `ui-primitives` is already the baseline identity and already held the arithmetic.
+
+**Sharing the arithmetic while leaving the policy duplicated.** Rejected. This is what the intermediate state did, and it kept the half the detector had flagged. The two copies had also diverged in the only place a copy can diverge before behaviour does: their headers described the policy from each reader's own side, and the console's copy asserted that the chat figure adopted "the same namespace through its own copy of this policy" and named `ui-primitives` as the shared home both readers would move to. Keeping them apart meant every later change to adoption — the clearing rule, the section it reads — had to be made twice to stay in step.
+
+## Consequences
+
+- The two money surfaces cannot disagree about the same tokens: `priceOf`, `costOf`, and `totalCost` are one implementation, so the unpriceable-route rule has one place to change, and a third money surface imports the same functions instead of writing a third rule.
+- No charge changed. The two copies' executable code was byte-identical, both readers import the same module, and the moved specs pin the same behaviour.
+- **A change in this package reaches a browser only through the shell artifact.** `ui-primitives` is a statically linked library ([client shell layering decision](2026-08-15-client-shells-and-dynamic-packages.md)): its `lib/index.js` is merged into `apps/web/dist` by the Vite host rather than delivered as a `lib/client.js` plugin row, so an edit needs `pnpm run build:lib:client` and then `pnpm run build:web`, and the served page then needs a reload — a static library has no plugin-row revision for HMR to hash, so it never gets the refresh-free reload a feature plugin's bundle does. A rebuilt dist needs no server restart, because [frontend-static](../../../../packages/host/frontend-static/src/index.ts) reads `dist/index.html` per request.
+- **The dev watcher covers both stages and fails silently when one is missing.** `pnpm run dev:web` watches the client-preset library packages the shell links — `packages/client/ui-primitives` among the five — alongside the `dsh.client` plugin packages, and the shell's own Vite watch re-merges `lib/` into dist. Its stages are incremental over a prior full build and none of them bootstraps a missing tree, so a stale or absent stage shows the previous artifact instead of failing, which presents as "my edit did nothing" ([scripts/dev-web.ts](../../../../scripts/dev-web.ts)).
+- **A dependency edge added here is recorded with its lockfile in the same commit.** The promotion added three dev-only edges to `ui-primitives/package.json` — `dsh-client-store`, `dsh-client-test-runtime`, and `dsh-client-ui-settings` — and the lockfile was recorded in a separate commit, because a frozen-lockfile install rejects a manifest the lockfile does not describe. They stay dev-only, as browser and type relationships do.
+- **The repo-wide clone gate stays red for other code.** `pnpm run duplication` found 9 clones before the promotion and 8 after; the removed one is the paired policy. All eight survivors were already reported at the commit before the console cost work began, and none is this module: two `ui-console` cards, `console-bridge/src/index.ts`, and five inside `mcpsec-manager`. A green duplication gate is not a claim this change can make.
+
+## Testing
+
+`packages/client/ui-primitives/tests/pricing.client.spec.ts` and `packages/client/ui-primitives/tests/price-table.client.spec.ts` cover the two modules inside the per-file coverage gate. Each surface keeps its own spec — the chat Turn figure's amount, unpriced, ambiguous, and no-bucket cases in `ui-chat`, and the console card's adoption in `price-table-apply.client.spec.tsx` — so the shared rule and each figure's rendering of its result stay separately asserted. The console card's unpriced-route rendering is also what [the console workbench decision](2026-09-01-ui-console-workbench-seams.md) rejected charging as zero.

@@ -43,7 +43,7 @@ kind: "package-library"
 | `StateDot` | 状态标记：`done`、`warning`、`ongoing`、`error` 或 `idle`。它是 `aria-hidden` 的，名称由渲染点提供。 |
 | `ConnectionIndicator` | 行内连接恢复控件，覆盖断线、重试与已恢复三种状态。 |
 | `DisclosureRow` | 24px 紧凑折叠行，标题与内容左右排列。 |
-| `Modal` | 页面遮罩之上的居中对话框。 |
+| `Modal` | 页面遮罩之上的居中对话框；`size` 选择 380px 的 `compact` 表单卡片，或内容型弹窗与设置页共享的 800px `panel` 面。 |
 | `RiskConfirmation` | 以显式复选框把关的敏感操作确认。 |
 | `OnboardingSurface` | 首次运行的引导舞台，期间保持应用根节点 inert。 |
 | `Tooltip` | 克隆锚点上的悬停文本，可置于右、下、上三个方向。 |
@@ -53,6 +53,7 @@ kind: "package-library"
 | `MarkdownText`、`CodeBlock` | 不可信 GFM 与 TeX 数学，以及高亮代码。 |
 | `TerminalBlock`、`ReadBlock`、`DiffBlock`、`SearchBlock`、`WebBlock` | 与各类工具结果意图对应的 agent 输出卡片。 |
 | `icons/*`、`FishLogo`、`BrandWordmark`、`ReferenceIcon`、`LinkIcon`、`DocumentFileIcon` | 字形与品牌标识，全部随 `currentColor`。 |
+| `PriceTablePolicy`、`formatAmount`、`priceOf`、`costOf`、`totalCost` | 所有客户端费用数字背后的运营者价格表：已采纳的价格表，以及据此计算的算术。 |
 
 有三组容易混淆：
 
@@ -61,6 +62,12 @@ kind: "package-library"
 - **`FoldToggle` 与对外导出面。** 它是包内组件，未导出；输出卡片用它做头尾折叠。
 
 需求确实特殊时，在自己的包里写自己的组件没有问题。不可以的是复制这里已有的控件——而当第二个包需要同一个控件时，它就该住进本包（[决定](../../../.agents/notes/implemented/architecture/2026-09-05-shared-client-control-primitives.zh.md)）。
+
+### 费用算术
+
+`totalCost` 是控制台整会话数字与聊天轮次数字共用的唯一计费规则归属：每个包各存一份拷贝会让两个费用面就同一批 token 给出不同结果。它按价格行 `(baseUrl, provider, model)` 查找，并对每个时段用该时段自己的四项提供方计数计费——缓存读取按缓存命中价、未缓存输入与缓存写入按缓存未命中价、输出按输出价。上报的桶不带接口地址，因此只有恰好一行命中其 `provider`/`model` 时才计价：没有命中行报为未定价，多行命中报为价格不唯一，因为缺价不等于免费，而两个接口的单价也不可能同时计费。`formatAmount` 只负责数字；货币文案留在各包的 locale 词典里。
+
+出于同样的理由，`PriceTablePolicy` 是价格表采纳的唯一归属。它绑定 `CONSOLE_PRICING_NAMESPACE`，并在 Host 每接受一个设置 section 时重新发布运营者的 `models` 字段：section 重复同一张表时保留原引用，section 未记录价格表时清空。`settingsScope.bind` 在设置镜像敲定之前就返回，因此一次性读取会让每个数字无论运营者记录了什么都在页面存活期间显示为未定价。
 
 ### 控件与图标
 
@@ -95,6 +102,8 @@ kind: "package-library"
 | [`src/ReadBlock.tsx`](src/ReadBlock.tsx) / [`src/DiffBlock.tsx`](src/DiffBlock.tsx) | 读取与差异卡片 |
 | [`src/SearchBlock.tsx`](src/SearchBlock.tsx) / [`src/WebBlock.tsx`](src/WebBlock.tsx) | 搜索与网页检索卡片 |
 | [`src/icons/`](src/icons/) | `ic_ds_*` 字形组件与品牌标记 |
+| [`src/pricing.ts`](src/pricing.ts) | 所有费用面共用的运营者价格表计费算术 |
+| [`src/price-table.ts`](src/price-table.ts) | 从 `console-pricing` settings namespace 采纳的运营者价格表 |
 | [`src/useAnchoredPosition.ts`](src/useAnchoredPosition.ts) / [`src/useAnchoredMaxHeight.ts`](src/useAnchoredMaxHeight.ts) | 浮动面板与浮层几何钩子 |
 
 ### 流式 markdown

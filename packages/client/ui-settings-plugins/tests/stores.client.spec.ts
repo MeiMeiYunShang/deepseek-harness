@@ -26,6 +26,10 @@ import {
   type ConsoleBridgeTestRequest,
   type ConsoleBridgeTestResult,
 } from '../src/client/console-bridge-card-controller.ts'
+import {
+  ConsolePricingCardController, type ConsolePricingCardFace, type ConsolePricingRow, type ConsolePricingSettings,
+} from '../src/client/console-pricing-card-controller.ts'
+import type { SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 
 /** Make the stub behave like a Host that accepts every write. */
 function acceptWrites<T>(host: StubSettingsScope<T>): void {
@@ -1271,5 +1275,235 @@ describe('ConsoleBridgeCardController', () => {
     await vi.waitFor(() => {
       expect(face.hooks.consoleBridgeCard.getSnapshot()).toMatchObject({ failed: true, dirty: true })
     })
+  })
+})
+
+describe('ConsolePricingCardController', () => {
+  const chat: ConsolePricingRow = {
+    baseUrl: 'https://api.deepseek.com',
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    peak: { cacheHit: 0.07, cacheMiss: 0.27, output: 1.1 },
+    offPeak: { cacheHit: 0.04, cacheMiss: 0.14, output: 0.55 },
+  }
+  const reasoner: ConsolePricingRow = {
+    baseUrl: 'https://api.deepseek.com',
+    provider: 'deepseek',
+    model: 'deepseek-reasoner',
+    peak: { cacheHit: 0.14, cacheMiss: 0.55, output: 2.19 },
+    offPeak: { cacheHit: 0.07, cacheMiss: 0.28, output: 1.1 },
+  }
+  const stagedChat = {
+    baseUrl: 'https://api.deepseek.com',
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    peakCacheHit: '0.07', peakCacheMiss: '0.27', peakOutput: '1.1',
+    offPeakCacheHit: '0.04', offPeakCacheMiss: '0.14', offPeakOutput: '0.55',
+  }
+  const stagedReasoner = {
+    ...stagedChat,
+    model: 'deepseek-reasoner',
+    peakCacheHit: '0.14', peakCacheMiss: '0.55', peakOutput: '2.19',
+    offPeakCacheHit: '0.07', offPeakCacheMiss: '0.28', offPeakOutput: '1.1',
+  }
+
+  /** Stage every cell of one row, as an operator filling the form would. */
+  function fill(face: ConsolePricingCardFace, index: number, row: ConsolePricingRow): void {
+    face.editCell(index, 'baseUrl', row.baseUrl)
+    face.editCell(index, 'provider', row.provider)
+    face.editCell(index, 'model', row.model)
+    for (const band of ['peak', 'offPeak'] as const) {
+      face.editCell(index, `${band}CacheHit`, String(row[band].cacheHit))
+      face.editCell(index, `${band}CacheMiss`, String(row[band].cacheMiss))
+      face.editCell(index, `${band}Output`, String(row[band].output))
+    }
+  }
+
+  /** The card over one published section, with every write spy exposed. */
+  function card(
+    settings: ConsolePricingSettings,
+    published: Partial<SettingsScopeSnapshot<ConsolePricingSettings>> = {},
+  ) {
+    const host = stubSettingsScope<ConsolePricingSettings>()
+    const controller = new ConsolePricingCardController(host.scope)
+    host.publish({
+      status: 'ready', writable: true, revision: 1, value: settings, user: {}, ...published,
+    })
+    const face = controller.inject()
+    return { host, face, state: () => face.hooks.consolePricingCard.getSnapshot() }
+  }
+
+  it('shows the stored table, staged as typed, and stays clean until a cell is edited', () => {
+    const { host, face, state } = card({ models: [chat] })
+
+    expect(state()).toMatchObject({
+      available: true, writable: true, dirty: false, invalid: false, problem: undefined,
+      rows: [stagedChat],
+    })
+
+    face.editCell(0, 'peakCacheMiss', '0.5')
+
+    expect(state()).toMatchObject({ dirty: true, invalid: false, rows: [{ ...stagedChat, peakCacheMiss: '0.5' }] })
+    expect(host.set).not.toHaveBeenCalled()
+  })
+
+  it('treats an absent table as an empty one', async () => {
+    const { host, face, state } = card({})
+
+    expect(state()).toMatchObject({ available: true, dirty: false, problem: undefined, rows: [] })
+
+    face.save()
+    await Promise.resolve()
+
+    expect(host.set).not.toHaveBeenCalled()
+  })
+
+  it('writes the whole normalized table on save', async () => {
+    const { host, face, state } = card({ models: [] })
+    acceptWrites(host)
+
+    face.addRow()
+    fill(face, 0, { ...reasoner, provider: '  deepseek ' })
+    expect(host.set).not.toHaveBeenCalled()
+
+    face.save()
+    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledTimes(1) })
+
+    expect(host.set.mock.calls).toEqual([['models', [reasoner]]])
+    // The draft is dropped and the card re-reads what the Host stored.
+    expect(state()).toMatchObject({ dirty: false, failed: false, saving: false })
+    expect(state().rows).toEqual([stagedReasoner])
+  })
+
+  it('refuses every invalid table and writes none of them', async () => {
+    const { host, face, state } = card({ models: [] })
+
+    face.addRow()
+    // An empty endpoint, provider, then model, then a rate that is missing,
+    // unreadable, or negative: each names its own row and check.
+    expect(state()).toMatchObject({ dirty: true, invalid: true, problem: { kind: 'baseUrl', row: 0 } })
+    face.editCell(0, 'baseUrl', 'https://api.deepseek.com')
+    expect(state().problem).toEqual({ kind: 'provider', row: 0 })
+    face.editCell(0, 'provider', 'deepseek')
+    expect(state().problem).toEqual({ kind: 'model', row: 0 })
+    face.editCell(0, 'model', 'deepseek-chat')
+    expect(state().problem).toEqual({ kind: 'price', row: 0 })
+    face.editCell(0, 'peakCacheHit', 'soon')
+    expect(state().problem).toEqual({ kind: 'price', row: 0 })
+    face.editCell(0, 'peakCacheHit', '-1')
+    expect(state().problem).toEqual({ kind: 'price', row: 0 })
+    face.editCell(0, 'peakCacheHit', '0.07')
+    expect(state().problem).toEqual({ kind: 'price', row: 0 })
+    fill(face, 0, chat)
+    expect(state()).toMatchObject({ invalid: false, problem: undefined })
+
+    // A second row repeating the exact triple: the triple is what must be unique.
+    face.addRow()
+    fill(face, 1, chat)
+    expect(state().problem).toEqual({ kind: 'duplicate', row: 1 })
+
+    face.save()
+    await Promise.resolve()
+
+    expect(host.set).not.toHaveBeenCalled()
+    expect(state().rows).toHaveLength(2)
+  })
+
+  it('accepts one model reached through two endpoints', async () => {
+    // Two endpoints price the same model differently, so both rows are distinct
+    // routes rather than a duplicate key.
+    const { host, face, state } = card({ models: [] })
+    acceptWrites(host)
+    const proxy = { ...chat, baseUrl: 'https://proxy.example.com' }
+
+    face.addRow()
+    fill(face, 0, chat)
+    face.addRow()
+    fill(face, 1, proxy)
+    expect(state()).toMatchObject({ invalid: false, problem: undefined })
+
+    face.save()
+    await vi.waitFor(() => { expect(host.set).toHaveBeenCalledTimes(1) })
+
+    expect(host.set.mock.calls).toEqual([['models', [chat, proxy]]])
+  })
+
+  it('drops one row, and drops the whole draft on discard', () => {
+    const { host, face, state } = card({ models: [chat, reasoner] })
+
+    face.removeRow(0)
+    expect(state().rows).toEqual([stagedReasoner])
+
+    face.discard()
+    expect(state()).toMatchObject({ dirty: false, rows: [stagedChat, stagedReasoner] })
+
+    // A discard with nothing staged writes nothing further.
+    face.discard()
+    expect(host.set).not.toHaveBeenCalled()
+  })
+
+  it('drops a draft that settles back on the text already stored', async () => {
+    const { host, face, state } = card({ models: [chat] })
+
+    face.editCell(0, 'provider', 'deepseek-other')
+    face.editCell(0, 'provider', 'deepseek')
+    expect(state().dirty).toBe(false)
+
+    face.save()
+    await Promise.resolve()
+
+    expect(host.set).not.toHaveBeenCalled()
+  })
+
+  it('keeps the draft and reports a table the Host did not store', async () => {
+    const { host, face, state } = card({ models: [] })
+
+    face.addRow()
+    fill(face, 0, chat)
+    face.save()
+
+    // The stub accepted the call without storing anything, exactly as a Host
+    // validator that refuses the table does.
+    await vi.waitFor(() => { expect(state().failed).toBe(true) })
+
+    expect(host.set.mock.calls).toEqual([['models', [chat]]])
+    expect(state()).toMatchObject({ dirty: true, saving: false })
+    expect(state().rows).toEqual([stagedChat])
+  })
+
+  it('refuses a save while the namespace is not served, or the document is read-only', async () => {
+    const loading = stubSettingsScope<ConsolePricingSettings>()
+    const unserved = new ConsolePricingCardController(loading.scope).inject()
+    const { host, face } = card({ models: [] }, { writable: false })
+    for (const target of [unserved, face]) {
+      target.addRow()
+      fill(target, 0, chat)
+      target.save()
+    }
+    await Promise.resolve()
+
+    expect(loading.set).not.toHaveBeenCalled()
+    expect(host.set).not.toHaveBeenCalled()
+    expect(unserved.hooks.consolePricingCard.getSnapshot()).toMatchObject({
+      available: false, writable: false, dirty: true,
+    })
+  })
+
+  it('refuses a second save while one is in flight', async () => {
+    const host = stubSettingsScope<ConsolePricingSettings>()
+    const write = deferred<undefined>()
+    const set = vi.fn(async () => { await write.promise })
+    const face = new ConsolePricingCardController({ ...host.scope, set }).inject()
+    host.publish({ status: 'ready', writable: true, revision: 1, value: { models: [chat] }, user: {} })
+    const state = () => face.hooks.consolePricingCard.getSnapshot()
+
+    face.editCell(0, 'offPeakOutput', '2')
+    face.save()
+    expect(state().saving).toBe(true)
+    face.save()
+    write.resolve(undefined)
+    await write.promise
+
+    expect(set).toHaveBeenCalledTimes(1)
   })
 })

@@ -43,7 +43,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | `StateDot` | Status mark: `done`, `warning`, `ongoing`, `error`, or `idle`. `aria-hidden`, so the render site owns the name. |
 | `ConnectionIndicator` | Inline connection-recovery control across outage, retry, and recovered states. |
 | `DisclosureRow` | 24px compact disclosure that lays title and content side by side. |
-| `Modal` | Centered dialog over a page mask. |
+| `Modal` | Centered dialog over a page mask; `size` picks the 380px `compact` form card or the 800px `panel` surface that content dialogs share with the settings shell. |
 | `RiskConfirmation` | Sensitive action gated behind an explicit checkbox. |
 | `OnboardingSurface` | First-run stage that holds the application root inert. |
 | `Tooltip` | Hover text on a cloned anchor, placed right, bottom, or top. |
@@ -53,6 +53,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | `MarkdownText`, `CodeBlock` | Untrusted GFM with TeX math, and highlighted code. |
 | `TerminalBlock`, `ReadBlock`, `DiffBlock`, `SearchBlock`, `WebBlock` | The agent-output card matching each tool-result intent. |
 | `icons/*`, `FishLogo`, `BrandWordmark`, `ReferenceIcon`, `LinkIcon`, `DocumentFileIcon` | Glyphs and brand marks, all riding `currentColor`. |
+| `PriceTablePolicy`, `formatAmount`, `priceOf`, `costOf`, `totalCost` | Operator price table behind every client cost figure: the adopted table, and the arithmetic charged against it. |
 
 Three pairs are easy to confuse:
 
@@ -61,6 +62,12 @@ Three pairs are easy to confuse:
 - **`FoldToggle` against the exported surface.** It is package-internal and not exported; the output cards use it for their head-tail fold.
 
 Writing your own component in your own package is fine when the need is genuinely specific. What is not fine is copying a control that already exists here — and once a second package needs the same control, it belongs in this package ([decision](../../../.agents/notes/implemented/architecture/2026-09-05-shared-client-control-primitives.md)).
+
+### Cost arithmetic
+
+`totalCost` is the one home of the charge rules the console's whole-session figure and the chat Turn figure both apply, because a copy in each package would let the two money surfaces disagree about the same tokens. It charges each price band from that band's own four provider counts — cache reads at the row's cache-hit rate, uncached input and cache writes at its cache-miss rate, and output at its output rate — against a table keyed `(baseUrl, provider, model)`. A reported bucket carries no endpoint, so exactly one row for its `provider`/`model` prices it: no such row reports the route as unpriced and several rows report it as ambiguous, because a missing price is not a free model and two endpoints' rates cannot both be charged. `formatAmount` renders the digits only; currency text stays with each package's locale dictionary.
+
+`PriceTablePolicy` is the matching one home of the adoption, for the same reason. It binds `CONSOLE_PRICING_NAMESPACE` and republishes the operator's `models` field on every accepted settings section, keeping the previous table's reference when a section repeats it and clearing it when a section records none. `settingsScope.bind` returns before the settings mirror settles, so a one-shot read would leave every figure unpriced for the life of the page whatever the operator recorded.
 
 ### Controls and icons
 
@@ -95,6 +102,8 @@ The package is one separation: presentational React atoms with zero Cordis and z
 | [`src/ReadBlock.tsx`](src/ReadBlock.tsx) / [`src/DiffBlock.tsx`](src/DiffBlock.tsx) | Read and diff cards |
 | [`src/SearchBlock.tsx`](src/SearchBlock.tsx) / [`src/WebBlock.tsx`](src/WebBlock.tsx) | Search and web-retrieval cards |
 | [`src/icons/`](src/icons/) | `ic_ds_*` glyph components and brand marks |
+| [`src/pricing.ts`](src/pricing.ts) | Operator price-table cost arithmetic shared by every money surface |
+| [`src/price-table.ts`](src/price-table.ts) | Operator price table adopted from the `console-pricing` settings namespace |
 | [`src/useAnchoredPosition.ts`](src/useAnchoredPosition.ts) / [`src/useAnchoredMaxHeight.ts`](src/useAnchoredMaxHeight.ts) | Floating-panel and overlay geometry hooks |
 
 ### Streaming markdown

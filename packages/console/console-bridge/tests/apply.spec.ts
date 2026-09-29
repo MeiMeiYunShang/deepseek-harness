@@ -9,7 +9,9 @@ import {
   ConsoleBridgeSettingsSchema,
   Config,
   normalizeExecTimeoutS,
+  validateConsolePricing,
   type ConsoleBridgeSettings,
+  type ConsolePricingRow,
 } from '../src/index.ts'
 import type { ConsoleBridgeConfig, DownCmdEnvelope } from '../src/types.ts'
 
@@ -82,14 +84,14 @@ interface Bundle {
   holder: { doc: ConsoleBridgeSettings }
   triggerWatch: () => void
   getEffect: () => (() => void) | undefined
-  registerOpts: () => unknown
+  registerOpts: (ns: string) => unknown
 }
 
 function makeBundle(initialDoc: ConsoleBridgeSettings, _config: ConsoleBridgeConfig): Bundle {
   const holder = { doc: initialDoc }
   let watchCb: (() => void) | undefined
   let effectDisposer: (() => void) | undefined
-  let registerOpts: unknown
+  const registerOpts = new Map<string, unknown>()
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -105,7 +107,12 @@ function makeBundle(initialDoc: ConsoleBridgeSettings, _config: ConsoleBridgeCon
   const ctx = {
     logger,
     agents: {} as unknown,
-    settings: { register: vi.fn((_ns: unknown, _schema: unknown, opts: unknown) => { registerOpts = opts; return scope }) },
+    settings: {
+      register: vi.fn((ns: unknown, _schema: unknown, opts: unknown) => {
+        registerOpts.set(String(ns), opts)
+        return scope
+      }),
+    },
     plugin: vi.fn((spec: { apply?: (c: Context) => void }) => { spec.apply?.(childCtx); return () => undefined }),
     effect: vi.fn((factory: () => (() => void) | undefined) => { effectDisposer = factory() ?? undefined; return () => undefined }),
   } as unknown as Context
@@ -115,7 +122,7 @@ function makeBundle(initialDoc: ConsoleBridgeSettings, _config: ConsoleBridgeCon
     holder,
     triggerWatch: () => watchCb?.(),
     getEffect: () => effectDisposer,
-    registerOpts: () => registerOpts,
+    registerOpts: (ns: string) => registerOpts.get(ns),
   }
 }
 
@@ -153,6 +160,76 @@ describe('console-bridge plugin exports', () => {
     expect(inject).toEqual(['agents', 'settings'])
     expect(ConsoleBridgeSettingsSchema).toBeTruthy()
     expect(Config).toBeTruthy()
+  })
+})
+
+describe('validateConsolePricing', () => {
+  /** One fully priced route, in the shape the namespace stores. */
+  const row = (overrides: Partial<ConsolePricingRow> = {}): ConsolePricingRow => ({
+    baseUrl: 'https://api.deepseek.com',
+    provider: 'deepseek-official',
+    model: 'deepseek-v4-flash',
+    peak: { cacheHit: 0.1, cacheMiss: 0.5, output: 1.5 },
+    offPeak: { cacheHit: 0.05, cacheMiss: 0.25, output: 0.75 },
+    ...overrides,
+  })
+
+  it('accepts an absent, empty, and fully priced table', () => {
+    expect(() => { validateConsolePricing({}) }).not.toThrow()
+    expect(() => { validateConsolePricing({ models: [] }) }).not.toThrow()
+    expect(() => { validateConsolePricing({ models: [row()] }) }).not.toThrow()
+  })
+
+  it('refuses a non-finite rate, naming the band and the rate', () => {
+    expect(() => {
+      validateConsolePricing({
+        models: [row({ peak: { cacheHit: Number.POSITIVE_INFINITY, cacheMiss: 0.5, output: 1.5 } })],
+      })
+    }).toThrow(/models\[0\]\.peak\.cacheHit is not a finite number/)
+    expect(() => {
+      validateConsolePricing({
+        models: [row({ offPeak: { cacheHit: 0.05, cacheMiss: 0.25, output: Number.NaN } })],
+      })
+    }).toThrow(/models\[0\]\.offPeak\.output is not a finite number/)
+  })
+
+  it('refuses a non-finite rate on every row after the first', () => {
+    // The row index is what tells an operator which line of the document to fix.
+    expect(() => {
+      validateConsolePricing({
+        models: [row(), row({ offPeak: { cacheHit: 0.05, cacheMiss: Number.NEGATIVE_INFINITY, output: 0.75 } })],
+      })
+    }).toThrow(/models\[1\]\.offPeak\.cacheMiss is not a finite number/)
+  })
+
+  it('accepts an absent and a well-formed off-peak window', () => {
+    expect(() => { validateConsolePricing({ offPeak: { start: '00:00', end: '23:59', timezone: 'UTC' } }) })
+      .not.toThrow()
+    // A window that wraps past midnight is a window, not a mistake.
+    expect(() => { validateConsolePricing({ offPeak: { start: '22:30', end: '06:15', timezone: 'Asia/Kolkata' } }) })
+      .not.toThrow()
+    expect(() => { validateConsolePricing({ offPeak: { start: '09:00', end: '09:00', timezone: 'Asia/Kathmandu' } }) })
+      .not.toThrow()
+  })
+
+  it('refuses a window edge that is not an HH:MM time, naming the value', () => {
+    expect(() => {
+      validateConsolePricing({ offPeak: { start: '8:00', end: '18:00', timezone: 'UTC' } })
+    }).toThrow('console-pricing: offPeak.start is not an HH:MM time: "8:00"')
+    expect(() => {
+      validateConsolePricing({ offPeak: { start: '08:00', end: '24:00', timezone: 'UTC' } })
+    }).toThrow('console-pricing: offPeak.end is not an HH:MM time: "24:00"')
+    expect(() => {
+      validateConsolePricing({ offPeak: { start: '08:00', end: '18:60', timezone: 'UTC' } })
+    }).toThrow('console-pricing: offPeak.end is not an HH:MM time: "18:60"')
+  })
+
+  it('refuses a time zone Intl cannot resolve, naming the value', () => {
+    // The zone database is the runtime's: a name outside it must be rejected
+    // rather than left to a fold that would silently price every token at peak.
+    expect(() => {
+      validateConsolePricing({ offPeak: { start: '08:00', end: '18:00', timezone: 'Mars/Olympus' } })
+    }).toThrow('console-pricing: offPeak.timezone is not an IANA time zone: "Mars/Olympus"')
   })
 })
 
@@ -216,7 +293,7 @@ describe('settingsBase via apply', () => {
     }
     const bundle = makeBundle({ enabled: false, transport: 'http' }, config)
     apply(bundle.ctx, config)
-    expect(bundle.registerOpts()).toEqual({
+    expect(bundle.registerOpts('console-bridge')).toEqual({
       base: {
         transport: 'http',
         enabled: true,
@@ -236,7 +313,7 @@ describe('settingsBase via apply', () => {
     const config: ConsoleBridgeConfig = { transport: 'mqtt' }
     const bundle = makeBundle({ enabled: false, transport: 'mqtt' }, config)
     apply(bundle.ctx, config)
-    expect(bundle.registerOpts()).toEqual({ base: { transport: 'mqtt', enabled: false }, applies: 'restart' })
+    expect(bundle.registerOpts('console-bridge')).toEqual({ base: { transport: 'mqtt', enabled: false }, applies: 'restart' })
     bundle.getEffect()?.()
   })
 
@@ -244,7 +321,7 @@ describe('settingsBase via apply', () => {
     const config: ConsoleBridgeConfig = { transport: 'mqtt', autoStart: true }
     const bundle = makeBundle({ enabled: false, transport: 'mqtt' }, config)
     apply(bundle.ctx, config)
-    expect(bundle.registerOpts()).toEqual({ base: { transport: 'mqtt', enabled: true }, applies: 'restart' })
+    expect(bundle.registerOpts('console-bridge')).toEqual({ base: { transport: 'mqtt', enabled: true }, applies: 'restart' })
     bundle.getEffect()?.()
   })
 })

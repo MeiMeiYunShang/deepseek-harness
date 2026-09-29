@@ -1,9 +1,9 @@
 /**
- * Session context menu: a cursor-anchored Menu with rename / fork / archive
- * actions for the grid cell that invoked it.
+ * Session context menu: a cursor-anchored Menu with open / rename / fork /
+ * archive actions for the grid cell that invoked it.
  */
 
-import { IconEditOutline16, IconBranchOutline16, IconArchiveOutline20 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconRightUpOutline16, IconEditOutline16, IconBranchOutline16, IconArchiveOutline20 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConsoleKey } from './locales.ts'
 import css from './console.module.css'
@@ -16,6 +16,7 @@ export interface ContextMenuProps {
   /** Menu list y position (the right-click clientY). */
   y: number
   onClose: () => void
+  onOpen: () => void
   onRename: () => void
   onFork: () => void
   onArchive: () => void
@@ -27,6 +28,7 @@ export function contextMenuItems(
   archived: boolean,
 ): readonly MenuEntry[] {
   return [
+    { id: 'open', label: <span className={css.menuItem}>{t('open')}</span>, icon: <IconRightUpOutline16 size={14} /> },
     { id: 'rename', label: <span className={css.menuItem}>{t('rename')}</span>, icon: <IconEditOutline16 size={14} /> },
     { id: 'fork', label: <span className={css.menuItem}>{t('fork')}</span>, icon: <IconBranchOutline16 size={14} /> },
     { id: 'archive', label: <span className={css.menuItem}>{t('archive')}</span>, icon: <IconArchiveOutline20 size={14} />, danger: archived },

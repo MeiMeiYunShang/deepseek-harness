@@ -6,8 +6,12 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import { Workbench } from '../src/client/Workbench.tsx'
+import type { ConsoleComposerActions, ConsoleComposerState } from '../src/client/composer.ts'
 import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
+import type { SessionBucket } from '../src/client/sessionState.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
+import type { TimelineMessage } from '../src/client/timelineMessages.ts'
+import { formatTime } from '../src/client/format.ts'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { en } from '../src/client/locales.ts'
 
@@ -42,13 +46,19 @@ function services(double: Partial<ConsoleServices> = {}): ConsoleServices {
 }
 
 const baseStore = (): ConsoleStoreState => ({
-  timeline: [{ id: 1, sessionId: 's1', time: 1000, kind: 'status' }],
-  seq: 1,
+  open: false,
+  timeline: [
+    { id: 1, sessionId: 's1', time: 1000, kind: 'status' },
+    { id: 2, sessionId: 's2', time: 2000, kind: 'status' },
+  ],
+  seq: 2,
   systemStatus: { cpu: 42, memory: 61, gpu: null },
   timelineMode: 'brief',
   sessionView: 'stats',
+  // Every bucket ticked: these cases exercise the header, the grid verbs, and
+  // the one console scope, not which squares the filter tiles.
+  sessionBuckets: ['running', 'pending', 'completed', 'available', 'archived'],
   selectedSession: 's1',
-  timelineScope: undefined,
   layout: 'balanced',
   collapsed: {},
 })
@@ -60,24 +70,56 @@ function renderWorkbench(overrides: {
   archived?: readonly string[]
   workspaces?: readonly { id: string; label: string }[]
   titleOf?: (id: string) => string | undefined
+  messages?: readonly TimelineMessage[]
+  onClose?: () => void
 } = {}) {
-  const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? baseStore())
+  const state = overrides.store ?? baseStore()
+  const snap = createSnapshotStore<ConsoleStoreState>(state)
+  // The composer mirrors the console's one scope, exactly as the apply closure
+  // resolves the scoped machine: no scope, no machine.
+  const composerSnap = createSnapshotStore<ConsoleComposerState>({
+    ready: state.selectedSession !== undefined,
+    draft: '',
+    failed: false,
+  })
+  const composerActions: ConsoleComposerActions = {
+    setDraft: vi.fn((text: string) => {
+      composerSnap.set({ ...composerSnap.getSnapshot(), draft: text })
+    }),
+    submit: vi.fn(),
+  }
   const store = {
     setTimelineMode: vi.fn(),
     setSessionView: vi.fn(),
-    setSelectedSession: vi.fn(),
-    setTimelineScope: vi.fn(),
+    // The console holds one scope, so a grid square and the all-sessions pill
+    // move the same snapshot value every card reads.
+    setSelectedSession: vi.fn((sessionId: string | undefined) => {
+      snap.update((draft) => { draft.selectedSession = sessionId })
+      composerSnap.set({ ...composerSnap.getSnapshot(), ready: sessionId !== undefined })
+    }),
+    // The grid filter's selection moves the same snapshot the card reads, so a
+    // ticked row reaches the squares in the same render.
+    toggleSessionBucket: vi.fn((bucket: SessionBucket) => {
+      snap.update((draft) => {
+        const index = draft.sessionBuckets.indexOf(bucket)
+        if (index === -1) draft.sessionBuckets.push(bucket)
+        else draft.sessionBuckets.splice(index, 1)
+      })
+    }),
     setLayout: vi.fn(),
     toggleCollapsed: vi.fn(),
+    setOpen: vi.fn(),
   }
   const srv = services(overrides.services)
-  render(<Workbench
+  // One row set: the cards and the title resolver read the same sessions.
+  const byId = overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }
+  const view = render(<Workbench
     t={t}
-    onClose={() => {}}
-    byId={overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2', { completed: true }) }}
+    onClose={overrides.onClose ?? (() => {})}
+    byId={byId}
     current="s1"
     archived={new Set(overrides.archived ?? [])}
-    titleOf={overrides.titleOf ?? (id => (overrides.byId ?? { s1: session('s1') })[id]?.displayTitle)}
+    titleOf={overrides.titleOf ?? (id => byId[id]?.displayTitle)}
     pendingKindOf={() => undefined}
     workspaces={overrides.workspaces ?? [{ id: 'w1', label: 'Workspace' }]}
     useConsole={bindSnapshotSelector(snap)}
@@ -85,8 +127,12 @@ function renderWorkbench(overrides: {
     services={srv}
     chat={vi.fn(async function* () { /* no chunks */ })}
     defaultModel={null}
+    prices={[]}
+    messages={overrides.messages ?? []}
+    useComposer={bindSnapshotSelector(composerSnap)}
+    composerActions={composerActions}
   />)
-  return { snap, store, srv }
+  return { container: view.container, snap, store, srv, composerSnap, composerActions }
 }
 
 describe('Workbench', () => {
@@ -122,7 +168,8 @@ describe('Workbench', () => {
     fireEvent.click(screen.getByRole('button', { name: en.newSession }))
     await waitFor(() =>{  expect(screen.getByRole('heading', { name: en.newSessionTitle })).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: 'Workspace' }))
-    fireEvent.click(screen.getAllByRole('button', { name: en.send })[0]!)
+    const modal = screen.getAllByRole('dialog').find(dialog => within(dialog).queryByLabelText(en.instructionLabel) !== null)!
+    fireEvent.click(within(modal).getByRole('button', { name: en.send }))
     await waitFor(() =>{  expect(srv.selectPreset).not.toHaveBeenCalled() })
   })
 
@@ -153,6 +200,20 @@ describe('Workbench', () => {
     await waitFor(() =>{  expect(srv.archive).toHaveBeenCalledWith('s1') })
   })
 
+  it('opens the right-clicked session from the first menu entry, closing the menu without scoping the console', async () => {
+    const { srv, store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid' } })
+    const cell = screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes('s2'))
+    expect(cell).toBeTruthy()
+    if (cell !== undefined) fireEvent.contextMenu(cell, { clientX: 10, clientY: 20 })
+    await waitFor(() =>{  expect(screen.getByRole('menu')).toBeTruthy() })
+    const entries = screen.getAllByRole('menuitem')
+    expect(entries.map(entry => entry.textContent)).toEqual([en.open, en.rename, en.fork, en.archive])
+    fireEvent.click(entries[0]!)
+    await waitFor(() =>{  expect(srv.open).toHaveBeenCalledWith('s2') })
+    await waitFor(() =>{  expect(screen.queryByRole('menu')).toBeNull() })
+    expect(store.setSelectedSession).not.toHaveBeenCalled()
+  })
+
   it('has a context-menu selection on an unknown action that only closes', async () => {
     const { store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid' } })
     const cell = screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes('s1'))
@@ -162,17 +223,72 @@ describe('Workbench', () => {
     await waitFor(() =>{  expect(store.setSessionView).not.toHaveBeenCalled() })
   })
 
-  it('selects a grid session and sends an instruction through the composer', async () => {
-    const { srv } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid' } })
+  it('scopes the timeline and the composer to a grid session', async () => {
+    const { store, srv, composerActions } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: undefined } })
+    // Unscoped: every session's coarse rows are listed and the composer has no target.
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    expect(screen.getByPlaceholderText(en.composerDisabled)).toBeTruthy()
+
     const cell = screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes('s2'))
     if (cell !== undefined) fireEvent.click(cell)
-    await waitFor(() =>{  expect(srv.open).toHaveBeenCalledWith('s2') })
-    // composer input is the enabled textbox; SmartQA input is disabled (model null).
-    const composer = screen.getByPlaceholderText(en.composerPlaceholder) as HTMLInputElement
+    await waitFor(() =>{  expect(store.setSelectedSession).toHaveBeenCalledWith('s2') })
+
+    // One click moves the one scope the timeline, the statistics card, and the
+    // composer all read: the card now renders s2's conversation, so the coarse
+    // rows leave and the scope label names it.
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
+    expect(screen.getAllByText(`${en.timelineScopeLabel}: s2`)).toHaveLength(2)
+    expect(screen.getByText(en.timelineNoMessages)).toBeTruthy()
+    expect(screen.getAllByText(`${en.taskScope}: s2`)).toHaveLength(2)
+
+    // The composer now targets that same scope: typing reaches the machine the
+    // console resolved for it, and the send rides that machine's submit path.
+    const composer = screen.getByPlaceholderText(en.composerPlaceholder) as HTMLTextAreaElement
     fireEvent.change(composer, { target: { value: 'instruct' } })
-    const dialog = screen.getByRole('dialog')
-    fireEvent.click(within(dialog).getAllByRole('button', { name: en.send }).find(button => !(button as HTMLButtonElement).disabled)!)
-    await waitFor(() =>{  expect(srv.sendInstruction).toHaveBeenCalledWith('s1', 'instruct') })
+    expect(composerActions.setDraft).toHaveBeenCalledWith('instruct')
+    // The composer's own send action is the enabled one; Smart Q&A's stays
+    // disabled without a configured model.
+    fireEvent.click(screen.getAllByRole('button', { name: en.send })
+      .find(button => !(button as HTMLButtonElement).disabled)!)
+    expect(composerActions.submit).toHaveBeenCalledTimes(1)
+    // The composer no longer rides the service verb: the new-session modal owns it.
+    expect(srv.sendInstruction).not.toHaveBeenCalled()
+  })
+
+  it('returns the timeline, the statistics line, and the composer to the whole list in one action', () => {
+    const { store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: 's2' } })
+    // Scoped: the timeline renders s2's conversation, and both it and the
+    // statistics card name that session with the same scope label.
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s1`))).toBeNull()
+    expect(screen.queryByText(new RegExp(`${en.sessionPrefix} s2`))).toBeNull()
+    expect(screen.getAllByText(`${en.timelineScopeLabel}: s2`)).toHaveLength(2)
+    expect(screen.getAllByText(`${en.taskScope}: s2`)).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: en.scopeAllSessions }))
+
+    expect(store.setSelectedSession).toHaveBeenCalledWith(undefined)
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s1`))).toBeTruthy()
+    expect(screen.getByText(new RegExp(`${en.sessionPrefix} s2`))).toBeTruthy()
+    // The timeline names no scope any more; only the statistics line carries one.
+    expect(screen.getAllByText(new RegExp(`^${en.timelineScopeLabel}: `))).toHaveLength(1)
+    expect(screen.getByText(`${en.taskScope}: ${en.taskAllSessions}`)).toBeTruthy()
+    expect(screen.getByPlaceholderText(en.composerDisabled)).toBeTruthy()
+  })
+
+  it('renders the scoped session conversation as an operator bubble and an assistant block', () => {
+    const { container } = renderWorkbench({
+      messages: [
+        { key: 1, role: 'user', text: 'Repair the composer', time: 1_000 },
+        { key: 2, role: 'assistant', text: 'Done.', time: 2_000 },
+      ],
+    })
+
+    expect(container.querySelector('[data-role="user"]')?.textContent).toBe('Repair the composer')
+    // Only the assistant block carries the metadata row, and it is that
+    // event's own time.
+    expect(container.querySelector('[data-role="assistant"]')?.textContent).toBe(`Done.${formatTime(2_000)}`)
   })
 
   it('renames a session whose title cannot be resolved, falling back to the id', async () => {
@@ -196,8 +312,26 @@ describe('Workbench', () => {
     await waitFor(() =>{  expect(srv.sendInstruction).not.toHaveBeenCalled() })
   })
 
+  it('narrows the grid squares through the store filter, leaving the counts alone', () => {
+    const { store } = renderWorkbench({ store: { ...baseStore(), sessionView: 'grid', selectedSession: undefined } })
+    const square = (id: string): Element | undefined =>
+      screen.queryAllByRole('button').find(button => (button.getAttribute('aria-label') ?? '').includes(id))
+    expect(square('s2')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: en.sessionFilter }))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionCompleted }))
+
+    expect(store.toggleSessionBucket).toHaveBeenCalledWith('completed')
+    // The square the filter hides leaves the grid; the task-statistics counts
+    // beside it are taken over the whole list, so they stay as they were.
+    expect(square('s2')).toBeUndefined()
+    expect(square('s1')).toBeTruthy()
+    expect(screen.getByText(`${en.taskScope}: ${en.taskAllSessions}`)).toBeTruthy()
+  })
+
   it('switches the session view and timeline mode through the store writers', () => {
-    const { store } = renderWorkbench()
+    // The row-verbosity toggle belongs to the unscoped row list.
+    const { store } = renderWorkbench({ store: { ...baseStore(), selectedSession: undefined } })
     fireEvent.click(screen.getByRole('button', { name: en.sessionGridView }))
     expect(store.setSessionView).toHaveBeenCalledWith('grid')
     fireEvent.click(screen.getByRole('button', { name: en.timelineActivity }))
@@ -220,9 +354,18 @@ describe('Workbench', () => {
     expect(store.toggleCollapsed).toHaveBeenCalled()
   })
 
-  it('clears the timeline scope through the pill', () => {
-    const { store } = renderWorkbench({ store: { ...baseStore(), timelineScope: 's1' } })
-    fireEvent.click(screen.getByRole('button', { name: en.timelineScopeAll }))
-    expect(store.setTimelineScope).toHaveBeenCalledWith(undefined)
+  it('closes the panel on Escape and ignores every other key', () => {
+    const onClose = vi.fn()
+    renderWorkbench({ onClose })
+    fireEvent.keyDown(document, { key: 'a' })
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('folds the Smart Q&A body away with its own fold state', () => {
+    renderWorkbench({ store: { ...baseStore(), collapsed: { qa: true } } })
+    expect(screen.getByText(en.smartQA)).toBeTruthy()
+    expect(screen.queryByPlaceholderText(en.inputPlaceholder)).toBeNull()
   })
 })

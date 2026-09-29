@@ -5,7 +5,7 @@
  * rename / new-session modals plus the session context menu.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { IconCloseOutline16, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
@@ -13,6 +13,9 @@ import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/cli
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { contextMenuItems, contextAnchorRect } from './ContextMenu.tsx'
 import type { ConsoleCardKey, ConsoleStoreState, ConsoleStoreWrite, LayoutPreset } from './consoleStore.ts'
+import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
+import type { TimelineMessage } from './timelineMessages.ts'
+import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS, type ConsoleKey } from './locales.ts'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
@@ -66,6 +69,14 @@ export interface WorkbenchProps {
   chat: ChatFetcher
   /** Default Smart Q&A model. */
   defaultModel: { provider: string; model: string } | null
+  /** The operator's model price table, for the task-statistics cost figure and each reply's turn cost. */
+  prices: readonly ModelPrice[]
+  /** The selected session's conversation, in log order; empty while nothing is scoped. */
+  messages: readonly TimelineMessage[]
+  /** Bound hook over the scoped session's composer projection. */
+  useComposer: SnapshotSelectorHook<ConsoleComposerState>
+  /** The scoped input machine's writers. */
+  composerActions: ConsoleComposerActions
 }
 
 /** One open context-menu invocation. */
@@ -78,16 +89,19 @@ interface OpenContextMenu {
 
 /** The fullscreen workbench panel. */
 export function Workbench({
-  t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces, useConsole, store, services, chat, defaultModel,
+  t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces,
+  useConsole, store, services, chat, defaultModel, prices, messages,
+  useComposer, composerActions,
 }: WorkbenchProps) {
   const timeline = useConsole(value => value.timeline)
   const timelineMode = useConsole(value => value.timelineMode)
   const sessionView = useConsole(value => value.sessionView)
-  const selected = useConsole(value => value.selectedSession)
-  const timelineScope = useConsole(value => value.timelineScope)
+  const sessionBuckets = useConsole(value => value.sessionBuckets)
+  const selectedSession = useConsole(value => value.selectedSession)
   const systemStatus = useConsole(value => value.systemStatus)
   const layout = useConsole(value => value.layout)
   const collapsed = useConsole(value => value.collapsed)
+  const composer = useComposer(value => value)
 
   const isCollapsed = (card: ConsoleCardKey): boolean => collapsed[card] === true
   const toggleCard = (card: ConsoleCardKey): (() => void) => () => { store.toggleCollapsed(card) }
@@ -96,6 +110,16 @@ export function Workbench({
   const [renameTarget, setRenameTarget] = useState<string | null>(null)
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [presets, setPresets] = useState<{ readonly id: string; readonly name: string | undefined }[]>([])
+
+  // Escape closes the workbench, unless a nested dialog owns the key first —  // the rename and new-session modals carry their own handler.
+  useEffect(() => {
+    if (renameTarget !== null || newSessionOpen) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [onClose, renameTarget, newSessionOpen])
 
   async function openNewSession(): Promise<void> {
     setNewSessionOpen(true)
@@ -149,17 +173,20 @@ export function Workbench({
               byId={byId}
               current={current}
               sessionView={sessionView}
-              selected={selected}
+              sessionBuckets={sessionBuckets}
+              selected={selectedSession}
               isArchived={id => archived.has(id)}
               pendingKindOf={pendingKindOf}
               setSessionView={store.setSessionView}
-              selectSession={(id) => { services.open(id as SessionId) }}
+              toggleSessionBucket={store.toggleSessionBucket}
+              selectSession={(id) => { store.setSelectedSession(id) }}
+              clearScope={() => { store.setSelectedSession(undefined) }}
               onContextMenu={(id, x, y) => { setContextMenu({ id, x, y, archived: archived.has(id) }) }}
               onNewSession={() => { void openNewSession() }}
               collapsed={isCollapsed('session')}
               onToggleCollapse={toggleCard('session')}
             />
-            <TaskStatsCard t={t} byId={byId} scope={selected} titleOf={titleOf} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} />
+            <TaskStatsCard t={t} byId={byId} scope={selectedSession} titleOf={titleOf} prices={prices} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} />
             <SystemStatusCard t={t} status={systemStatus} collapsed={isCollapsed('system')} onToggleCollapse={toggleCard('system')} />
           </div>
           <div className={css.column}>
@@ -167,18 +194,20 @@ export function Workbench({
               t={t}
               timeline={timeline}
               timelineMode={timelineMode}
-              scope={timelineScope}
-              selected={selected}
+              selectedSession={selectedSession}
+              messages={messages}
+              prices={prices}
+              titleOf={titleOf}
               setTimelineMode={store.setTimelineMode}
-              clearScope={() => { store.setTimelineScope(undefined) }}
-              sendInstruction={text => sendToSession(services, selected, text)}
-              collapsed={isCollapsed('timeline')}
-              onToggleCollapse={toggleCard('timeline')}
+              composer={composer}
+              composerActions={composerActions}
             />
           </div>
           <div className={css.column}>
             <KnowledgeCard t={t} collapsed={isCollapsed('knowledge')} onToggleCollapse={toggleCard('knowledge')} />
-            <div className={css.smartQACard}>
+            {/* The collapsed modifier releases the flex share, so a folded card
+                shrinks to its title bar instead of holding empty height. */}
+            <div className={clsx(css.smartQACard, isCollapsed('qa') && css.smartQACardCollapsed)}>
               <CardHeader t={t} title={t('smartQA')} collapsed={isCollapsed('qa')} onToggleCollapse={toggleCard('qa')} />
               {!isCollapsed('qa') && <SmartQA t={t} chat={chat} model={defaultModel} />}
             </div>
@@ -216,14 +245,6 @@ export function Workbench({
   )
 }
 
-/** Send an instruction to the selected session through the services face. */
-async function sendToSession(services: ConsoleServices, selected: string | undefined, text: string): Promise<unknown> {
-  /* v8 ignore next -- the composer disables itself when no session is selected,
-   * so this guard only protects the inline call path the UI never reaches. */
-  if (selected === undefined) throw new Error('no session selected')
-  return await services.sendInstruction(selected as SessionId, text)
-}
-
 /** Dispatch a context-menu action and close the menu first. */
 function dispatchContext(
   action: string,
@@ -232,6 +253,9 @@ function dispatchContext(
 ): void {
   host.closeContextMenu()
   switch (action) {
+    case 'open':
+      host.services.open(id as SessionId)
+      break
     case 'rename':
       host.setRenameTarget(id)
       break
@@ -241,7 +265,7 @@ function dispatchContext(
     case 'archive':
       void host.services.archive(id as SessionId)
       break
-    /* v8 ignore next -- the menu only emits the rename/fork/archive ids above */
+    /* v8 ignore next -- the menu only emits the open/rename/fork/archive ids above */
     default:
       break
   }

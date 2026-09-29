@@ -71,7 +71,7 @@ export interface SystemStatusCardProps {
 /** System-status card: title plus three ring gauges. */
 export function SystemStatusCard({ t, status, collapsed, onToggleCollapse }: SystemStatusCardProps) {
   return (
-    <div className={clsx(css.card, collapsed && css.cardCollapsed)}>
+    <div className={clsx(css.card, css.cardAuto, collapsed && css.cardCollapsed)}>
       <CardHeader t={t} title={t('systemStatus')} collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
       {!collapsed && (
         <div className={css.systemStatus}>

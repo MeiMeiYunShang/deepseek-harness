@@ -1,21 +1,27 @@
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
+import type { SessionBucket } from './sessionState.ts'
 
 /** Session-status card view: the stats counters or the per-session grid. */
 export type SessionView = 'stats' | 'grid'
 
-/** A timeline row's coarse kind (drives its label and tone). */
-export type TimelineKind = 'activity' | 'status'
+/**
+ * A timeline row's coarse kind (drives its label and tone): a forwarded
+ * `activity` or `status` event, or the `history` row backfilled from the
+ * session list when the workbench opens.
+ */
+export type TimelineKind = 'activity' | 'status' | 'history'
 
-/** Whether the timeline renders every event or only status/activity rows. */
+/** Whether the timeline renders every row or only status rows. */
 export type TimelineMode = 'all' | 'brief'
 
 /** A preset column layout for the workbench grid. */
 export type LayoutPreset = 'balanced' | 'timeline' | 'compact'
 
 /** The foldable workbench cards, keyed for per-card collapse state. */
-export type ConsoleCardKey = 'session' | 'task' | 'system' | 'timeline' | 'knowledge' | 'qa'
+export type ConsoleCardKey = 'session' | 'task' | 'system' | 'knowledge' | 'qa'
 
-/** One derived timeline entry from a forwarded `api-session/*` event. */
+/** One derived timeline entry: a forwarded `api-session/*` event or a backfilled history row. */
 export interface TimelineEntry {
   /** Monotonic insertion id (store-owned; not the session event seq). */
   id: number
@@ -27,6 +33,8 @@ export interface TimelineEntry {
   kind: TimelineKind
   /** Optional event detail text (e.g. an instruction or ask question). */
   detail?: string
+  /** Session's human-facing title, carried by the backfilled `history` row and revealed when the row is expanded. */
+  title?: string
 }
 
 /** One sampled host resource snapshot; all values are 0–100 percent (gpu nullable). */
@@ -44,13 +52,18 @@ export interface ConsoleStoreWrite {
   setTimelineMode: (mode: TimelineMode) => void
   setSessionView: (view: SessionView) => void
   setSelectedSession: (sessionId: string | undefined) => void
-  setTimelineScope: (sessionId: string | undefined) => void
+  /** Select or clear one grid-filter bucket. */
+  toggleSessionBucket: (bucket: SessionBucket) => void
   setLayout: (layout: LayoutPreset) => void
   toggleCollapsed: (card: ConsoleCardKey) => void
+  /** Open or close the workbench. */
+  setOpen: (open: boolean) => void
 }
 
 /** Console store state: the live activity/timeline the apply closure feeds. */
 export interface ConsoleStoreState {
+  /** Whether the workbench is showing. */
+  open: boolean
   timeline: TimelineEntry[]
   seq: number
   /** Latest host resource sample, or `null` before the first frame arrives. */
@@ -59,10 +72,17 @@ export interface ConsoleStoreState {
   timelineMode: TimelineMode
   /** Session-status card view. */
   sessionView: SessionView
-  /** Grid-selected session id (drives the timeline detail and composer). */
+  /**
+   * The grid-filter buckets whose squares render. The statistics view's counts
+   * ignore this selection and keep counting every session.
+   */
+  sessionBuckets: SessionBucket[]
+  /**
+   * The console's scope: `undefined` covers the whole session list. One value
+   * drives the task-statistics scope line and cost, the rows the timeline
+   * lists, and the instruction composer's target.
+   */
   selectedSession: string | undefined
-  /** Timeline scope: one session id, or `undefined` for the whole list. */
-  timelineScope: string | undefined
   /** Selected column layout preset. */
   layout: LayoutPreset
   /** Per-card fold state: a true value hides that card's body. */
@@ -72,6 +92,12 @@ export interface ConsoleStoreState {
 /** Timeline cap: a monitoring panel keeps a bounded recent window. */
 const TIMELINE_LIMIT = 200
 
+/**
+ * Buckets the grid opens on: everything except completed and archived, so the
+ * operator starts with the sessions still in flight.
+ */
+const DEFAULT_SESSION_BUCKETS: readonly SessionBucket[] = ['running', 'pending', 'available']
+
 /** Write surface for {@link ConsoleStoreState}. */
 type ConsoleStoreActions = {
   pushTimeline: (draft: ConsoleStoreState, entry: Omit<TimelineEntry, 'id'>) => void
@@ -79,27 +105,30 @@ type ConsoleStoreActions = {
   setTimelineMode: (draft: ConsoleStoreState, mode: TimelineMode) => void
   setSessionView: (draft: ConsoleStoreState, view: SessionView) => void
   setSelectedSession: (draft: ConsoleStoreState, sessionId: string | undefined) => void
-  setTimelineScope: (draft: ConsoleStoreState, sessionId: string | undefined) => void
+  toggleSessionBucket: (draft: ConsoleStoreState, bucket: SessionBucket) => void
   setLayout: (draft: ConsoleStoreState, layout: LayoutPreset) => void
   toggleCollapsed: (draft: ConsoleStoreState, card: ConsoleCardKey) => void
+  setOpen: (draft: ConsoleStoreState, open: boolean) => void
 }
 
 /**
  * Console store: holds the live activity timeline the apply closure feeds, the
- * selected timeline verbosity, the session-status view, the grid selection, and
- * the timeline scope. The component reads it through the `useStore` share.
+ * selected timeline verbosity, the session-status view, the grid-filter buckets
+ * the grid tiles, and the console's selected session. The component reads it
+ * through the `useStore` share.
  * @returns the store handle.
  */
 export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, ConsoleStoreActions> {
   return defineStore({
     init: (): ConsoleStoreState => ({
+      open: false,
       timeline: [],
       seq: 0,
       systemStatus: null,
-      timelineMode: 'brief',
+      timelineMode: 'all',
       sessionView: 'stats',
+      sessionBuckets: [...DEFAULT_SESSION_BUCKETS],
       selectedSession: undefined,
-      timelineScope: undefined,
       layout: 'balanced',
       collapsed: {},
     }),
@@ -123,8 +152,10 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       setSelectedSession(draft, sessionId): void {
         draft.selectedSession = sessionId
       },
-      setTimelineScope(draft, sessionId): void {
-        draft.timelineScope = sessionId
+      toggleSessionBucket(draft, bucket): void {
+        const index = draft.sessionBuckets.indexOf(bucket)
+        if (index === -1) draft.sessionBuckets.push(bucket)
+        else draft.sessionBuckets.splice(index, 1)
       },
       setLayout(draft, layout): void {
         draft.layout = layout
@@ -132,6 +163,29 @@ export function createConsoleStore(): EngineStoreHandle<ConsoleStoreState, Conso
       toggleCollapsed(draft, card): void {
         draft.collapsed[card] = !(draft.collapsed[card] ?? false)
       },
+      setOpen(draft, open): void {
+        draft.open = open
+      },
     },
   })
+}
+
+/**
+ * Project the client's session list into one history row per listed session,
+ * ordered by ascending update time. The store appends in insertion order and
+ * the timeline list renders the array reversed, so ascending input makes the
+ * most recently updated session render first. Each row carries the summary's
+ * human-facing title, the only identifying text the snapshot holds.
+ * @param list - current session-list snapshot; a listed id without a row is skipped.
+ * @returns one `history` row per listed session, oldest first.
+ */
+export function historyEntries(list: SessionListState): Omit<TimelineEntry, 'id'>[] {
+  const rows: Omit<TimelineEntry, 'id'>[] = []
+  for (const id of list.ids) {
+    const summary = list.byId[id]
+    if (summary === undefined) continue
+    rows.push({ sessionId: summary.id, time: summary.updatedAt, kind: 'history', title: summary.displayTitle })
+  }
+  rows.sort((left, right) => left.time - right.time)
+  return rows
 }

@@ -1,7 +1,7 @@
 /** Host registry and HTTP adapter for generic Connection RPC channels. */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { WebRoute, WebServer } from '@deepseek-ai/dsh-host-webserver'
+import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
   RpcId,
   type ClientRequest,
@@ -43,12 +43,6 @@ interface RegisteredFetchRoute {
   readonly fetch: ConnectionFetchRoute['fetch']
 }
 
-interface RegisteredChannelRoute {
-  readonly route: WebRoute
-  /** Physical-route disposer while a Web carrier is bound; absent otherwise. */
-  dispose?: (() => void) | undefined
-}
-
 interface ConnectionServerResponse {
   readonly type: 'server-response'
   readonly rpcId: RpcIdType
@@ -66,8 +60,6 @@ declare module '@deepseek-ai/cordis' {
 export class HostConnectionService extends Service implements HostConnectionHandle {
   private readonly interceptors = new Map<string, ConnectionRpcInterceptor>()
   private readonly fetchRoutes = new Map<string, RegisteredFetchRoute>()
-  private readonly channelRoutes = new Map<string, RegisteredChannelRoute>()
-  private webServer: WebServer | undefined
 
   /**
    * Provide the Host half over the active HTTP server.
@@ -144,29 +136,6 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
   }
 
-  /**
-   * Mount every registered dedicated RPC channel on a Web carrier and mount
-   * channels registered later. Channel registration stays carrier-neutral: a
-   * shell-owned carrier that never provides `webServer` keeps the logical
-   * registrations without a physical route.
-   * @param webServer - the carrier whose route table receives channel prefixes.
-   * @returns disposer unmounting every channel route while keeping the registrations.
-   */
-  bindWebServer(webServer: WebServer): () => void {
-    this.webServer = webServer
-    for (const entry of this.channelRoutes.values()) {
-      entry.dispose = webServer.register(entry.route)
-    }
-    return () => {
-      if (this.webServer !== webServer) return
-      for (const entry of this.channelRoutes.values()) {
-        entry.dispose?.()
-        entry.dispose = undefined
-      }
-      this.webServer = undefined
-    }
-  }
-
   private registerFetchRoute(
     owner: Context,
     route: ConnectionFetchRoute,
@@ -207,17 +176,15 @@ export class HostConnectionService extends Service implements HostConnectionHand
       },
     }
     return owner.effect(() => {
-      if (this.channelRoutes.has(channel)) {
-        throw new Error(`connection: duplicate route for RPC channel ${JSON.stringify(channel)}`)
+      // Connection provides its registries without a Web carrier, so the plugin
+      // does not inject `webServer`; read the optional service here instead of
+      // through the context proxy, which requires that declaration. A channel
+      // can only be served where a Web server is mounted.
+      const webServer = this.ctx.get('webServer')
+      if (webServer === undefined) {
+        throw new Error(`connection: RPC channel ${JSON.stringify(channel)} needs a mounted webServer`)
       }
-      const entry: RegisteredChannelRoute = { route }
-      this.channelRoutes.set(channel, entry)
-      if (this.webServer) entry.dispose = this.webServer.register(route)
-      return () => {
-        this.channelRoutes.delete(channel)
-        entry.dispose?.()
-        entry.dispose = undefined
-      }
+      return webServer.register(route)
     }, `client-connection: ${channel} rpc channel`)
   }
 

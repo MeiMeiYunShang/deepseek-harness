@@ -327,36 +327,16 @@ describe('connection node half', () => {
     expect(routes).toHaveLength(0)
   })
 
-  it('mounts a dedicated channel for a caller without webServer in scope', async () => {
+  it('refuses a dedicated RPC channel when no Web carrier is mounted', async () => {
     const ctx = new Context()
-    const routes: WebRoute[] = []
     provideBrowserCredentials(ctx)
-    const serverFiber = ctx.plugin({
-      name: 'fake-webserver',
-      apply(serverCtx: Context) {
-        serverCtx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
-      },
-    })
-    await serverFiber.await()
-    const connectionFiber = ctx.plugin({ inject: [...inject], apply })
-    await connectionFiber.await()
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
 
-    let remove: (() => Promise<void>) | undefined
-    const callerFiber = ctx.plugin({
-      inject: ['connection'],
-      apply(callerCtx: Context) {
-        remove = callerCtx.connection.rpc.handle('/sibling', async () => ({ ok: true, value: null }))
-      },
-    })
-    await callerFiber.await()
-    expect(routes.map(candidate => candidate.path)).toEqual([API_PATH, '/sibling'])
-
-    await remove?.()
-    expect(routes.map(candidate => candidate.path)).toEqual([API_PATH])
-    await callerFiber.dispose()
-    await connectionFiber.dispose()
-    await serverFiber.dispose()
-    expect(routes).toHaveLength(0)
+    const connection = ctx.get('connection') as HostConnectionHandle
+    expect(() => connection.rpc.handle('/rpc', async () => ({ ok: true, value: null })))
+      .toThrow(/needs a mounted webServer/)
+    await fiber.dispose()
   })
 
   it('dispatches claimed /api endpoints and withdraws the claim', async () => {

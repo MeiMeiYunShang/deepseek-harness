@@ -34,6 +34,25 @@
   box-shadow: var(--dsw-elevation-prominent);
 }
 
+/* Panel: the settings surface (figma Settings 501:29947, shrunk from 1080x700
+   to 800 wide). One height for every dialog, taken from the viewport rather
+   than the content, so switching content never resizes the card under the
+   pointer; whatever does not fit scrolls in the body. */
+.panel {
+  gap: 0;
+  width: 800px;
+  max-width: 100%;
+  height: min(800px, calc(100vh - 48px));
+  padding: 0;
+  border-radius: 32px;
+  /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens.
+     Declared on the card rather than the scrolling child so the elevation
+     choice sits with the surface; the custom properties inherit down to
+     whichever descendant scrolls (see ui-theme styles/scrollbar.css). */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
 .content {
   display: flex;
   flex-direction: column;
@@ -100,4 +119,40 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 0 24px;
+}
+
+/* Panel chrome follows the settings shell's header row (figma .Header
+   501:29981): h54, close right, 28px round hit box on a primary label. The
+   content column fills the fixed height so only the body scrolls. */
+.panel .content {
+  flex: 1;
+  min-height: 0;
+}
+
+.panel .header {
+  flex: none;
+  align-items: flex-start;
+  box-sizing: border-box;
+  height: 54px;
+  padding: 20px 14px 8px 10px;
+}
+
+.panel .close {
+  border-radius: 28px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.panel .body {
+  flex: 1;
+  min-height: 0;
+  margin-top: 0;
+  padding: 0 24px 24px;
+  overflow-y: auto;
+}
+
+/* Spread row: a panel footer may lead with a status line and end with actions. */
+.panel .footer {
+  flex: none;
+  justify-content: space-between;
+  padding: 0 24px 24px;
 }
