@@ -191,6 +191,13 @@ function toolRuleOf(toolRules: Record<string, string>, tool: string): string | u
   return undefined
 }
 
+/** Narrow an untyped value to its own enumerable keys; `undefined` when it is not a plain object. */
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+}
+
 function isMcpSecurity(v: unknown): v is McpSecurity {
   return v != null && typeof v === 'object' && !Array.isArray(v)
 }
@@ -198,7 +205,7 @@ function isMcpSecurity(v: unknown): v is McpSecurity {
 /** Bound one backend's registry of MCP entries to a per-server policy view. */
 function policyOf(entry: Entry | undefined): Policy | undefined {
   if (entry === undefined) return undefined
-  const cfg = entry.options.config as unknown as Record<string, unknown> | undefined
+  const cfg = asRecord(entry.options.config)
   const rawSec = cfg?.mcpSecurity
   const sec: McpSecurity = isMcpSecurity(rawSec) ? rawSec : {}
   const scope = sec.scope === 'read-only' || sec.scope === 'blocked' ? sec.scope : 'read-write'
@@ -220,8 +227,8 @@ function isStringRecord(v: unknown): boolean {
 
 function normalizeToolRules(rules: unknown): Record<string, string> {
   const out: Record<string, string> = {}
-  if (!rules || typeof rules !== 'object' || Array.isArray(rules)) return out
-  const record = rules as unknown as Record<string, unknown>
+  const record = asRecord(rules)
+  if (record === undefined) return out
   for (const key of Object.keys(record)) {
     const v = record[key]
     if (v === 'allow' || v === 'deny' || v === 'read' || v === 'write') out[key] = v
@@ -283,7 +290,7 @@ export function apply(ctx: Context): void {
 
   function entryByServer(serverName: string): Entry | undefined {
     return entries().find((entry) => {
-      const cfg = entry.options.config as unknown as Record<string, unknown> | undefined
+      const cfg = asRecord(entry.options.config)
       return entry.options.name === MCP_PACKAGE && cfg?.serverName === serverName
     })
   }

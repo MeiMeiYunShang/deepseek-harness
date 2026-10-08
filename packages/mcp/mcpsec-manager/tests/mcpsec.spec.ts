@@ -1,8 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, type Fiber } from '@deepseek-ai/cordis'
 import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
-import type { PreToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import type {
+  PreToolDecision, ToolExecution, ToolExecutionResult, ToolExecutionToken,
+} from '@deepseek-ai/dsh-tools'
 import { apply, classifyTool, gateReason, hasCredential, parseMcpName } from '../src/index.ts'
+
+/**
+ * The loader-row fields `apply` reads from `ctx.loader.entries()`. The fixtures
+ * publish exactly these, so none of them has to claim to be a complete `Entry`.
+ */
+type LoaderRow = Pick<Entry, 'options' | 'id' | 'disabled'> & { readonly fiber?: Pick<Fiber, 'state'> }
+
+/**
+ * Mint the opaque call identity of one fixture execution. The plugin
+ * correlates a pre-execute with its result through `token`, so the call ids
+ * only have to be distinct; their brand constructor lives in a package this
+ * suite does not depend on.
+ */
+function callIdOf(name: string): ToolExecution['callId'] {
+  return name as ToolExecution['callId']
+}
 
 describe('parseMcpName', () => {
   it('parses an MCP tool name and rejects others', () => {
@@ -60,15 +78,15 @@ describe('gateReason', () => {
 })
 
 describe('apply wiring', () => {
-  const entry = (cfg: Record<string, unknown>, extra: Partial<Entry> = {}): Entry => ({
+  const entry = (cfg: unknown, extra: Partial<LoaderRow> = {}): LoaderRow => ({
     id: 'e1',
     options: { id: 'e1', name: '@deepseek-ai/dsh-mcp-client', config: cfg },
     disabled: false,
     ...extra,
-  } as unknown as Entry)
+  })
 
   function setup(
-    entries: Entry[] = [entry({ serverName: 'gh', transport: 'streamable-http', url: 'https://api.github.com' })],
+    entries: LoaderRow[] = [entry({ serverName: 'gh', transport: 'streamable-http', url: 'https://api.github.com' })],
     schemas: Array<{ name: string }> = [{ name: 'mcp__gh__get_issue' }, { name: 'mcp__gh__create_issue' }],
   ) {
     const ctx = new Context()
@@ -95,21 +113,30 @@ describe('apply wiring', () => {
     return { ctx, entries, preExecute, toolResult, handler, create, update, remove }
   }
 
-  const mkExec = (name: string, args: Record<string, unknown> = {}): ToolExecution =>
-    ({ name, token: Symbol('t'), arguments: args } as unknown as ToolExecution)
+  /** One fixture execution; the same token correlates a call with its result. */
+  const mkExec = (name: string, args: Record<string, unknown> = {}, token: ToolExecutionToken = Symbol('t') as ToolExecutionToken): ToolExecution => ({
+    callId: callIdOf(name),
+    rootCallId: callIdOf(name),
+    name,
+    token,
+    arguments: args,
+    signal: new AbortController().signal,
+  })
+  const allow = (): Promise<PreToolDecision> => Promise.resolve({ kind: 'allow' })
   const errResult = (message: string): ToolExecutionResult =>
-    ({ isError: true, error: { message } } as unknown as ToolExecutionResult)
+    ({ isError: true, error: { message }, content: [] })
+  const okResult = (): ToolExecutionResult => ({ isError: false, value: null, content: [] })
 
   it('denies a write-capable MCP tool on a read-only scope', async () => {
     const s = setup([entry({ serverName: 'gh', mcpSecurity: { scope: 'read-only' } })])
     const exec = mkExec('mcp__gh__create_issue')
-    const decision = await s.preExecute(exec, async () => ({ kind: 'allow' } as unknown as PreToolDecision))
+    const decision = await s.preExecute(exec, allow)
     expect(decision).toMatchObject({ kind: 'deny' })
   })
 
   it('passes a read MCP tool through on a read-only scope', async () => {
     const s = setup([entry({ serverName: 'gh', mcpSecurity: { scope: 'read-only' } })])
-    const next = vi.fn(async () => ({ kind: 'allow' } as unknown as PreToolDecision))
+    const next = vi.fn(allow)
     const decision = await s.preExecute(mkExec('mcp__gh__get_issue'), next)
     expect(decision).toMatchObject({ kind: 'allow' })
     expect(next).toHaveBeenCalledTimes(1)
@@ -117,7 +144,7 @@ describe('apply wiring', () => {
 
   it('passes a non-MCP tool through unchanged', async () => {
     const s = setup()
-    const next = vi.fn(async () => ({ kind: 'allow' } as unknown as PreToolDecision))
+    const next = vi.fn(allow)
     await s.preExecute(mkExec('bash'), next)
     expect(next).toHaveBeenCalledTimes(1)
   })
@@ -138,7 +165,7 @@ describe('apply wiring', () => {
     const s = setup()
     const list = await s.handler('list', {})
     expect((list as { value: { servers: unknown[] } }).value.servers).toHaveLength(1)
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: [{ package: { name: 'mcp-server-foo', version: '1.0.0', description: 'd', date: '2020-01-01', links: {}, publisher: { username: 'u' }, keywords: ['k'] } }] }) }) as unknown as Response))
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: [{ package: { name: 'mcp-server-foo', version: '1.0.0', description: 'd', date: '2020-01-01', links: {}, publisher: { username: 'u' }, keywords: ['k'] } }] }) })))
     const search = await s.handler('npmSearch', { query: 'foo' })
     expect((search as { ok: true; value: { packages: unknown[] } }).value.packages).toHaveLength(1)
     vi.unstubAllGlobals()
@@ -188,7 +215,7 @@ describe('apply wiring', () => {
 
   it('returns npm search failure and rejection paths', async () => {
     const { handler } = setup()
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response))
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })))
     const http = await handler('npmSearch', { query: 'x' })
     expect(http).toMatchObject({ ok: false })
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('network'))))
@@ -225,7 +252,7 @@ describe('apply wiring', () => {
 
   it('lists servers with varied config fields', async () => {
     const s = setup([
-      entry({ serverName: 'gh', transport: 'streamable-http', url: 'https://api.github.com?q=1#frag', env: { A: '1', B: '2' }, headers: { H: 'x' }, args: ['a'], cwd: '/tmp', toolCallTimeoutMs: 5000, failOnStartupError: true }, { fiber: { state: 2 } } as unknown as Partial<Entry>),
+      entry({ serverName: 'gh', transport: 'streamable-http', url: 'https://api.github.com?q=1#frag', env: { A: '1', B: '2' }, headers: { H: 'x' }, args: ['a'], cwd: '/tmp', toolCallTimeoutMs: 5000, failOnStartupError: true }, { fiber: { state: 2 } }),
       entry({ transport: 'stdio', command: 'node' }),
     ])
     const list = await s.handler('list', {})
@@ -284,7 +311,7 @@ describe('apply wiring', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: [
       { package: null },
       { package: { name: 'foo', version: 1, description: null, date: 2, links: { repository: 'r', homepage: 'h' }, publisher: null, keywords: ['k', 7, 'j'] } },
-    ] }) }) as unknown as Response))
+    ] }) })))
     const search = await s.handler('npmSearch', {})
     const value = search as { ok: true; value: { packages: Array<Record<string, unknown>> } }
     expect(value.value.packages).toHaveLength(1)
@@ -294,7 +321,7 @@ describe('apply wiring', () => {
 
   it('returns empty packages and clamps npm search limit/query', async () => {
     const s = setup()
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: [{ package: { name: '', version: '1' } }] }) }) as unknown as Response))
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: [{ package: { name: '', version: '1' } }] }) })))
     await s.handler('npmSearch', { query: '  ', limit: 999 })
     const search = await s.handler('npmSearch', { query: 'x', limit: -5 })
     const value = search as { ok: true; value: { packages: unknown[] } }
@@ -304,16 +331,16 @@ describe('apply wiring', () => {
 
   it('ignores a non-MCP tool result and an error with no message', async () => {
     const s = setup()
-    s.toolResult(mkExec('bash', {}), { isError: false } as unknown as ToolExecutionResult)
+    s.toolResult(mkExec('bash', {}), okResult())
     s.toolResult(mkExec('mcp__gh__get_issue', {}), errResult('401 unauthorized'))
-    s.toolResult(mkExec('mcp__gh__get_issue', {}), { isError: true } as unknown as ToolExecutionResult)
+    s.toolResult(mkExec('mcp__gh__get_issue', {}), errResult(''))
     const stats = await s.handler('stats', {})
     expect(stats).toMatchObject({ ok: true })
   })
 
   it('passes a tool through unchanged when its server has no entry', async () => {
     const s = setup()
-    const next = vi.fn(async () => ({ kind: 'allow' } as unknown as PreToolDecision))
+    const next = vi.fn(allow)
     const decision = await s.preExecute(mkExec('mcp__nowhere__read'), next)
     expect(decision).toMatchObject({ kind: 'allow' })
     expect(next).toHaveBeenCalledTimes(1)
@@ -336,7 +363,7 @@ describe('apply wiring', () => {
       entry({ serverName: 'gh', transport: 'streamable-http', url: 'https://x' }),
       entry({ serverName: 'g2', mcpSecurity: { scope: 'blocked' } }),
     ])
-    for (let i = 0; i < 3; i++) await s.preExecute(mkExec('mcp__g2__read'), async () => ({ kind: 'allow' } as unknown as PreToolDecision))
+    for (let i = 0; i < 3; i++) await s.preExecute(mkExec('mcp__g2__read'), allow)
     for (let i = 0; i < 8; i++) s.toolResult(mkExec('mcp__gh__get_issue', { api_key: 'abcdefghijklmnopqrst' }), errResult('401 unauthorized'))
     s.toolResult(mkExec('mcp__gh__get_issue', { blob: 'x'.repeat(70000) }), errResult('boom'))
     const stats = await s.handler('stats', {})
@@ -348,7 +375,7 @@ describe('apply wiring', () => {
 
   it('computes a zero rate and no flags for a fully-successful server', async () => {
     const s = setup()
-    s.toolResult(mkExec('mcp__gh__get_issue', {}), { isError: false, value: {} } as unknown as ToolExecutionResult)
+    s.toolResult(mkExec('mcp__gh__get_issue', {}), okResult())
     const stats = await s.handler('stats', {})
     const value = stats as { ok: true; value: { servers: Array<{ failures: number; score: number; reasons: string[] }> } }
     expect(value.value.servers[0]).toMatchObject({ failures: 0, score: 0, reasons: [] })
@@ -380,7 +407,7 @@ describe('apply wiring', () => {
       entry({ serverName: 'gh', transport: 'streamable-http', url: 'https://x' }),
       entry({ serverName: 'g2', mcpSecurity: { scope: 'blocked' } }),
     ])
-    for (let i = 0; i < 3; i++) await s.preExecute(mkExec('mcp__g2__read'), async () => ({ kind: 'allow' } as unknown as PreToolDecision))
+    for (let i = 0; i < 3; i++) await s.preExecute(mkExec('mcp__g2__read'), allow)
     s.toolResult(mkExec('mcp__gh__get_issue', {}), errResult('401 unauthorized'))
     s.toolResult(mkExec('mcp__gh__get_issue', {}), errResult('401 unauthorized'))
     await s.handler('setThreshold', { threshold: 10 })
@@ -392,8 +419,8 @@ describe('apply wiring', () => {
   it('lists servers with varied shapes and skips non-MCP entries', async () => {
     const s = setup([
       entry({ serverName: 'gh', transport: 'stdio', command: 'node', args: ['-v'], cwd: '/tmp', env: { E: '1' }, headers: { H: '2' }, url: 'https://x?q', mcpSecurity: { scope: 'read-only', toolRules: { a: 'deny' } } }),
-      entry({ mcpSecurity: { toolRules: ['a'] as unknown as Record<string, string> } }),
-      entry(undefined as unknown as Record<string, unknown>),
+      entry({ mcpSecurity: { toolRules: ['a'] } }),
+      entry(undefined),
       entry({ serverName: 'other' }, { options: { id: 'o', name: 'not-mcp', config: { serverName: 'other' } } }),
     ], [{ name: 'mcp__gh__get_issue' }, { name: 'not-mcp' }, { name: 'mcp__other__x' }])
     const list = await s.handler('list', {})
@@ -413,9 +440,9 @@ describe('apply wiring', () => {
 
   it('trims the event window past MAX_EVENTS', async () => {
     const s = setup()
-    for (let i = 0; i < 2001; i++) s.toolResult(mkExec('mcp__gh__get_issue'), { isError: false, value: {} } as unknown as ToolExecutionResult)
+    for (let i = 0; i < 2001; i++) s.toolResult(mkExec('mcp__gh__get_issue'), okResult())
     const stats = await s.handler('stats', {})
-    const serversMatcher = expect.any(Array) as unknown as unknown[]
+    const serversMatcher = expect.any(Array)
     const expected = { ok: true, value: { servers: serversMatcher } }
     expect(stats).toMatchObject(expected)
   })
@@ -423,8 +450,8 @@ describe('apply wiring', () => {
   it('measures a duration across a pre-execute/result pair', async () => {
     const s = setup()
     const exec = mkExec('mcp__gh__get_issue')
-    await s.preExecute(exec, async () => ({ kind: 'allow' } as unknown as PreToolDecision))
-    s.toolResult(exec, { isError: false, value: {} } as unknown as ToolExecutionResult)
+    await s.preExecute(exec, allow)
+    s.toolResult(exec, okResult())
     const stats = await s.handler('stats', {})
     const value = stats as { ok: true; value: { servers: Array<{ avgDurMs: number }> } }
     expect(value.value.servers[0]?.avgDurMs).toBeGreaterThanOrEqual(0)
@@ -432,7 +459,7 @@ describe('apply wiring', () => {
 
   it('handles null args across npmSearch/setScope/setEnabled/edit', async () => {
     const s = setup()
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: [] }) }) as unknown as Response))
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: [] }) })))
     expect(await s.handler('npmSearch', null)).toMatchObject({ ok: true })
     vi.unstubAllGlobals()
     expect(await s.handler('setScope', null)).toMatchObject({ ok: false })
@@ -451,7 +478,7 @@ describe('apply wiring', () => {
     try {
       const s = setup()
       vi.setSystemTime(new Date('2000-01-01'))
-      s.toolResult(mkExec('mcp__gh__get_issue', {}), { isError: false, value: {} } as unknown as ToolExecutionResult)
+      s.toolResult(mkExec('mcp__gh__get_issue', {}), okResult())
       vi.setSystemTime(new Date('2100-01-01'))
       const stats = await s.handler('stats', {})
       const value = stats as { ok: true; value: { servers: unknown[] } }
@@ -466,7 +493,7 @@ describe('apply wiring', () => {
     try {
       const s = setup()
       vi.setSystemTime(new Date('2000-01-01'))
-      s.toolResult(mkExec('mcp__gh__get_issue', {}), { isError: false, value: {} } as unknown as ToolExecutionResult)
+      s.toolResult(mkExec('mcp__gh__get_issue', {}), okResult())
       vi.setSystemTime(new Date('2000-01-01T00:03:00'))
       const stats = await s.handler('stats', {})
       const value = stats as { ok: true; value: { servers: Array<{ calls: number; spike: boolean }> } }
@@ -478,7 +505,7 @@ describe('apply wiring', () => {
 
   it('returns no packages when the npm response has no objects array', async () => {
     const s = setup()
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: 'nope' }) }) as unknown as Response))
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ objects: 'nope' }) })))
     const search = await s.handler('npmSearch', { query: 'x' })
     const value = search as { ok: true; value: { packages: unknown[] } }
     expect(value.value.packages).toEqual([])
@@ -518,7 +545,7 @@ describe('apply wiring', () => {
 
   it('resolves an object tool-rules policy through the pre-execute gate', async () => {
     const s = setup([entry({ serverName: 'gh', mcpSecurity: { scope: 'read-only', toolRules: { thing: 'allow' } } })])
-    const next = vi.fn(async () => ({ kind: 'allow' } as unknown as PreToolDecision))
+    const next = vi.fn(allow)
     const decision = await s.preExecute(mkExec('mcp__gh__thing'), next)
     expect(decision).toMatchObject({ kind: 'allow' })
     expect(next).toHaveBeenCalledTimes(1)

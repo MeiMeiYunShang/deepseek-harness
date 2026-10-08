@@ -8,10 +8,11 @@
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ServerView, StatsData } from '../src/client/types.ts'
-import { McpSecSection, type McpSecSectionProps } from '../src/client/McpSecSection.tsx'
+import { McpSecSection, type McpSecSectionInjected, type McpSecSectionProps } from '../src/client/McpSecSection.tsx'
 import { createMcpSecStore } from '../src/client/store.ts'
 import { en } from '../src/client/locales.ts'
 
@@ -19,7 +20,20 @@ afterEach(cleanup)
 
 const t = makeTranslate(en)
 
+// The section reads only its own store and the injected `/mcpsec` verbs, so no
+// global standard hook is ever called.
+const unused = (): never => { throw new Error('McpSecSection does not consume global hooks') }
+const globals: GlobalStandardProps = {
+  usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
+  useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
+}
+
 type Instance = ReturnType<ReturnType<typeof createMcpSecStore>['create']>
+
+/** One call-recording stub per injected `/mcpsec` verb, in the face's own signature. */
+type McpSecCallStubs = {
+  [K in keyof McpSecSectionInjected]: Mock<McpSecSectionInjected[K]>
+}
 
 const SERVER: ServerView = {
   id: 'e1', serverName: 'gh', transport: 'streamable-http', url: 'https://api.github.com',
@@ -35,10 +49,10 @@ const STATS: StatsData = {
 }
 
 /** Seed a fresh store and render the section. */
-function renderSection(seed?: (instance: Instance) => void, overrides: Partial<Record<'refresh' | 'add' | 'remove' | 'setEnabled' | 'setScope' | 'edit' | 'setThreshold' | 'clearStats' | 'npmSearch', ReturnType<typeof vi.fn>>> = {}) {
+function renderSection(seed?: (instance: Instance) => void, overrides: Partial<McpSecCallStubs> = {}) {
   const instance = createMcpSecStore().create()
   seed?.(instance)
-  const calls = {
+  const calls: McpSecCallStubs = {
     refresh: vi.fn(async () => {}),
     add: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
@@ -50,11 +64,15 @@ function renderSection(seed?: (instance: Instance) => void, overrides: Partial<R
     npmSearch: vi.fn(async () => []),
     ...overrides,
   }
-  render(<McpSecSection {...({
+  const props: McpSecSectionProps = {
+    ...globals,
     useStore: bindSnapshotSelector(instance.store),
-    ...calls,
+    actions: instance.actions,
     t,
-  } as unknown as McpSecSectionProps)} />)
+    close: vi.fn(),
+    ...calls,
+  }
+  render(<McpSecSection {...props} />)
   return { instance, calls }
 }
 

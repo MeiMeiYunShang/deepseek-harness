@@ -8,6 +8,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import type { StatsData } from '../src/client/types.ts'
 import { McpSecAlert, type McpSecAlertProps } from '../src/client/McpSecAlert.tsx'
 import { createMcpSecStore } from '../src/client/store.ts'
@@ -16,6 +17,13 @@ import { en } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 const t = makeTranslate(en)
+
+// The risk toast reads only its own store, so no global standard hook is ever called.
+const unused = (): never => { throw new Error('McpSecAlert does not consume global hooks') }
+const globals: GlobalStandardProps = {
+  usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
+  useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
+}
 
 const ALERTS = [{
   server: 'gh', score: 60, reasons: ['cred', 'spike'],
@@ -28,10 +36,13 @@ function renderOverlay(alerts = ALERTS, threshold = 50) {
   const instance = createMcpSecStore().create()
   const stats: StatsData = { threshold, windowMs: 600000, servers: [], alerts }
   instance.actions.setData([], stats)
-  render(<McpSecAlert {...({
+  const props: McpSecAlertProps = {
+    ...globals,
     useStore: bindSnapshotSelector(instance.store),
+    actions: instance.actions,
     t,
-  } as unknown as McpSecAlertProps)} />)
+  }
+  render(<McpSecAlert {...props} />)
   return { instance }
 }
 
