@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { SmartQA } from '../src/client/SmartQA.tsx'
 import type { ChatFetcher } from '../src/client/SmartQA.tsx'
 import type { LlmChatChunk } from '@deepseek-ai/dsh-llm/types'
@@ -12,11 +12,11 @@ afterEach(cleanup)
 const t = (key: string): string => (en as Record<string, string>)[key] ?? key
 
 /** A chat fetcher plus its call mock, so a spec can drive and assert it. */
-function fetcher(chunks: LlmChatChunk[]): { chat: ChatFetcher; mock: ReturnType<typeof vi.fn> } {
+function fetcher(chunks: LlmChatChunk[]): { chat: ChatFetcher; mock: Mock<ChatFetcher> } {
   const impl: ChatFetcher = async function* (_request, _signal) {
     for (const chunk of chunks) yield chunk
   }
-  const mock = vi.fn(impl) as unknown as ChatFetcher & ReturnType<typeof vi.fn>
+  const mock = vi.fn(impl)
   return { chat: mock, mock }
 }
 
@@ -41,7 +41,7 @@ describe('SmartQA', () => {
 
     expect(screen.queryByText('hi')).toBeTruthy()
     expect(screen.queryByText('hello world')).toBeTruthy()
-    expect((screen.getByRole('textbox') as unknown as HTMLInputElement).value).toBe('')
+    expect(screen.getByRole<HTMLInputElement>('textbox').value).toBe('')
     expect(mock).toHaveBeenCalledTimes(1)
   })
 
@@ -64,7 +64,7 @@ describe('SmartQA', () => {
       yield { type: 'text-delta', index: 0, text: 'part' }
       await new Promise<void>((resolve) => { signal.addEventListener('abort', () =>{  resolve() }) })
     }
-    const chat = vi.fn(impl) as unknown as ChatFetcher & ReturnType<typeof vi.fn>
+    const chat = vi.fn(impl)
     render(<SmartQA t={t} chat={chat} model={{ provider: 'p', model: 'm' }} />)
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hi' } })

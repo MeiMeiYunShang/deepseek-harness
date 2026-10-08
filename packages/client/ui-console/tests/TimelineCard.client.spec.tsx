@@ -421,7 +421,7 @@ describe('Composer', () => {
       composer={composerState({ draft: 'typed in the chat' })}
       composerActions={composerActions()}
     />)
-    expect((screen.getByRole('textbox') as unknown as HTMLTextAreaElement).value).toBe('typed in the chat')
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox').value).toBe('typed in the chat')
   })
 
   it('disables the field and the send action without a resolved machine', () => {
@@ -432,7 +432,7 @@ describe('Composer', () => {
     expect(field.disabled).toBe(true)
     expect(field.getAttribute('placeholder')).toBe(en.composerDisabled)
     // The draft the machine would carry is empty, so the action has no target.
-    expect((screen.getByRole('button', { name: en.send }) as unknown as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: en.send }).disabled).toBe(true)
     expect(actions.submit).not.toHaveBeenCalled()
   })
 

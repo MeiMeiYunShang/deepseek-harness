@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-settings-console-pricing/README.md
+/:
+  en: 52faa223ea4d8af0
+  zh: f1f936b99a2fe57c
+/deepseek-ai-dsh-client-ui-settings-console-pricing:
+  en: 811be1ba6a7c31eb
+  zh: d77e0a0062b4b746
+/deepseek-ai-dsh-client-ui-settings-console-pricing/summary:
+  en: 25dc0f9330793804
+  zh: 3f908d7cd04b6c75
+/deepseek-ai-dsh-client-ui-settings-console-pricing/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-client-ui-settings-console-pricing/use-this-package:
+  en: 6cc59dba83b022d4
+  zh: 5b712aa8681e20e3
+/deepseek-ai-dsh-client-ui-settings-console-pricing/understand-the-implementation:
+  en: f48588462d871ffb
+  zh: f0d3c35110cf40be
+/deepseek-ai-dsh-client-ui-settings-console-pricing/further-exploration:
+  en: fe4d003d69555a2d
+  zh: 6f154d007748dfec
+/deepseek-ai-dsh-client-ui-settings-console-pricing/model-experience:
+  en: 6b7c6f82ab6c8435
+  zh: 4517689c899abcbe
+/deepseek-ai-dsh-client-ui-settings-console-pricing/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: 6e1c9a8fdde89577
+/deepseek-ai-dsh-client-ui-settings-console-pricing/known-limitations-and-deferred-work:
+  en: 16897bd383a088c4
+  zh: 6ebe9417380372d0
+/deepseek-ai-dsh-client-ui-settings-console-pricing/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: e88aeb617ffb74ea

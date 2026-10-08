@@ -1,0 +1,139 @@
+/* The model price table: one row per route with its two bands, plus the add action. */
+
+.intro,
+.unit,
+.empty,
+.problem,
+.conflict {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.intro {
+  padding: 12px 0 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.unit,
+.empty {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.problem,
+.conflict {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.table {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 8px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+/* The two bands sit under the route's identity fields, each with its own three rates. */
+.bands {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.band {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bandLabel {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
+.input {
+  height: 34px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-3);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+}
+
+.input:focus-visible {
+  outline: none;
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.input:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.remove:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.remove:disabled {
+  cursor: default;
+}
+
+.add {
+  justify-self: start;
+  height: 28px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.add:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.add:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}

@@ -3,9 +3,11 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { SessionEvent, SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
+import { SessionSeq } from '@deepseek-ai/dsh-session/types'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { TestRemote, TestSessions, TestWorkspaces, stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
@@ -14,10 +16,7 @@ import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
 import type { SessionStatsTurnRoute } from '@deepseek-ai/dsh-session-stats/types'
 import { UNBOUND_COMPOSER } from '../src/client/composer.ts'
-import type { ConsoleComposerState } from '../src/client/composer.ts'
-import type { ConsoleServices } from '../src/client/services.ts'
-import type { ConsoleStoreState, ConsoleStoreWrite } from '../src/client/consoleStore.ts'
-import type { TimelineMessage } from '../src/client/timelineMessages.ts'
+import { consoleFace } from './support/consoleFace.client.ts'
 
 /** Stabilizer that lets TestSessions/TestWorkspaces write outside React act. */
 const stabilize = async (fn: () => void): Promise<void> => {
@@ -115,38 +114,19 @@ async function addRetained(sessions: TestSessions, fixture: Parameters<TestSessi
   return id
 }
 
-/** The console sidebar action's registered inject face: store hook plus its write set. */
-function consoleFace(slots: SlotRegistry): {
-  hooks: {
-    console: { getSnapshot: () => ConsoleStoreState }
-    messages: { getSnapshot: () => readonly TimelineMessage[] }
-    composer: { getSnapshot: () => ConsoleComposerState }
-  }
-  store: ConsoleStoreWrite
-  composerActions: { setDraft: (text: string) => void; submit: () => void }
-} {
-  return (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
-    hooks: {
-      console: { getSnapshot: () => ConsoleStoreState }
-      messages: { getSnapshot: () => readonly TimelineMessage[] }
-      composer: { getSnapshot: () => ConsoleComposerState }
-    }
-    store: ConsoleStoreWrite
-    composerActions: { setDraft: (text: string) => void; submit: () => void }
-  })()
-}
 
 /** One operator prompt event. */
 function promptEntry(seq: number, text: string): SessionLiveEventEntry {
   return {
     type: 'event',
     event: {
-      seq,
-      time: seq * 100,
       type: 'user/message',
-      data: { id: `u${seq}`, role: 'user', content: [{ type: 'text', text }], source: { kind: 'user' } },
+      seq: SessionSeq(seq),
+      time: seq * 100,
+      surfaceOp: 'append',
+      data: createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }),
     },
-  } as unknown as SessionLiveEventEntry
+  }
 }
 
 /** One turn's route bucket, in the sessionStats projection's own shape. */
@@ -165,17 +145,21 @@ function replyEntry(seq: number, text: string): SessionLiveEventEntry {
   return {
     type: 'event',
     event: {
-      seq,
-      time: seq * 100,
       type: 'assistant/message',
+      seq: SessionSeq(seq),
+      time: seq * 100,
+      surfaceOp: 'append',
       data: {
         turn: 1,
         step: 1,
-        message: { id: `a${seq}`, role: 'assistant', content: [{ type: 'text', text }], source: { kind: 'model', provider: 'p', model: 'm' } },
+        message: createAssistantMessage({
+          content: [{ type: 'text', text }],
+          source: { provider: 'p', model: 'm' },
+        }),
         stream: [],
       },
     },
-  } as unknown as SessionLiveEventEntry
+  }
 }
 
 describe('ui-console apply', () => {
@@ -195,17 +179,7 @@ describe('ui-console apply', () => {
     expect(resolveSlotLabel(entry.options.label)).toBe('Console')
     // The injected face exposes the store hook, the price table, the scoped
     // conversation, the service verb set, the chat fetcher, and the default model.
-    const face = (entry.inject as unknown as () => {
-      hooks: {
-        console: { getSnapshot: () => unknown; subscribe: unknown }
-        prices: { getSnapshot: () => readonly ModelPrice[] }
-        messages: { getSnapshot: () => readonly TimelineMessage[]; subscribe: unknown }
-      }
-      store: unknown
-      services: unknown
-      chat: unknown
-      defaultModel: unknown
-    })()
+    const face = consoleFace(slots)
     expect(typeof face.hooks.console.getSnapshot).toBe('function')
     expect(typeof face.hooks.console.subscribe).toBe('function')
     expect(typeof face.hooks.messages.getSnapshot).toBe('function')
@@ -231,9 +205,7 @@ describe('ui-console apply', () => {
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
 
-    const face = (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
-      hooks: { console: { getSnapshot: () => ConsoleStoreState } }
-    })()
+    const face = consoleFace(slots)
     expect(face.hooks.console.getSnapshot().open).toBe(false)
 
     // Forwarding must reach apply's subscribers without leaking a throw, and
@@ -468,7 +440,12 @@ describe('ui-console apply', () => {
     // bound hook keeps one snapshot reference.
     await sessions.appendEvent('s1', {
       type: 'event',
-      event: { seq: 2, time: 200, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } } as unknown as SessionEvent,
+      event: {
+        type: 'turn/end',
+        seq: SessionSeq(2),
+        time: 200,
+        data: { turn: 1, reason: { kind: 'completed' } },
+      },
     })
     expect(face.hooks.messages.getSnapshot()).toBe(published)
 
@@ -611,13 +588,7 @@ describe('ui-console apply', () => {
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
 
-    const face = (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
-      services: {
-        listPresets: () => Promise<readonly { id: string; name: string | undefined }[]>
-        pickDirectory: () => Promise<string | null>
-      }
-    })()
-    const { services } = face
+    const { services } = consoleFace(slots)
 
     await services.listPresets()
     expect(agentPresets.list).toHaveBeenCalled()
@@ -640,9 +611,7 @@ describe('ui-console apply', () => {
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
 
-    const { services } = (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
-      services: ConsoleServices
-    })()
+    const { services } = consoleFace(slots)
 
     services.open(s1)
     expect(uiWorkspace.openSession).toHaveBeenCalledWith(s1)
@@ -681,7 +650,7 @@ describe('ui-console apply', () => {
     declareSidebar(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    const { services } = (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => { services: ConsoleServices })()
+    const { services } = consoleFace(slots)
     await expect(services.rename('missing' as SessionId, 'x')).rejects.toThrow(/no binding/)
     await expect(services.sendInstruction('missing' as SessionId, 'x')).rejects.toThrow(/no binding/)
     await expect(services.create({ workspaceId: undefined, presetId: undefined, instruction: '' })).rejects.toThrow(/requires a workspace/)
@@ -693,13 +662,10 @@ describe('ui-console apply', () => {
     declareSidebar(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    const face = (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
-      defaultModel: { provider: string; model: string } | null
-      chat: (request: unknown, signal: AbortSignal) => Promise<unknown>
-    })()
+    const face = consoleFace(slots)
     expect(face.defaultModel).toEqual({ provider: 'deepseek', model: 'chat' })
     // The chat fetcher delegates to ctx.remote.llm.chat.
-    await face.chat({}, new AbortController().signal)
+    face.chat({ provider: 'deepseek', model: 'chat', messages: [] }, new AbortController().signal)
     expect(chat).toHaveBeenCalled()
     await fiber.dispose()
 
@@ -707,7 +673,7 @@ describe('ui-console apply', () => {
     declareSidebar(slots2)
     const fiber2 = ctx2.plugin({ inject: [...inject], apply })
     await fiber2.await()
-    const face2 = (slots2.entries('sidebar.footer.action')[0]!.inject as unknown as () => { defaultModel: unknown })()
+    const face2 = consoleFace(slots2)
     expect(face2.defaultModel).toBeNull()
     await fiber2.dispose()
   })
@@ -717,7 +683,7 @@ describe('ui-console apply', () => {
     declareSidebar(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    const { services } = (slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => { services: ConsoleServices })()
+    const { services } = consoleFace(slots)
     await expect(services.listPresets()).rejects.toMatchObject({ message: 'boom' })
     await expect(services.pickDirectory()).rejects.toMatchObject({ message: 'boom' })
     await expect(services.selectPreset('s1' as SessionId, 'p1')).rejects.toMatchObject({ message: 'boom' })

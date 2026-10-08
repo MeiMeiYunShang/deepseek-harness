@@ -100,8 +100,11 @@ describe('TaskStatsCard', () => {
   it('aggregate reads a value without route buckets as no buckets', () => {
     // A host that predates the route buckets —or a persisted projection row at
     // an older state version —streams a value without `routes`; the absence is
-    // a wire fact the declared type cannot express.
-    const legacy = { ...STATS, routes: undefined } as unknown as SessionStatsProjection
+    // a wire fact the declared type cannot express. The row is therefore built
+    // complete and the field the older producer never sent is removed, so the
+    // value below is what a legacy stream actually delivers.
+    const legacy: SessionStatsProjection = { ...STATS, routes: [] }
+    delete (legacy as Partial<SessionStatsProjection>).routes
     const stats = aggregateSessionStats({
       s1: session('s1', { projectionValues: { sessionStats: legacy } }),
     }, undefined)

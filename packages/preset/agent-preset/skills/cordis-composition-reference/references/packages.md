@@ -17,6 +17,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-api-account-controller` | no | Expose safe account operations over authenticated Remote |
 | `@deepseek-ai/dsh-api-gateway` | yes | Typert Remote Host dispatcher and Client API endpoint |
 | `@deepseek-ai/dsh-api-job-controller` | yes | Job Remote observation stream and the reference-counted client job-output service |
+| `@deepseek-ai/dsh-api-knowledge-controller` | no | Remote owner for the knowledge store CRUD over the knowledge seam |
 | `@deepseek-ai/dsh-api-remotes` | no | Remote BFF assembly for application-selected Host capabilities |
 | `@deepseek-ai/dsh-api-session-controller` | yes | Session Remote commands, cold reads, and live control transport |
 | `@deepseek-ai/dsh-api-settings-controller` | yes | Remote owner for the configuration surfaces over the settings-domain seams |
@@ -71,6 +72,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-brand-official` | no | Official DeepSeek Harness brand occupants for the Web client's sidebar slots |
 | `@deepseek-ai/dsh-client-ui-chat` | no | Chat Conversation target, node definitions, renderers, and details surface |
 | `@deepseek-ai/dsh-client-ui-commands` | no | Client command surface: global directory cache, '/' source, three command UI kinds, popupSelect registry |
+| `@deepseek-ai/dsh-client-ui-console` | no | Console workbench button: a sidebar footer action that opens a fullscreen console modal with session status, task stats, system metrics, and smart Q&A |
 | `@deepseek-ai/dsh-client-ui-conversation` | no | Target-neutral Conversation assembly, shell, composer, queue, and view navigation |
 | `@deepseek-ai/dsh-client-ui-deliverables` | no | Changed-files card with per-file comparison tabs, delivery cards, and clickable final-response file references for Web |
 | `@deepseek-ai/dsh-client-ui-directory-picker-browse` | no | In-app directory browsing surface: the workspace directory-flow owner rendering the host's listing and creation primitives |
@@ -78,6 +80,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-goal` | no | Session goal surface: GoalBar docked above the composer, read from the goal session projection |
 | `@deepseek-ai/dsh-client-ui-input-trigger` | no | Input trigger pipeline: '/' and '@' detection, candidate menu, pick routing to registered sources |
 | `@deepseek-ai/dsh-client-ui-jobs` | no | Session-header background-job list with on-demand streaming record panels |
+| `@deepseek-ai/dsh-client-ui-knowledge-picker` | no | Knowledge multi-select picker staged for a new session and the composer |
 | `@deepseek-ai/dsh-client-ui-layout` | no | Shell plugin: three-column AppFrame with drag handles, ctx.layout viewing-state service (navigation + panels) |
 | `@deepseek-ai/dsh-client-ui-message-feedback` | no | The Web feedback surface: per-message Like/Dislike in the assistant-message action strip and the feedback dialog behind both ratings and /feedback, backed by the messageFeedback and sessionFeedback Host Remotes |
 | `@deepseek-ai/dsh-client-ui-model-selection` | no | Model selection over the shared model catalog, Session projection, and session.selectModel |
@@ -92,7 +95,9 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-settings` | no | Settings domain base plugin: shared configuration forms and the canonical settings slot-type contract |
 | `@deepseek-ai/dsh-client-ui-settings-account` | yes | Manage DeepSeek login and open Platform billing pages |
 | `@deepseek-ai/dsh-client-ui-settings-agent-loop` | no | Settings page of the agent loop on the dsh web client's Plugins page: the parallel tool-call cap of the agent-loop namespace |
+| `@deepseek-ai/dsh-client-ui-settings-console-pricing` | no | Model price table on the dsh web client's Plugins page: one row per model route with its peak and off-peak rates in the console-bridge namespace |
 | `@deepseek-ai/dsh-client-ui-settings-general` | no | Settings ownerless-copy and product onboarding plugin: the General section, shell trigger/header chrome content, settings dictionaries, and the versioned welcome notice |
+| `@deepseek-ai/dsh-client-ui-settings-knowledge` | no | Knowledge catalog settings page: list, group panel, inline create/update, delete |
 | `@deepseek-ai/dsh-client-ui-settings-models` | yes | Models settings and shared product-onboarding dialogs over existing settings and credential joins |
 | `@deepseek-ai/dsh-client-ui-settings-plugin-inventory` | no | Read-only Cordis Loader inventory tab in Web Plugins settings |
 | `@deepseek-ai/dsh-client-ui-settings-plugins` | no | Built-in plugins settings section for the dsh web client: the Settings navigation entry and the tab chrome feature-owned tabs register into |
@@ -130,6 +135,12 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | Package | Config | Description |
 |---|---|---|
 | `@deepseek-ai/dsh-computer-use` | no | Exclusive named computer-use provider registration |
+
+## console
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-console-bridge` | yes | Bridge DeepSeek Harness tasks to an external agent console over the DSH console contract (down/cmd → up/result) |
 
 ## context
 
@@ -252,6 +263,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-host-directory-picker-browse` | yes | In-app browsing backend of the directory-picker seam (listing/creation primitives over the host filesystem) |
 | `@deepseek-ai/dsh-host-directory-picker-native` | no | Native-OS-chooser backend of the directory-picker seam for the DeepSeek Harness web GUI host |
 | `@deepseek-ai/dsh-host-frontend-static` | yes | SPA dist server for the Web shell: owns the webserver fallback seat, serving explicit index entries and static assets with traversal rejection and 404 misses |
+| `@deepseek-ai/dsh-host-metrics` | yes | Periodic host resource sampler (CPU and memory, best-effort GPU) emitted as a forwarded host event for the Web console system-status panel |
 | `@deepseek-ai/dsh-host-open-in-app` | yes | Host half of open-in-app: resolved application catalog, icons, and the launch endpoint as three webServer routes |
 | `@deepseek-ai/dsh-host-plugin-inventory` | no | Read-only Remote projection of current Cordis Loader plugin state |
 | `@deepseek-ai/dsh-host-product-telemetry-otel` | yes | Explicit product usage events exported through OpenTelemetry HTTP logs |
@@ -273,6 +285,14 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 |---|---|---|
 | `@deepseek-ai/dsh-jobs-local` | yes | Process-local implementation of the DeepSeek Harness background job registry seam |
 | `@deepseek-ai/dsh-tool-jobs` | yes | Model-facing background job control tools (job_output, job_list, job_kill) over the ctx.jobs registry |
+
+## knowledge
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-knowledge` | no | Knowledge store service definition (ctx.knowledge) for the DeepSeek Harness |
+| `@deepseek-ai/dsh-knowledge-file` | yes | JSON file persistence provider for the knowledge store (ctx.knowledge) |
+| `@deepseek-ai/dsh-tool-knowledge` | yes | Knowledge tools, system-prompt injection, and auto-summarization consumer (ctx.knowledge) |
 
 ## llm
 
@@ -301,6 +321,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 |---|---|---|
 | `@deepseek-ai/dsh-mcp-client` | yes | MCP client bridge: connects to MCP servers and registers their tools on ctx.tools |
 | `@deepseek-ai/dsh-mcp-resources` | no | Scoped MCP resource discovery and reading through shared model tools |
+| `@deepseek-ai/dsh-mcpsec-manager` | no | MCP security manager: permission scope + per-tool rules on MCP servers, a read-only/write execution gate, per-call usage scoring with alerts, and npm package search — over a loopback Connection RPC channel |
 
 ## plan
 
@@ -478,6 +499,12 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | Package | Config | Description |
 |---|---|---|
 | `@deepseek-ai/dsh-typert-loader` | yes | Loader integration for generated Typert package contributions |
+
+## understanding
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-image-understanding` | yes | Image-to-text translation for text-only models: pluggable OCR backends (free vision API, local Ollama, Windows system OCR) rewrite image blocks before they reach the model |
 
 ## web
 

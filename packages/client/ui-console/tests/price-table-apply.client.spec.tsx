@@ -16,6 +16,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-console/client'
 import { en } from '../src/client/locales.ts'
+import { consoleFace } from './support/consoleFace.client.ts'
 
 usePinnedBrowserLanguages('en')
 afterEach(cleanup)
@@ -77,9 +78,7 @@ describe('console price table wiring', () => {
 
     // The face the sidebar trigger receives serves the table as a live source,
     // not as the value a read at bind time would have found.
-    const face = (runtime.slots.entries('sidebar.footer.action')[0]!.inject as unknown as () => {
-      hooks: { prices: { getSnapshot: () => readonly ModelPrice[] } }
-    })()
+    const face = consoleFace(runtime.slots)
     expect(face.hooks.prices.getSnapshot()).toEqual([])
 
     openConsole()

@@ -300,7 +300,7 @@ describe('Workbench', () => {
     if (cell !== undefined) fireEvent.contextMenu(cell, { clientX: 10, clientY: 20 })
     await waitFor(() => { expect(screen.getByRole('menu')).toBeTruthy() })
     fireEvent.click(screen.getByRole('menuitem', { name: /rename/i }))
-    await waitFor(() => { expect((screen.getByLabelText(en.renameInputAria) as unknown as HTMLInputElement).value).toBe('s1') })
+    await waitFor(() => { expect(screen.getByLabelText<HTMLInputElement>(en.renameInputAria).value).toBe('s1') })
   })
 
   it('creates a session with only a workspace (no preset, no instruction)', async () => {

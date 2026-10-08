@@ -30,6 +30,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { CONSOLE_PRICING_NAMESPACE, PriceTablePolicy } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { ConsoleButton } from './ConsoleButton.tsx'
+import type { ConsoleInjectFace } from './ConsoleButton.tsx'
 import {
   sameComposerState, UNBOUND_COMPOSER,
 } from './composer.ts'
@@ -294,7 +295,7 @@ export function apply(ctx: ClientContext): void {
       order: 40,
       label: () => t('console'),
       locale: NS,
-      inject: () => ({
+      inject: (): ConsoleInjectFace => ({
         hooks: { console: store.store, prices: priceTable.prices, messages, composer },
         store: write,
         services,

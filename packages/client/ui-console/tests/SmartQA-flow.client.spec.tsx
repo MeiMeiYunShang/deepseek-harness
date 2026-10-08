@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { SmartQA } from '../src/client/SmartQA.tsx'
 import type { ChatFetcher } from '../src/client/SmartQA.tsx'
 import { en } from '../src/client/locales.ts'
@@ -11,11 +11,11 @@ afterEach(cleanup)
 
 const t = (key: string): string => (en as Record<string, string>)[key] ?? key
 
-function fetcher(chunks: LlmChatChunk[]): { chat: ChatFetcher; mock: ReturnType<typeof vi.fn> } {
+function fetcher(chunks: LlmChatChunk[]): { chat: ChatFetcher; mock: Mock<ChatFetcher> } {
   const impl: ChatFetcher = async function* () {
     for (const chunk of chunks) yield chunk
   }
-  const mock = vi.fn(impl) as unknown as ChatFetcher & ReturnType<typeof vi.fn>
+  const mock = vi.fn(impl)
   return { chat: mock, mock }
 }
 

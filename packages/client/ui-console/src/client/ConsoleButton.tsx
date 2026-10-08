@@ -44,20 +44,29 @@ export interface ConsoleFaces {
   defaultModel: ConsoleQaModel | null
 }
 
+/**
+ * The face `apply` registers for the sidebar footer action, before the
+ * renderer binds the `hooks` compartment: `apply` annotates its inject factory
+ * with this type, so a registration that stops carrying one of these members
+ * fails to compile.
+ */
+export type ConsoleInjectFace = ConsoleFaces & {
+  /** Raw live sources; the renderer binds each one to a `use<Name>` selector hook. */
+  hooks: {
+    console: HostObservable<ConsoleStoreState>
+    /** The operator's model price table for the task-statistics cost figure. */
+    prices: HostObservable<readonly ModelPrice[]>
+    /** The selected session's conversation, in log order; empty while nothing is scoped. */
+    messages: HostObservable<readonly TimelineMessage[]>
+    /** The same session's composer projection, from the shared input machine. */
+    composer: HostObservable<ConsoleComposerState>
+  }
+}
+
 /** Composed props: slot runtime + injected face + console dictionary. */
 export type ConsoleButtonProps =
   PropsRuntime<'sidebar.footer.action'>
-  & InjectFace<{
-    hooks: {
-      console: HostObservable<ConsoleStoreState>
-      /** The operator's model price table for the task-statistics cost figure. */
-      prices: HostObservable<readonly ModelPrice[]>
-      /** The selected session's conversation, in log order; empty while nothing is scoped. */
-      messages: HostObservable<readonly TimelineMessage[]>
-      /** The same session's composer projection, from the shared input machine. */
-      composer: HostObservable<ConsoleComposerState>
-    }
-  } & ConsoleFaces>
+  & InjectFace<ConsoleInjectFace>
   & PropsLocale<typeof NS>
 
 /**
