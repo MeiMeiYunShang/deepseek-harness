@@ -80,6 +80,7 @@ async function bench() {
     children: {
       'settings.general.item': { kind: 'list', scope: 'root' },
       'conversation.input.permission': { kind: 'single', scope: 'session' },
+      'console.input.permission': { kind: 'single', scope: 'session' },
     },
   } as never, () => null)
   await ctx.plugin({ inject: [...settingsInject], apply: settingsApply }).await()
@@ -150,6 +151,8 @@ async function bench() {
       .find(entry => entry.component === PermissionRow),
     permissionSelect: () => ctx.slots.entries('conversation.input.permission')
       .find(entry => entry.component === PermissionSelect),
+    consolePermissionSelect: () => ctx.slots.entries('console.input.permission')
+      .find(entry => entry.component === PermissionSelect),
   }
 }
 
@@ -186,6 +189,22 @@ describe('ui-permission browser plugin', () => {
     await expect(selectInjected.select('auto')).resolves.toBe(true)
     expect(b.commands).toEqual(['/permission auto'])
     expect(b.catalogCalls()).toBe(1)
+  })
+
+  it('fills the console composer permission seat with the same occupant and inject face', async () => {
+    const b = await bench()
+    const chat = b.permissionSelect()!
+    const consoleSeat = b.consolePermissionSelect()!
+    // One occupant across both seats: the same component and the same
+    // session-scoped inject factory, so the console renders the chat control.
+    expect(consoleSeat.component).toBe(chat.component)
+    expect(consoleSeat.locale).toBe(chat.locale)
+    const injectSelect = consoleSeat.inject as unknown as (sessionId: SessionId) => PermissionSelectInjected
+    b.values.set(sid('s1'), { currentValue: 'workspace-write' })
+    const selectInjected = injectSelect(sid('s1'))
+    expect(selectInjected?.hooks.permissionCatalog.getSnapshot().value).toEqual(CATALOG)
+    await expect(selectInjected.select('auto')).resolves.toBe(true)
+    expect(b.commands).toEqual(['/permission auto'])
   })
 
   it('availability follows the session projection; options mark the current value active', async () => {

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-在侧栏打开**插件**，在官方分组里选择**模型价格**，即可记录每条 `(baseUrl, provider, model)` 路由每百万 token 的价格。每条路由一行，分别填写高峰与低谷时段下缓存命中输入、缓存未命中输入和输出的价格。控制台任务统计与对话单轮费用读取的正是这张表，所以这里记录的价格就是那两处计费的价格。页面只在 Host 服务 `console-bridge` 命名空间期间存在，没有接入控制台的部署看不到它。
+在侧栏打开**插件**并选择**模型价格**，即可记录每条 `(baseUrl, provider, model)` 路由每百万 token 的价格：每条路由一行，分别填写高峰与低谷时段下缓存命中输入、缓存未命中输入和输出的价格。控制台任务统计与对话单轮费用读取的正是这张表。任务统计卡片头部的**费用设定**在控制台之上打开同一张表，让未定价的费用就地得到修正。这两处界面仅在 Host 服务 `console-bridge` 命名空间且本插件加载期间存在：停用插件，页面与控制台入口一同消失。
 
 ## 目录
 
@@ -29,6 +29,8 @@ kind: "package-reference"
 
 点击**保存**之前不会写入任何内容，而一次保存会替换整张表，因此删掉的行是真的被删除。检查不通过的表会原样留在屏幕上，并指出需要修改的那一行：接入地址、提供方或模型为空，价格不是不小于 0 的数字，或两行使用了相同的接入地址、提供方和模型，都会阻止保存并标出对应单元格。部署没有接受的保存会保留这些行供修改，离开页面则丢弃草稿。
 
+任务统计卡片头部的**费用设定**在控制台之上打开这张表。卡片费用没能计入某条路由时，弹窗按原因逐条列出这些路由的提供方和模型 —— 没有价格行，或者同一条路由被多行定价 —— 因此要补哪一行是被点名说出的，而不是只报一个数量。弹窗自己暂存草稿，因此不保存就关闭只会丢弃弹窗暂存的内容，插件页的草稿原样保留。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -38,6 +40,8 @@ kind: "package-reference"
 <summary>实现细节——点击展开</summary>
 
 宿主半侧是一个空的 `apply`，只为让本包占一条 Loader 行，客户端模块系统据此送出浏览器半侧。浏览器半侧通过 `ctx.configForms.get` 绑定 `console-bridge` 命名空间——命名空间常量取自 `ui-primitives`，那是所有客户端费用读取方共用的唯一来源——用 `ConsolePricingCardController` 暂存整张表，并通过 `ctx.configForms.whileServed` 把 `ConsolePricingCard` 注册进插件页的 `plugins.item` slot：Host 服务该命名空间期间注册，停止服务时注销。暂存的是一整个列表值，共享的 `SettingsFormModel` 的逐字段规格并不建模这种值，因此控制器自己持有草稿，并把它作为一次带修订栅栏的 `models` 操作写入；`SettingsForm` 框架的文案以 props 传入，页面自己的文案在本包的 `settings.consolePricing` 字典里。
+
+同一个类的两个控制器分别服务两处界面，各随一次 `whileServed` 注册，因此弹窗的 `SettingsForm` 只丢弃弹窗自己暂存的草稿。表体是 `PriceTable`，两处界面都在自己的框架里渲染它。`ConsolePricingEntry` 通过 `ctx.slots.inject` 注册进 `console.task-stats.action`——由 `ui-console` 自己声明的动作区——声明存在时执行一次，控制台重新挂载时再次执行。卡片把自己作用域内的路由桶和自己计价的价格表交给那个座位；入口用 `totalCost` 读它们，按原因逐条点名这张表没能计费的路由，而 `ui-console` 不知道入口如何处理这些数据。
 
 </details>
 
@@ -50,7 +54,7 @@ kind: "package-reference"
 - [ui-settings](../ui-settings/README.zh.md)——本页暂存所依据的配置表单，以及所依赖的「命名空间被服务期间」的监视。
 - [ui-primitives](../ui-primitives/README.zh.md)——共享的设置表单框架与命名空间常量。
 - [console-bridge](../../console/console-bridge/README.zh.md)——注册 `console-bridge` 命名空间并校验已存价格表的插件。
-- [ui-console](../ui-console/README.zh.md)——控制台工作台，其任务统计费用读取本表。
+- [ui-console](../ui-console/README.zh.md)——控制台工作台，其任务统计卡片读取本表得出费用，并声明本包入口注册进去的动作区。
 
 -----
 

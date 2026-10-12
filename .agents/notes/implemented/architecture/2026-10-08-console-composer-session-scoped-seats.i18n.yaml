@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-08-console-composer-session-scoped-seats.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-08-console-composer-session-scoped-seats.md
+/agent-note-console-composer-reuses-the-chat-permission-and-model-seats:
+  en: d114a3375080c7ea
+  zh: 8dfc422a9a23ad5f
+/agent-note-console-composer-reuses-the-chat-permission-and-model-seats/problem:
+  en: 04536402e2842cf2
+  zh: d0746464ebc0aae4
+/agent-note-console-composer-reuses-the-chat-permission-and-model-seats/decision:
+  en: ea550d9abaa78e27
+  zh: d0d538db5442ceba
+/agent-note-console-composer-reuses-the-chat-permission-and-model-seats/amendment-approved-follow-up-plain-text-command-and-attachment-surface:
+  en: 27c6903c5075c935
+  zh: 3afe6e94760e6b8e
+/agent-note-console-composer-reuses-the-chat-permission-and-model-seats/alternatives-considered:
+  en: b7f748a4ce6eba25
+  zh: 3f368733b817ff88
+/agent-note-console-composer-reuses-the-chat-permission-and-model-seats/consequences:
+  en: 69c0a8b6bd36d36e
+  zh: f09e9a23ab643854

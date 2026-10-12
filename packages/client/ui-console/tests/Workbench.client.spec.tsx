@@ -4,8 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import { Workbench } from '../src/client/Workbench.tsx'
+import type { WorkbenchProps } from '../src/client/Workbench.tsx'
 import type { ConsoleComposerActions, ConsoleComposerState } from '../src/client/composer.ts'
 import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
 import type { SessionBucket } from '../src/client/sessionState.ts'
@@ -58,7 +60,7 @@ const baseStore = (): ConsoleStoreState => ({
   sessionView: 'stats',
   // Every bucket ticked: these cases exercise the header, the grid verbs, and
   // the one console scope, not which squares the filter tiles.
-  sessionBuckets: ['running', 'pending', 'completed', 'available', 'archived'],
+  sessionBuckets: ['running', 'pending', 'available', 'archived'],
   selectedSession: 's1',
   layout: 'balanced',
   collapsed: {},
@@ -71,9 +73,11 @@ function renderWorkbench(overrides: {
   archived?: readonly string[]
   workspaces?: readonly { id: string; label: string }[]
   titleOf?: (id: string) => string | undefined
-  completedOf?: (id: string) => boolean
   messages?: readonly TimelineMessage[]
   onClose?: () => void
+  renderSlot?: WorkbenchProps['renderSlot']
+  renderComposerControls?: WorkbenchProps['renderComposerControls']
+  candidates?: WorkbenchProps['candidates']
 } = {}) {
   const state = overrides.store ?? baseStore()
   const snap = createSnapshotStore<ConsoleStoreState>(state)
@@ -83,12 +87,19 @@ function renderWorkbench(overrides: {
     ready: state.selectedSession !== undefined,
     draft: '',
     failed: false,
+    attachmentIds: [],
+    attachments: [],
+    uploads: {},
+    uploadsPending: false,
   })
   const composerActions: ConsoleComposerActions = {
     setDraft: vi.fn((text: string) => {
       composerSnap.set({ ...composerSnap.getSnapshot(), draft: text })
     }),
     submit: vi.fn(),
+    addFiles: vi.fn(() => null),
+    removeAttachment: vi.fn(),
+    retryUpload: vi.fn(),
   }
   const store = {
     setTimelineMode: vi.fn(),
@@ -123,7 +134,6 @@ function renderWorkbench(overrides: {
     archived={new Set(overrides.archived ?? [])}
     titleOf={overrides.titleOf ?? (id => byId[id]?.displayTitle)}
     pendingKindOf={() => undefined}
-    completedOf={overrides.completedOf ?? (id => id === 's2')}
     workspaces={overrides.workspaces ?? [{ id: 'w1', label: 'Workspace' }]}
     useConsole={bindSnapshotSelector(snap)}
     store={store}
@@ -134,6 +144,9 @@ function renderWorkbench(overrides: {
     messages={overrides.messages ?? []}
     useComposer={bindSnapshotSelector(composerSnap)}
     composerActions={composerActions}
+    candidates={overrides.candidates ?? { commands: async () => [], files: async () => [] }}
+    renderSlot={overrides.renderSlot ?? (() => null)}
+    renderComposerControls={overrides.renderComposerControls ?? (() => null)}
   />)
   return { container: view.container, snap, store, srv, composerSnap, composerActions }
 }
@@ -322,9 +335,9 @@ describe('Workbench', () => {
     expect(square('s2')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: en.sessionFilter }))
-    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionCompleted }))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionIdle }))
 
-    expect(store.toggleSessionBucket).toHaveBeenCalledWith('completed')
+    expect(store.toggleSessionBucket).toHaveBeenCalledWith('available')
     // The square the filter hides leaves the grid; the task-statistics counts
     // beside it are taken over the whole list, so they stay as they were.
     expect(square('s2')).toBeUndefined()
@@ -364,6 +377,26 @@ describe('Workbench', () => {
     expect(onClose).not.toHaveBeenCalled()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('leaves Escape to a dialog opened in front of the panel', () => {
+    const onClose = vi.fn()
+    renderWorkbench({ onClose })
+    // A card action a plugin contributes mounts its own dialog; the panel yields
+    // the key to whichever layer holds the foreground instead of closing with it.
+    render(<Modal open onClose={vi.fn()} title="Price table" closeLabel="Close" size="panel">
+      <p>rows</p>
+    </Modal>)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('renders the actions contributed to the task-statistics card beside its fold toggle', () => {
+    renderWorkbench({ renderSlot: () => <button type="button">Price settings</button> })
+    const titleGroup = screen.getByRole('heading', { name: en.taskStats }).parentElement!
+    const header = titleGroup.parentElement!
+    expect(within(header).getByRole('button', { name: 'Price settings' })).toBeTruthy()
+    expect(within(header).getByRole('button', { name: en.collapse })).toBeTruthy()
   })
 
   it('folds the Smart Q&A body away with its own fold state', () => {

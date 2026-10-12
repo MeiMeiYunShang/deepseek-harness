@@ -423,9 +423,13 @@ function firstSentence(doc: string): string {
   return (match?.[1] ?? flat).trim()
 }
 
-/** Render one value as a single-quoted TypeScript literal. */
+/**
+ * Render one value as a single-quoted TypeScript literal.
+ * @param value - the text to embed; a carriage return stays as content rather
+ * than becoming a line break inside the literal, which would end it.
+ */
 function quote(value: string): string {
-  return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\n', '\\n')}'`
+  return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\r', '\\r').replaceAll('\n', '\\n')}'`
 }
 
 /** Render a readonly string-array literal. */

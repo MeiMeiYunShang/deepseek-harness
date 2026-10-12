@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionStatsTurnRoute } from '@deepseek-ai/dsh-session-stats/types'
+import type { ComposerAttachment, DraftAttachmentId, DraftFileUploads } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { AskCardBody, Composer, MessageStream, rowTone, TimelineCard, TimelineList, TimelineRow } from '../src/client/TimelineCard.tsx'
 import type { ConsoleComposerActions, ConsoleComposerState } from '../src/client/composer.ts'
 import { UNBOUND_COMPOSER } from '../src/client/composer.ts'
+import type { ComposerCandidateSource, ComposerCommandCandidate } from '../src/client/candidates.ts'
 import type { TimelineEntry, TimelineMode } from '../src/client/consoleStore.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 import { en, zh } from '../src/client/locales.ts'
@@ -56,11 +58,19 @@ const entry = (id: number, sessionId: string, kind: TimelineEntry['kind'], time:
 
 /** A composer projection with the scoped defaults one test varies. */
 const composerState = (overrides: Partial<ConsoleComposerState> = {}): ConsoleComposerState =>
-  ({ ready: true, draft: '', failed: false, ...overrides })
+  ({ ...UNBOUND_COMPOSER, ready: true, draft: '', failed: false, ...overrides })
 
 /** The composer's machine writers, stubbed unless a test supplies its own. */
 function composerActions(overrides: Partial<ConsoleComposerActions> = {}): ConsoleComposerActions {
-  return { setDraft: vi.fn(), submit: vi.fn(), ...overrides }
+  return {
+    setDraft: vi.fn(), submit: vi.fn(), addFiles: vi.fn(() => null),
+    removeAttachment: vi.fn(), retryUpload: vi.fn(), ...overrides,
+  }
+}
+
+/** A candidate source the composer menu fetches through; empty unless a test supplies rows. */
+function candidateSource(overrides: Partial<ComposerCandidateSource> = {}): ComposerCandidateSource {
+  return { commands: async () => [], files: async () => [], ...overrides }
 }
 
 /** Render the card with the props one test varies; the rest stay at their default. */
@@ -74,6 +84,7 @@ function renderCard(overrides: {
   setTimelineMode?: (mode: TimelineMode) => void
   composer?: ConsoleComposerState
   composerActions?: ConsoleComposerActions
+  candidates?: ComposerCandidateSource
 }) {
   const setTimelineMode = overrides.setTimelineMode ?? vi.fn()
   render(<TimelineCard
@@ -87,6 +98,8 @@ function renderCard(overrides: {
     setTimelineMode={setTimelineMode}
     composer={overrides.composer ?? composerState()}
     composerActions={overrides.composerActions ?? composerActions()}
+    candidates={overrides.candidates ?? candidateSource()}
+    renderComposerControls={() => null}
   />)
   return { setTimelineMode }
 }
@@ -246,6 +259,21 @@ describe('MessageStream', () => {
     expect(container.querySelector('[data-role="assistant"]')?.textContent).toBe(`Done.${clockOf(1_700_000_005_000)}`)
     // Only the assistant block carries the metadata row.
     expect(container.querySelector('[data-role="user"]')?.textContent).not.toContain(clockOf(1_700_000_005_000))
+  })
+
+  it('renders an assistant reply as Markdown instead of raw markers', () => {
+    const { container } = render(<MessageStream
+      t={t}
+      prices={[]}
+      messages={[{ key: 1, role: 'assistant', text: '## Plan\n\n- **done**', time: 1_700_000_005_000 }]}
+    />)
+
+    const body = container.querySelector('[data-role="assistant"]')
+    expect(body?.querySelector('h2')?.textContent).toBe('Plan')
+    expect(body?.querySelector('strong')?.textContent).toBe('done')
+    // The raw Markdown markers are gone from the rendered text.
+    expect(body?.textContent).not.toContain('**')
+    expect(body?.textContent).not.toContain('##')
   })
 
   it('renders the empty hint for a conversation with no renderable message', () => {
@@ -420,25 +448,41 @@ describe('Composer', () => {
       t={t}
       composer={composerState({ draft: 'typed in the chat' })}
       composerActions={composerActions()}
+      candidates={candidateSource()}
+      selectedSession="s1"
     />)
     expect(screen.getByRole<HTMLTextAreaElement>('textbox').value).toBe('typed in the chat')
   })
 
-  it('disables the field and the send action without a resolved machine', () => {
+  it('never mounts a second editor root: the field stays a plain textarea', () => {
+    render(<Composer
+      t={t}
+      composer={composerState()}
+      composerActions={composerActions()}
+      candidates={candidateSource()}
+      selectedSession="s1"
+    />)
+    // The console reuses the chat's textarea and must not claim an editor root.
+    expect(screen.getByRole('textbox').tagName).toBe('TEXTAREA')
+    expect(document.querySelector('[contenteditable]')).toBeNull()
+  })
+
+  it('disables the field, the `+` launcher, and the send action without a resolved machine', () => {
     const actions = composerActions()
-    render(<Composer t={t} composer={UNBOUND_COMPOSER} composerActions={actions} />)
+    render(<Composer t={t} composer={UNBOUND_COMPOSER} composerActions={actions} candidates={candidateSource()} selectedSession="s1" />)
 
     const field = screen.getByRole('textbox') as HTMLTextAreaElement
     expect(field.disabled).toBe(true)
     expect(field.getAttribute('placeholder')).toBe(en.composerDisabled)
     // The draft the machine would carry is empty, so the action has no target.
     expect(screen.getByRole<HTMLButtonElement>('button', { name: en.send }).disabled).toBe(true)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: en.addFilesAria }).disabled).toBe(true)
     expect(actions.submit).not.toHaveBeenCalled()
   })
 
   it('withholds the send action until the draft carries something', () => {
     const actions = composerActions()
-    render(<Composer t={t} composer={composerState({ draft: '   ' })} composerActions={actions} />)
+    render(<Composer t={t} composer={composerState({ draft: '   ' })} composerActions={actions} candidates={candidateSource()} selectedSession="s1" />)
 
     const send = screen.getByRole('button', { name: en.send }) as HTMLButtonElement
     expect(send.disabled).toBe(true)
@@ -448,7 +492,7 @@ describe('Composer', () => {
 
   it('publishes every keystroke to the machine and submits the composed draft once', () => {
     const actions = composerActions()
-    const { rerender } = render(<Composer t={t} composer={composerState()} composerActions={actions} />)
+    const { rerender } = render(<Composer t={t} composer={composerState()} composerActions={actions} candidates={candidateSource()} selectedSession="s1" />)
 
     const field = screen.getByRole('textbox') as HTMLTextAreaElement
     fireEvent.change(field, { target: { value: 'line one\nline two' } })
@@ -460,6 +504,8 @@ describe('Composer', () => {
       t={t}
       composer={composerState({ draft: 'line one\nline two' })}
       composerActions={actions}
+      candidates={candidateSource()}
+      selectedSession="s1"
     />)
     fireEvent.click(screen.getByRole('button', { name: en.send }))
     expect(actions.submit).toHaveBeenCalledTimes(1)
@@ -467,7 +513,7 @@ describe('Composer', () => {
 
   it('submits on Enter while Shift+Enter breaks the line, as the chat keymap does', () => {
     const actions = composerActions()
-    render(<Composer t={t} composer={composerState({ draft: 'hello' })} composerActions={actions} />)
+    render(<Composer t={t} composer={composerState({ draft: 'hello' })} composerActions={actions} candidates={candidateSource()} selectedSession="s1" />)
     const field = screen.getByRole('textbox') as HTMLTextAreaElement
 
     fireEvent.keyDown(field, { key: 'Enter', shiftKey: true })
@@ -482,7 +528,7 @@ describe('Composer', () => {
 
   it('leaves a composing Enter to the input method', () => {
     const actions = composerActions()
-    render(<Composer t={t} composer={composerState({ draft: 'hello' })} composerActions={actions} />)
+    render(<Composer t={t} composer={composerState({ draft: 'hello' })} composerActions={actions} candidates={candidateSource()} selectedSession="s1" />)
 
     const field = screen.getByRole('textbox') as HTMLTextAreaElement
     const composing = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, isComposing: true })
@@ -492,11 +538,190 @@ describe('Composer', () => {
     expect(composing.defaultPrevented).toBe(false)
   })
 
+  it('opens the `+` menu and inserts a picked command as `/name ` text', async () => {
+    const actions = composerActions()
+    const commands: readonly ComposerCommandCandidate[] = [{ name: 'deploy', description: 'Ship it', hasInput: false, origin: 'command' }]
+    render(<Composer
+      t={t}
+      composer={composerState()}
+      composerActions={actions}
+      candidates={candidateSource({ commands: async () => commands })}
+      selectedSession="s1"
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: en.addFilesAria }))
+    // The fetched roster and the file-pick pseudo row land in the listbox.
+    await waitFor(() => { expect(screen.getByRole('option', { name: /deploy/ })).toBeTruthy() })
+    expect(screen.getByRole('option', { name: en.composerAddFiles })).toBeTruthy()
+
+    fireEvent.mouseDown(screen.getByRole('option', { name: /deploy/ }))
+    expect(actions.setDraft).toHaveBeenCalledWith('/deploy ')
+  })
+
+  it('routes the file-pick row of the + menu to the hidden input without editing the draft', () => {
+    const actions = composerActions()
+    render(<Composer
+      t={t}
+      composer={composerState()}
+      composerActions={actions}
+      candidates={candidateSource()}
+      selectedSession="s1"
+    />)
+    fireEvent.click(screen.getByRole('button', { name: en.addFilesAria }))
+    fireEvent.mouseDown(screen.getByRole('option', { name: en.composerAddFiles }))
+    expect(actions.setDraft).not.toHaveBeenCalled()
+    // The menu closed on the pick, so no listbox remains.
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('routes a pasted image through the attachment intake', () => {
+    const actions = composerActions()
+    render(<Composer
+      t={t}
+      composer={composerState()}
+      composerActions={actions}
+      candidates={candidateSource()}
+      selectedSession="s1"
+    />)
+    const field = screen.getByRole('textbox')
+    const image = new File([new Uint8Array([137, 80, 78, 71])], 'pasted.png', { type: 'image/png' })
+    const imagePaste = fireEvent.paste(field, {
+      clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => image }], getData: () => '' },
+    })
+    // The image bytes go to the same intake the `+` picker uses, and the default
+    // is suppressed so no filename leaks into the text field (fireEvent returns
+    // false once preventDefault ran).
+    expect(actions.addFiles).toHaveBeenCalledWith([image])
+    expect(imagePaste).toBe(false)
+  })
+
+  it('leaves a plain-text paste to the browser default', () => {
+    const actions = composerActions()
+    render(<Composer
+      t={t}
+      composer={composerState()}
+      composerActions={actions}
+      candidates={candidateSource()}
+      selectedSession="s1"
+    />)
+    const textPaste = fireEvent.paste(screen.getByRole('textbox'), {
+      clipboardData: { items: [], getData: () => 'hello' },
+    })
+    // A text-only paste has no file item: addFiles stays silent and the browser
+    // default inserts the text at the caret (fireEvent returns true, not canceled).
+    expect(actions.addFiles).not.toHaveBeenCalled()
+    expect(textPaste).toBe(true)
+  })
+
+  it('opens the inline `/` command menu from a leading slash token', async () => {
+    const commands: readonly ComposerCommandCandidate[] = [{ name: 'deploy', description: 'Ship it', hasInput: false, origin: 'command' }]
+    render(<Composer
+      t={t}
+      composer={composerState()}
+      composerActions={composerActions()}
+      candidates={candidateSource({ commands: async () => commands })}
+      selectedSession="s1"
+    />)
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(field, { target: { value: '/' } })
+
+    await waitFor(() => { expect(screen.getByRole('listbox', { name: en.commandsMenuAria })).toBeTruthy() })
+    expect(screen.getByRole('option', { name: /deploy/ })).toBeTruthy()
+  })
+
+  it('opens the inline `@` menu and inserts the picked path as literal text', async () => {
+    const actions = composerActions()
+    render(<Composer
+      t={t}
+      composer={composerState()}
+      composerActions={actions}
+      candidates={candidateSource({ files: async () => ['src/index.ts'] })}
+      selectedSession="s1"
+    />)
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(field, { target: { value: '@src' } })
+
+    await waitFor(() => { expect(screen.getByRole('listbox', { name: en.mentionMenuAria })).toBeTruthy() })
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'src/index.ts' }))
+    expect(actions.setDraft).toHaveBeenCalledWith('@src/index.ts ')
+  })
+
+  it('dismisses an open menu on Escape without submitting', async () => {
+    const actions = composerActions()
+    const commands: readonly ComposerCommandCandidate[] = [{ name: 'deploy', description: 'Ship it', hasInput: false, origin: 'command' }]
+    render(<Composer
+      t={t}
+      composer={composerState()}
+      composerActions={actions}
+      candidates={candidateSource({ commands: async () => commands })}
+      selectedSession="s1"
+    />)
+    const field = screen.getByRole('textbox') as HTMLTextAreaElement
+    // Open the slash menu, then close it with the keyboard.
+    fireEvent.change(field, { target: { value: '/' } })
+    await waitFor(() => { expect(screen.getByRole('listbox', { name: en.commandsMenuAria })).toBeTruthy() })
+    fireEvent.keyDown(field, { key: 'Escape' })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(actions.submit).not.toHaveBeenCalled()
+  })
+
+  it('renders the attachment rail with a remove action that reaches the machine', () => {
+    const actions = composerActions()
+    const image: ComposerAttachment = {
+      kind: 'image', id: 'a1' as DraftAttachmentId,
+      file: new File(['x'], 'photo.png', { type: 'image/png' }), previewUrl: 'blob:a1',
+    }
+    render(<Composer
+      t={t}
+      composer={composerState({ attachments: [image], attachmentIds: ['a1' as DraftAttachmentId] })}
+      composerActions={actions}
+      candidates={candidateSource()}
+      selectedSession="s1"
+    />)
+    // A draft with only an attachment (empty text) still enables send.
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: en.send }).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: t('removeAttachmentAria', { name: 'photo.png' }) }))
+    expect(actions.removeAttachment).toHaveBeenCalledWith('a1')
+  })
+
+  it('offers a retry on a failed upload and gates send while any upload is pending', () => {
+    const actions = composerActions()
+    const file: ComposerAttachment = {
+      kind: 'file', id: 'f1' as DraftAttachmentId, file: new File(['x'], 'notes.txt'),
+    }
+    const uploads: DraftFileUploads = { f1: { status: 'uploading', loaded: 0 } }
+    const { rerender } = render(<Composer
+      t={t}
+      composer={composerState({ draft: 'hi', attachments: [file], attachmentIds: ['f1' as DraftAttachmentId], uploads, uploadsPending: true })}
+      composerActions={actions}
+      candidates={candidateSource()}
+      selectedSession="s1"
+    />)
+    // A pending upload blocks send even with a non-empty draft.
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: en.send }).disabled).toBe(true)
+    expect(screen.getByText(en.stillUploading)).toBeTruthy()
+
+    rerender(<Composer
+      t={t}
+      composer={composerState({
+        draft: 'hi', attachments: [file], attachmentIds: ['f1' as DraftAttachmentId],
+        uploads: { f1: { status: 'error', message: 'boom' } }, uploadsPending: true,
+      })}
+      composerActions={actions}
+      candidates={candidateSource()}
+      selectedSession="s1"
+    />)
+    fireEvent.click(screen.getByRole('button', { name: t('retryUploadAria', { name: 'notes.txt' }) }))
+    expect(actions.retryUpload).toHaveBeenCalledWith('f1')
+  })
+
   it('announces the session send failure the machine reports for the same draft', () => {
     const { rerender } = render(<Composer
       t={t}
       composer={composerState({ draft: 'hello' })}
       composerActions={composerActions()}
+      candidates={candidateSource()}
+      selectedSession="s1"
     />)
     expect(screen.queryByRole('alert')).toBeNull()
 
@@ -504,6 +729,8 @@ describe('Composer', () => {
       t={t}
       composer={composerState({ draft: 'hello', failed: true })}
       composerActions={composerActions()}
+      candidates={candidateSource()}
+      selectedSession="s1"
     />)
     expect(screen.getByRole('alert').textContent).toBe(en.composerError)
   })

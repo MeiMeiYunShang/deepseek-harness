@@ -164,13 +164,23 @@ export function apply(ctx: ClientContext): void {
     inject: injected,
   }, PermissionRow))
 
+  const permissionSeatInject = (sessionId: SessionId): PermissionSelectInjected => ({
+    hooks: { permissionCatalog: catalog.store },
+    select: preset => submit(sessionId, preset),
+  })
+
   ctx.slots.inject('conversation.input.permission', () => ctx.slots.register({
     name: 'conversation.input.permission',
     locale: PERMISSION_ACCESS_NS,
-    inject: (sessionId: SessionId): PermissionSelectInjected => ({
-      hooks: { permissionCatalog: catalog.store },
-      select: preset => submit(sessionId, preset),
-    }),
+    inject: permissionSeatInject,
+  }, PermissionSelect))
+
+  // The console composer renders the same permission control for its own scoped
+  // session through a second seat: one occupant, one inject face, one component.
+  ctx.slots.inject('console.input.permission', () => ctx.slots.register({
+    name: 'console.input.permission',
+    locale: PERMISSION_ACCESS_NS,
+    inject: permissionSeatInject,
   }, PermissionSelect))
 
   ctx.effect(() => command.decorate({

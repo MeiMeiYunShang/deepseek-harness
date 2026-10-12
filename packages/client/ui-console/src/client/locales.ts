@@ -21,7 +21,6 @@ export type ConsoleKey = 'console'
   | 'sessionTotal'
   | 'sessionRunning'
   | 'sessionPending'
-  | 'sessionCompleted'
   | 'sessionArchived'
   | 'sessionIdle'
   | 'sessionCurrent'
@@ -71,6 +70,19 @@ export type ConsoleKey = 'console'
   | 'composerPlaceholder'
   | 'composerDisabled'
   | 'composerError'
+  | 'addFilesAria'
+  | 'composerAddFiles'
+  | 'commandsMenuAria'
+  | 'mentionMenuAria'
+  | 'noCommands'
+  | 'noFiles'
+  | 'loadingCandidates'
+  | 'stillUploading'
+  | 'retryUpload'
+  | 'retryUploadAria'
+  | 'removeAttachmentAria'
+  | 'addFilesNoSession'
+  | 'addFilesUnavailable'
   | 'send'
   | 'stop'
   | 'qaError'
@@ -119,6 +131,9 @@ export type ConsoleKey = 'console'
   | 'askUserNext'
   | 'askUserSubmit'
   | 'askUserCancel'
+  | 'markdownCopy'
+  | 'markdownCopied'
+  | 'markdownFootnotes'
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'console'
@@ -145,7 +160,6 @@ export const en: Record<ConsoleKey, string> = {
   sessionTotal: 'Total',
   sessionRunning: 'Running',
   sessionPending: 'Awaiting input',
-  sessionCompleted: 'Completed',
   sessionArchived: 'Archived',
   sessionIdle: 'Idle',
   sessionCurrent: 'current',
@@ -195,6 +209,19 @@ export const en: Record<ConsoleKey, string> = {
   composerPlaceholder: 'Message or run a task, / commands, @ files or sessions',
   composerDisabled: 'Select a session to send instructions',
   composerError: 'Instruction failed',
+  addFilesAria: 'Add files or commands',
+  composerAddFiles: 'Add files…',
+  commandsMenuAria: 'Commands',
+  mentionMenuAria: 'Files',
+  noCommands: 'No matching command.',
+  noFiles: 'No matching file.',
+  loadingCandidates: 'Loading candidates',
+  stillUploading: 'Uploading…',
+  retryUpload: 'Retry',
+  retryUploadAria: 'Retry upload of {name}',
+  removeAttachmentAria: 'Remove {name}',
+  addFilesNoSession: 'Select a session before adding files.',
+  addFilesUnavailable: 'This session cannot add attachments yet.',
   send: 'Send',
   stop: 'Stop',
   qaError: 'Request failed',
@@ -243,6 +270,9 @@ export const en: Record<ConsoleKey, string> = {
   askUserNext: 'Next',
   askUserSubmit: 'Submit',
   askUserCancel: 'Cancel',
+  markdownCopy: 'Copy',
+  markdownCopied: 'Copied',
+  markdownFootnotes: 'Footnotes',
 }
 
 /** Chinese dictionary for the console namespace. */
@@ -267,7 +297,6 @@ export const zh: Record<ConsoleKey, string> = {
   sessionTotal: '总数',
   sessionRunning: '运行中',
   sessionPending: '等待输入',
-  sessionCompleted: '已完成',
   sessionArchived: '已归档',
   sessionIdle: '空闲',
   sessionCurrent: '当前',
@@ -317,6 +346,19 @@ export const zh: Record<ConsoleKey, string> = {
   composerPlaceholder: '发消息或创建任务, / 调用指令, @ 文件或对话',
   composerDisabled: '请选择会话后再发送指令',
   composerError: '指令发送失败',
+  addFilesAria: '添加文件或指令',
+  composerAddFiles: '添加文件…',
+  commandsMenuAria: '指令',
+  mentionMenuAria: '文件',
+  noCommands: '没有匹配的指令。',
+  noFiles: '没有匹配的文件。',
+  loadingCandidates: '正在加载候选项',
+  stillUploading: '上传中…',
+  retryUpload: '重试',
+  retryUploadAria: '重试上传 {name}',
+  removeAttachmentAria: '移除 {name}',
+  addFilesNoSession: '请先选择会话再添加文件。',
+  addFilesUnavailable: '该会话暂不支持添加附件。',
   send: '发送',
   stop: '停止',
   qaError: '请求失败',
@@ -365,4 +407,7 @@ export const zh: Record<ConsoleKey, string> = {
   askUserNext: '下一条',
   askUserSubmit: '提交',
   askUserCancel: '取消',
+  markdownCopy: '复制',
+  markdownCopied: '已复制',
+  markdownFootnotes: '脚注',
 }

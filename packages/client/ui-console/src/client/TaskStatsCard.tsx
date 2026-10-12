@@ -8,6 +8,7 @@ import type { SessionStatsBandTokens, SessionStatsRoute } from '@deepseek-ai/dsh
 // Type-only: pulls the sessionStats projection-key merge into SessionProjectionMap.
 import type {} from '@deepseek-ai/dsh-session-stats/types'
 import type { ConsoleKey } from './locales.ts'
+import type { ConsoleRenderSlot } from './slot-contract.ts'
 import { formatDuration } from './format.ts'
 import { CardHeader } from './CardHeader.tsx'
 import css from './console.module.css'
@@ -99,10 +100,12 @@ export interface TaskStatsCardProps {
   collapsed: boolean
   /** Toggle the collapsed state. */
   onToggleCollapse: () => void
+  /** Dispatches the actions plugins contribute beside the fold toggle. */
+  renderSlot: ConsoleRenderSlot
 }
 
 /** Task-statistics card over the scoped rows. */
-export function TaskStatsCard({ t, byId, scope, titleOf, prices, collapsed, onToggleCollapse }: TaskStatsCardProps) {
+export function TaskStatsCard({ t, byId, scope, titleOf, prices, collapsed, onToggleCollapse, renderSlot }: TaskStatsCardProps) {
   const scopeLabel = scope === undefined
     ? t('taskAllSessions')
     : titleOf(scope) ?? t('taskAllSessions')
@@ -122,7 +125,16 @@ export function TaskStatsCard({ t, byId, scope, titleOf, prices, collapsed, onTo
     : cost.ambiguous.length > 0 ? t('taskCostAmbiguous') : t('taskCostUnpriced')
   return (
     <div className={clsx(css.card, css.cardAuto, collapsed && css.cardCollapsed)}>
-      <CardHeader t={t} title={t('taskStats')} collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
+      {/* The contributed actions are handed the very shares this card charged,
+          so a plugin can offer to correct an unbillable figure without this
+          card learning what any contribution does with them. */}
+      <CardHeader
+        t={t}
+        title={t('taskStats')}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        actions={renderSlot('console.task-stats.action', { routes: stats.routes, prices })}
+      />
       {!collapsed && (
         <>
           <span className={css.taskScope}>{t('taskScope')}: {scopeLabel}</span>

@@ -1,5 +1,5 @@
 /**
- * Session-grid bucket filter: a dropdown of the five status buckets, each row
+ * Session-grid bucket filter: a dropdown of the four status buckets, each row
  * checking that bucket in or out of the grid. The selection lives in the console
  * store; this component owns only whether its own list is open.
  */

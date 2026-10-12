@@ -68,6 +68,41 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * Draft-attachment intake sub-face. The conversation owner supplies it so a
+   * surface that reuses the session's own input machine (the console composer,
+   * which drives the same per-session draft but keeps its own text field rather
+   * than a second editor root) can mint, resolve, retry, and release browser
+   * drafts and read their upload state. A test fake that drives no attachments
+   * omits every member below; the verbs stay browser-runtime-only and never
+   * reach the Host.
+   */
+  /** Live upload state per file-kind draft; images never appear here. */
+  readonly fileUploads?: SnapshotStore<Record<string, DraftFileUpload>>
+  /**
+   * Create runtime-only draft attachments for a batch of browser files.
+   * @param sessionId - target Agent-scope identity.
+   * @param files - browser files to register.
+   * @returns ordered draft descriptors (their ids enter the session's input state).
+   */
+  createDrafts?(sessionId: SessionId, files: readonly File[]): readonly ComposerAttachment[]
+  /**
+   * Resolve ordered input-state ids to runtime-owned draft attachments.
+   * @param ids - draft attachment ids.
+   * @returns descriptors that remain live, in requested order.
+   */
+  resolveDraftAttachments?(ids: readonly DraftAttachmentId[]): readonly ComposerAttachment[]
+  /**
+   * Restart one failed file upload.
+   * @param sessionId - target Agent-scope identity.
+   * @param id - draft attachment id whose upload previously failed.
+   */
+  retryFileUpload?(sessionId: SessionId, id: DraftAttachmentId): void
+  /**
+   * Release one draft attachment's browser-owned resources.
+   * @param id - draft attachment id.
+   */
+  releaseDraftAttachment?(id: DraftAttachmentId): void
 }
 
 /** Create one browser-only image draft descriptor; only its id enters input state. */

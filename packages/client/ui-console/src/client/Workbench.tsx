@@ -5,18 +5,21 @@
  * rename / new-session modals plus the session context menu.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import clsx from 'clsx'
-import { IconCloseOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCloseOutlineRegular, isBehindModal, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { contextMenuItems, contextAnchorRect } from './ContextMenu.tsx'
 import type { ConsoleCardKey, ConsoleStoreState, ConsoleStoreWrite, LayoutPreset } from './consoleStore.ts'
 import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
+import type { ComposerCandidateSource } from './candidates.ts'
 import type { TimelineMessage } from './timelineMessages.ts'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS, type ConsoleKey } from './locales.ts'
+import type { ConsoleRenderSlot } from './slot-contract.ts'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
 import { SmartQA } from './SmartQA.tsx'
@@ -57,8 +60,6 @@ export interface WorkbenchProps {
   titleOf: (id: string) => string | undefined
   /** Resolve a session's pending interaction kind (feeds the grid phase). */
   pendingKindOf: (id: string) => string | undefined
-  /** Resolve whether a session carries an unacknowledged completion (feeds the completed bucket/count). */
-  completedOf: (id: string) => boolean
   /** Live workspace options. */
   workspaces: readonly ConsoleWorkspaceOption[]
   /** Console store read hook. */
@@ -79,6 +80,12 @@ export interface WorkbenchProps {
   useComposer: SnapshotSelectorHook<ConsoleComposerState>
   /** The scoped input machine's writers. */
   composerActions: ConsoleComposerActions
+  /** The composer's `/` and `@` candidate catalogs, bound to the client Remote. */
+  candidates: ComposerCandidateSource
+  /** Dispatches the task-statistics card's contributed actions. */
+  renderSlot: ConsoleRenderSlot
+  /** Renders the composer's session-scope permission and model controls for the selected session. */
+  renderComposerControls: (locked: boolean) => ReactNode
 }
 
 /** One open context-menu invocation. */
@@ -91,9 +98,9 @@ interface OpenContextMenu {
 
 /** The fullscreen workbench panel. */
 export function Workbench({
-  t, onClose, byId, current, archived, titleOf, pendingKindOf, completedOf, workspaces,
+  t, onClose, byId, current, archived, titleOf, pendingKindOf, workspaces,
   useConsole, store, services, chat, defaultModel, prices, messages,
-  useComposer, composerActions,
+  useComposer, composerActions, candidates, renderSlot, renderComposerControls,
 }: WorkbenchProps) {
   const timeline = useConsole(value => value.timeline)
   const timelineMode = useConsole(value => value.timelineMode)
@@ -112,16 +119,19 @@ export function Workbench({
   const [renameTarget, setRenameTarget] = useState<string | null>(null)
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [presets, setPresets] = useState<{ readonly id: string; readonly name: string | undefined }[]>([])
+  const panel = useRef<HTMLDivElement>(null)
 
-  // Escape closes the workbench, unless a nested dialog owns the key first —  // the rename and new-session modals carry their own handler.
+  // Escape closes the workbench, unless a dialog in front of it owns the key —
+  // the rename and new-session modals register their own layer, as does any
+  // dialog a contributed card action opens, so the panel yields to whichever of
+  // them the plugin mounted rather than to a list of names it has to know.
   useEffect(() => {
-    if (renameTarget !== null || newSessionOpen) return
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && !isBehindModal(panel.current)) onClose()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [onClose, renameTarget, newSessionOpen])
+  }, [onClose])
 
   async function openNewSession(): Promise<void> {
     setNewSessionOpen(true)
@@ -146,7 +156,7 @@ export function Workbench({
   return (
     <div className={css.overlay} role="presentation">
       <div className={css.mask} aria-hidden="true" onClick={onClose} />
-      <div className={css.panel} role="dialog" aria-modal="true" aria-label={t('title')}>
+      <div ref={panel} className={css.panel} role="dialog" aria-modal="true" aria-label={t('title')}>
         <div className={css.header}>
           <h1 className={css.headerTitle}>{t('title')}</h1>
           <div className={css.headerActions}>
@@ -179,7 +189,6 @@ export function Workbench({
               selected={selectedSession}
               isArchived={id => archived.has(id)}
               pendingKindOf={pendingKindOf}
-              completedOf={completedOf}
               setSessionView={store.setSessionView}
               toggleSessionBucket={store.toggleSessionBucket}
               selectSession={(id) => { store.setSelectedSession(id) }}
@@ -189,7 +198,7 @@ export function Workbench({
               collapsed={isCollapsed('session')}
               onToggleCollapse={toggleCard('session')}
             />
-            <TaskStatsCard t={t} byId={byId} scope={selectedSession} titleOf={titleOf} prices={prices} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} />
+            <TaskStatsCard t={t} byId={byId} scope={selectedSession} titleOf={titleOf} prices={prices} collapsed={isCollapsed('task')} onToggleCollapse={toggleCard('task')} renderSlot={renderSlot} />
             <SystemStatusCard t={t} status={systemStatus} collapsed={isCollapsed('system')} onToggleCollapse={toggleCard('system')} />
           </div>
           <div className={css.column}>
@@ -204,6 +213,8 @@ export function Workbench({
               setTimelineMode={store.setTimelineMode}
               composer={composer}
               composerActions={composerActions}
+              candidates={candidates}
+              renderComposerControls={renderComposerControls}
             />
           </div>
           <div className={css.column}>

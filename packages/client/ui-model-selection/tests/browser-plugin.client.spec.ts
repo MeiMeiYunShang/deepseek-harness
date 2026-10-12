@@ -187,6 +187,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
       return ui
     },
     seat: () => seats.get('conversation.input.model')!,
+    consoleSeat: () => seats.get('console.input.model')!,
     hostCurrent: () => selected,
     rejectSelection: () => {
       selectionFailure = new RemoteError('session/writer-held', 'writer held', { sessionId: sid('owned') })
@@ -223,6 +224,14 @@ describe('ui-model-selection dual entry', () => {
     expect(b.seat().inject).toBeTypeOf('function')
     // Copy rides the standard locale seat.
     expect(b.seat().locale).toBe('model')
+    // The console composer seat is filled by the same occupant: one inject
+    // factory over the same directory, one locale namespace.
+    expect(b.consoleSeat().locale).toBe('model')
+    expect(b.consoleSeat().inject).toBeTypeOf('function')
+    b.mint('owned')
+    const consoleInjected = b.consoleSeat().inject!(sid('owned'))
+    expect(consoleInjected.available).toBe(true)
+    expect(consoleInjected.directory).toBe(b.ctx.modelDirectories.directoryFor(sid('owned')).store)
   })
 
   it('localizes built-in descriptions and preserves external provider descriptions', async () => {

@@ -23,7 +23,7 @@ describe('createConsoleStore', () => {
     const store = createConsoleStore().create()
     // The console holds one scope, not two: `selectedSession` is the whole set
     // of state a grid click can move. The grid opens on the buckets still in
-    // flight, so a completed or archived square waits for the operator to tick it.
+    // flight, so an archived square waits for the operator to tick it.
     expect(store.getSnapshot()).toEqual({
       open: false,
       timeline: [],
@@ -41,16 +41,16 @@ describe('createConsoleStore', () => {
   it('selects and clears one grid-filter bucket at a time', () => {
     const store = createConsoleStore().create()
 
-    store.actions.toggleSessionBucket('completed')
-    expect(store.getSnapshot().sessionBuckets).toEqual(['running', 'pending', 'available', 'completed'])
+    store.actions.toggleSessionBucket('archived')
+    expect(store.getSnapshot().sessionBuckets).toEqual(['running', 'pending', 'available', 'archived'])
 
     store.actions.toggleSessionBucket('running')
-    expect(store.getSnapshot().sessionBuckets).toEqual(['pending', 'available', 'completed'])
+    expect(store.getSnapshot().sessionBuckets).toEqual(['pending', 'available', 'archived'])
 
     // The selection is a set the filter tests membership against; the order the
     // filter lists its rows in is the bucket list's own, not this array's.
     store.actions.toggleSessionBucket('running')
-    expect(store.getSnapshot().sessionBuckets).toEqual(['pending', 'available', 'completed', 'running'])
+    expect(store.getSnapshot().sessionBuckets).toEqual(['pending', 'available', 'archived', 'running'])
   })
 
   it('tracks the workbench open state the sidebar trigger drives', () => {

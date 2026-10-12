@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {
+  ComposerAttachment, DraftAttachmentId, DraftFileUpload, InputState,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
@@ -28,10 +30,21 @@ function inputMachine() {
   const state = createSnapshotStore<InputState>({
     draft: '', attachmentIds: [], draftRev: 0, phase: 'plain', occurrences: [], queue: [],
   })
+  const patch = (next: Partial<InputState>): void => { state.set({ ...state.getSnapshot(), ...next }) }
   return {
     state,
-    setDraft: vi.fn((text: string) => { state.set({ ...state.getSnapshot(), draft: text }) }),
+    setDraft: vi.fn((text: string) => { patch({ draft: text }) }),
     submit: vi.fn(),
+    addAttachments: vi.fn((ids: readonly DraftAttachmentId[]) => {
+      patch({ attachmentIds: [...state.getSnapshot().attachmentIds, ...ids] })
+    }),
+    removeAttachment: vi.fn((id: DraftAttachmentId) => {
+      const current = state.getSnapshot().attachmentIds
+      const next = current.filter(existing => existing !== id)
+      if (next.length === current.length) return false
+      patch({ attachmentIds: next })
+      return true
+    }),
   }
 }
 
@@ -65,6 +78,30 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
   // scope: the fake answers the same `input.for(scope)` registry the real
   // Conversation service exposes, keyed by the scope's own session tag.
   const machines: Machines = new Map()
+  // Draft-attachment intake the composer projection resolves through the same
+  // owner the chat drives. A per-bench registry maps the ids createDrafts mints
+  // back to the descriptors publish reads, and the upload store mirrors the
+  // file-kind lifecycle so the projection's pending gate has a real source.
+  const drafts = new Map<DraftAttachmentId, ComposerAttachment>()
+  const fileUploads = createSnapshotStore<Record<string, DraftFileUpload>>({})
+  let draftSeq = 0
+  const createDrafts = vi.fn((_sessionId: SessionId, files: readonly File[]): readonly ComposerAttachment[] => files.map((file) => {
+    const id = `draft-${draftSeq++}` as DraftAttachmentId
+    const attachment: ComposerAttachment = file.type.startsWith('image/')
+      ? { kind: 'image', id, file, previewUrl: `blob:${id}` }
+      : { kind: 'file', id, file }
+    drafts.set(id, attachment)
+    if (attachment.kind === 'file') {
+      fileUploads.set({ ...fileUploads.getSnapshot(), [id]: { status: 'uploading', loaded: 0 } })
+    }
+    return attachment
+  }))
+  const resolveDraftAttachments = vi.fn((ids: readonly DraftAttachmentId[]): readonly ComposerAttachment[] =>
+    ids.map(id => drafts.get(id)).filter((attachment): attachment is ComposerAttachment => attachment !== undefined))
+  const releaseDraftAttachment = vi.fn((id: DraftAttachmentId) => { drafts.delete(id) })
+  const retryFileUpload = vi.fn((_sessionId: SessionId, id: DraftAttachmentId) => {
+    fileUploads.set({ ...fileUploads.getSnapshot(), [id]: { status: 'ready', receiptId: 'r' as never, file: {} as never } })
+  })
   ctx.provide('conversation', {
     input: {
       for: (actx: Context) => {
@@ -77,6 +114,11 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
         return machine
       },
     },
+    createDrafts,
+    resolveDraftAttachments,
+    releaseDraftAttachment,
+    retryFileUpload,
+    fileUploads,
   })
   const chat = vi.fn(async function* () { /* no chunks */ })
   const remoteResult = async <T>(value: T): Promise<{ ok: true; value: T }> => ({ ok: true, value })
@@ -86,14 +128,27 @@ async function bench(setting?: { smartQaModel?: string }, erroring = false) {
     select: vi.fn(async () => (erroring ? { ok: false, error: remoteError } : await remoteResult('ok'))),
   }
   const directoryPicker = { pick: vi.fn(async () => (erroring ? { ok: false, error: remoteError } : await remoteResult(null))) }
-  const remote = new TestRemote(ctx, { llm: { chat, listProviders: vi.fn() }, agentPresets, directoryPicker })
+  // Candidate catalogs the composer's `/` and `@` menus fetch through. They are
+  // injected as remote.* services, so each must be registered here for the
+  // plugin to unpark; the composer only reads them when a menu opens.
+  const commands = { list: vi.fn(async () => (erroring ? { ok: false, error: remoteError } : await remoteResult([]))) }
+  const skills = { list: vi.fn(async () => (erroring ? { ok: false, error: remoteError } : await remoteResult({ skills: [] }))) }
+  const fileReferences = { list: vi.fn(async () => (erroring ? { ok: false, error: remoteError } : await remoteResult([]))) }
+  const remote = new TestRemote(ctx, {
+    llm: { chat, listProviders: vi.fn() }, agentPresets, directoryPicker, commands, skills, fileReferences,
+  })
   // The settings form apply reads: the `console-bridge` namespace carries both
   // the section read once at load for the Smart Q&A default model and the price
   // table adopted from every section the Host accepts.
   const settingsForm = stubConfigForm<{ smartQaModel?: string; models?: ModelPrice[] }>()
   if (setting !== undefined) settingsForm.publish({ status: 'ready', value: setting, revision: 1 })
   ctx.provide('configForms', { get: () => settingsForm.scope } as never)
-  return { ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, uiWorkspace, agentPresets, directoryPicker, chat, pricing: settingsForm, machines }
+  return {
+    ctx, slots: ctx.get('slots') as SlotRegistry, remote, sessions, workspaces, uiWorkspace,
+    agentPresets, directoryPicker, chat, pricing: settingsForm, machines,
+    intake: { createDrafts, resolveDraftAttachments, releaseDraftAttachment, retryFileUpload, fileUploads },
+    commands, skills, fileReferences,
+  }
 }
 
 function declareSidebar(slots: SlotRegistry): () => void {
@@ -164,7 +219,10 @@ function replyEntry(seq: number, text: string): SessionLiveEventEntry {
 
 describe('ui-console apply', () => {
   it('declares the services it uses', () => {
-    expect(inject).toEqual(['slots', 'locale', 'remote', 'sessions', 'workspaces', 'uiWorkspace', 'configForms'])
+    expect(inject).toEqual([
+      'slots', 'locale', 'remote', 'sessions', 'workspaces', 'uiWorkspace', 'configForms',
+      'remote.commands', 'remote.skills', 'remote.fileReferences',
+    ])
   })
 
   it('registers one sidebar footer action and the console dictionary', async () => {
@@ -177,6 +235,16 @@ describe('ui-console apply', () => {
     const entry = slots.entries('sidebar.footer.action')[0]!
     expect(entry.options).toMatchObject({ id: 'console', order: 40 })
     expect(resolveSlotLabel(entry.options.label)).toBe('Console')
+    // Declaring is claiming: the console owns the task-statistics action seat and
+    // renders it, so plugins contribute there without this package learning what
+    // any contribution does. The two session-scope input seats let the composer
+    // render the chat permission/model controls for the scoped session; declaring
+    // them here is what hands the entry a SessionProvider and a narrowed renderSlot.
+    expect(entry.children).toEqual({
+      'console.task-stats.action': { kind: 'list', scope: 'root' },
+      'console.input.permission': { kind: 'single', scope: 'session' },
+      'console.input.model': { kind: 'single', scope: 'session' },
+    })
     // The injected face exposes the store hook, the price table, the scoped
     // conversation, the service verb set, the chat fetcher, and the default model.
     const face = consoleFace(slots)
@@ -185,6 +253,10 @@ describe('ui-console apply', () => {
     expect(typeof face.hooks.messages.getSnapshot).toBe('function')
     expect(typeof face.hooks.messages.subscribe).toBe('function')
     expect(face.hooks.messages.getSnapshot()).toEqual([])
+    // The composer's session-scope seats bind through a console-owned reference,
+    // published only while a live binding is followed; nothing is retained here.
+    expect(typeof face.hooks.composerScope.getSnapshot).toBe('function')
+    expect(face.hooks.composerScope.getSnapshot()).toBeUndefined()
     // The price table is served as a live source: the namespace answers after
     // bind, so the value a read at bind time would have found is empty.
     expect(face.hooks.prices.getSnapshot()).toEqual([])
@@ -197,6 +269,9 @@ describe('ui-console apply', () => {
 
     await fiber.dispose()
     expect(slots.entries('sidebar.footer.action')).toHaveLength(0)
+    // The seat dies with its declaring entry, so a contribution to it has no host
+    // left to render in.
+    expect(slots.entries('console.task-stats.action')).toHaveLength(0)
   })
 
   it('subscribes at apply time so forwarded events reach the store while the console is closed', async () => {
@@ -468,7 +543,7 @@ describe('ui-console apply', () => {
     expect(machines.size).toBe(0)
 
     face.store.setSelectedSession('s1')
-    expect(face.hooks.composer.getSnapshot()).toEqual({ ready: true, draft: '', failed: false })
+    expect(face.hooks.composer.getSnapshot()).toEqual({ ready: true, draft: '', failed: false, attachmentIds: [], attachments: [], uploads: {}, uploadsPending: false })
 
     // Typing goes into the machine, and what the machine holds is what the field
     // renders back: the console keeps no draft of its own.
@@ -551,7 +626,7 @@ describe('ui-console apply', () => {
 
     // Another session's composer carries that session's own facts.
     face.store.setSelectedSession('s2')
-    expect(face.hooks.composer.getSnapshot()).toEqual({ ready: true, draft: '', failed: false })
+    expect(face.hooks.composer.getSnapshot()).toEqual({ ready: true, draft: '', failed: false, attachmentIds: [], attachments: [], uploads: {}, uploadsPending: false })
 
     await fiber.dispose()
   })
@@ -580,6 +655,77 @@ describe('ui-console apply', () => {
     face.composerActions.submit()
     expect(machines.get('s1')!.setDraft).toHaveBeenCalledTimes(1)
     expect(machines.get('s1')!.submit).not.toHaveBeenCalled()
+  })
+
+  it('assembles the draft-attachment projection and routes the add/remove/retry intake', async () => {
+    const { ctx, slots, sessions, machines, intake } = await bench()
+    declareSidebar(slots)
+    await addRetained(sessions, { id: 's1', summary: { updatedAt: 100 } })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    face.store.setSelectedSession('s1')
+
+    // An image draft resolves through the intake, enters the projection, and
+    // never gates send: images carry no upload row, so uploadsPending stays off.
+    const image = { name: 'shot.png', type: 'image/png' } as unknown as File
+    expect(face.composerActions.addFiles([image])).toBeNull()
+    expect(intake.createDrafts).toHaveBeenCalledWith('s1', [image])
+    expect(machines.get('s1')!.addAttachments).toHaveBeenCalledWith(['draft-0'])
+    let snap = face.hooks.composer.getSnapshot()
+    expect(snap.attachmentIds).toEqual(['draft-0'])
+    expect(snap.attachments.map(attachment => attachment.kind)).toEqual(['image'])
+    expect(snap.uploadsPending).toBe(false)
+
+    // A file-kind draft enters the upload store 'uploading', so the projection
+    // reports a pending gate exactly as the chat composer does.
+    const doc = { name: 'spec.md', type: 'text/markdown' } as unknown as File
+    expect(face.composerActions.addFiles([doc])).toBeNull()
+    snap = face.hooks.composer.getSnapshot()
+    expect(snap.attachmentIds).toEqual(['draft-0', 'draft-1'])
+    expect(snap.uploadsPending).toBe(true)
+
+    // Retrying settles the upload, clearing the gate over the same store read.
+    face.composerActions.retryUpload('draft-1' as never)
+    expect(intake.retryFileUpload).toHaveBeenCalledWith('s1', 'draft-1')
+    snap = face.hooks.composer.getSnapshot()
+    expect(snap.uploads['draft-1']?.status).toBe('ready')
+    expect(snap.uploadsPending).toBe(false)
+
+    // Removing drops the id from the shared machine and releases the browser-owned
+    // object only once the machine actually let it go.
+    face.composerActions.removeAttachment('draft-1' as never)
+    expect(machines.get('s1')!.removeAttachment).toHaveBeenCalledWith('draft-1')
+    expect(intake.releaseDraftAttachment).toHaveBeenCalledWith('draft-1')
+    snap = face.hooks.composer.getSnapshot()
+    expect(snap.attachmentIds).toEqual(['draft-0'])
+
+    // With no live scope the writer refuses rather than minting a stray draft.
+    face.store.setSelectedSession(undefined)
+    expect(face.composerActions.addFiles([image])).toBe('addFilesNoSession')
+    expect(intake.createDrafts).toHaveBeenCalledTimes(2)
+
+    await fiber.dispose()
+  })
+
+  it('hands the composer a remote-backed candidate source over the injected catalogs', async () => {
+    const { ctx, slots, commands, skills, fileReferences } = await bench()
+    declareSidebar(slots)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = consoleFace(slots)
+
+    // The face carries the fetchers; calling them reads the remote catalogs the
+    // composer's `/` and `@` menus bind, not a private copy.
+    const signal = new AbortController().signal
+    expect(await face.candidates.commands('s1' as SessionId, signal)).toEqual([])
+    expect(commands.list).toHaveBeenCalledWith('s1')
+    expect(skills.list).toHaveBeenCalled()
+    expect(await face.candidates.files('s1' as SessionId, 'a', signal)).toEqual([])
+    expect(fileReferences.list).toHaveBeenCalledWith('s1', 'a', signal)
+
+    await fiber.dispose()
   })
 
   it('wires the remote-backed verbs over their namespaces', async () => {

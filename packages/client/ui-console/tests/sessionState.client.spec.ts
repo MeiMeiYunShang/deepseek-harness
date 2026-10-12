@@ -55,24 +55,23 @@ describe('sessionBucket', () => {
   const running = { running: true, blank: false } as never
   const idle = { running: false, blank: false } as never
 
-  it('assigns each of the five buckets', () => {
-    expect(sessionBucket(running, undefined, false, false)).toBe('running')
-    expect(sessionBucket(idle, 'question', false, false)).toBe('pending')
-    expect(sessionBucket(idle, 'plan-review', false, false)).toBe('pending')
-    expect(sessionBucket(idle, undefined, false, true)).toBe('completed')
-    expect(sessionBucket(idle, undefined, false, false)).toBe('available')
-    expect(sessionBucket(idle, undefined, true, false)).toBe('archived')
+  it('assigns each of the four buckets', () => {
+    expect(sessionBucket(running, undefined, false)).toBe('running')
+    expect(sessionBucket(idle, 'question', false)).toBe('pending')
+    expect(sessionBucket(idle, 'plan-review', false)).toBe('pending')
+    expect(sessionBucket(idle, undefined, false)).toBe('available')
+    expect(sessionBucket(idle, undefined, true)).toBe('archived')
   })
 
   it('buckets a session awaiting any pending interaction as awaiting input', () => {
     // Every kind a domain publishes awaits the operator, so the bucket reads
     // the kind's presence rather than an enumeration of kinds. `approval`
-    // (`ui-approval`) is the kind a two-kind list left out; the last row of
-    // each pair pins the predicate as presence alone.
+    // (`ui-approval`) is the kind a two-kind list left out, and the last entry
+    // is one no domain publishes yet; both still land in the bucket.
     for (const pendingKind of ['question', 'plan-review', 'approval', 'a-kind-no-domain-publishes-yet']) {
-      expect(sessionBucket(idle, pendingKind, false, false)).toBe('pending')
-      expect(sessionBucket(idle, pendingKind, false, true)).toBe('pending')
+      expect(sessionBucket(idle, pendingKind, false)).toBe('pending')
     }
+    expect(sessionBucket(idle, undefined, false)).toBe('available')
   })
 
   it('agrees with the awaiting-input count over the same rows', () => {
@@ -81,18 +80,17 @@ describe('sessionBucket', () => {
     // hold the same number for both.
     const kinds: readonly (string | undefined)[] = ['approval', 'question', 'plan-review', undefined]
     const counted = kinds.filter(pendingKind => pendingKind !== undefined).length
-    const bucketed = kinds.filter(pendingKind => sessionBucket(idle, pendingKind, false, false) === 'pending').length
+    const bucketed = kinds.filter(pendingKind => sessionBucket(idle, pendingKind, false) === 'pending').length
     expect(counted).toBe(3)
     expect(bucketed).toBe(counted)
   })
 
   it('never double-assigns: a session matching several buckets takes the earliest one', () => {
     for (const pendingKind of [undefined, 'question', 'plan-review', 'approval']) {
-      expect(sessionBucket(running, pendingKind, true, true)).toBe('archived')
-      expect(sessionBucket(running, pendingKind, false, true)).toBe('running')
-      expect(sessionBucket(idle, pendingKind, false, true))
-        .toBe(pendingKind === undefined ? 'completed' : 'pending')
-      expect(sessionBucket(idle, pendingKind, false, false))
+      expect(sessionBucket(running, pendingKind, true)).toBe('archived')
+      expect(sessionBucket(running, pendingKind, false)).toBe('running')
+      expect(sessionBucket(idle, pendingKind, true)).toBe('archived')
+      expect(sessionBucket(idle, pendingKind, false))
         .toBe(pendingKind === undefined ? 'available' : 'pending')
     }
   })
@@ -101,13 +99,11 @@ describe('sessionBucket', () => {
     const reached = new Set<SessionBucket>()
     for (const archived of [false, true]) {
       for (const runningState of [false, true]) {
-        for (const completed of [false, true]) {
-          for (const pendingKind of [undefined, 'question', 'plan-review', 'approval']) {
-            const bucket = sessionBucket({ running: runningState, blank: false } as never, pendingKind, archived, completed)
-            // One returned value per input, and always a bucket the filter lists.
-            expect(SESSION_BUCKETS).toContain(bucket)
-            reached.add(bucket)
-          }
+        for (const pendingKind of [undefined, 'question', 'plan-review', 'approval']) {
+          const bucket = sessionBucket({ running: runningState, blank: false } as never, pendingKind, archived)
+          // One returned value per input, and always a bucket the filter lists.
+          expect(SESSION_BUCKETS).toContain(bucket)
+          reached.add(bucket)
         }
       }
     }
@@ -116,7 +112,7 @@ describe('sessionBucket', () => {
 
   it('labels every bucket with a dictionary key', () => {
     expect(SESSION_BUCKETS.map(sessionBucketLabel)).toEqual([
-      'sessionRunning', 'sessionPending', 'sessionCompleted', 'sessionIdle', 'sessionArchived',
+      'sessionRunning', 'sessionPending', 'sessionIdle', 'sessionArchived',
     ])
   })
 })

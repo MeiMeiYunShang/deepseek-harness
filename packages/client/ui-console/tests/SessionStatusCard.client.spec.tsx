@@ -38,16 +38,12 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
 const FILTER_ROWS: Record<string, SessionSummary> = {
   sRunning: session('sRunning', { running: true }),
   sPending: session('sPending'),
-  sCompleted: session('sCompleted'),
   sIdle: session('sIdle'),
   sArchived: session('sArchived'),
 }
 
 /** The pending interaction of the one awaiting-input row above. */
 const PENDING_KIND = (id: string): string | undefined => (id === 'sPending' ? 'question' : undefined)
-
-/** The status feed's unacknowledged-completion bit for the one completed row. */
-const COMPLETED_OF = (id: string): boolean => id === 'sCompleted'
 
 /** The archived id among those same rows. */
 const ARCHIVED_IDS = ['sArchived']
@@ -65,7 +61,6 @@ function renderCard(overrides: {
   selected?: string
   archived?: readonly string[]
   pendingKindOf?: (id: string) => string | undefined
-  completedOf?: (id: string) => boolean
   t?: (key: ConsoleKey) => string
   setSessionView?: (view: 'stats' | 'grid') => void
   toggleSessionBucket?: (bucket: SessionBucket) => void
@@ -96,7 +91,6 @@ function renderCard(overrides: {
       selected={overrides.selected}
       isArchived={id => (overrides.archived ?? []).includes(id)}
       pendingKindOf={overrides.pendingKindOf ?? (() => undefined)}
-      completedOf={overrides.completedOf ?? (() => false)}
       setSessionView={setSessionView}
       toggleSessionBucket={toggleSessionBucket}
       selectSession={selectSession}
@@ -222,7 +216,7 @@ describe('SessionStatusCard', () => {
   })
 
   it('names a filtered-out grid instead of claiming there are no sessions', () => {
-    renderCard({ sessionView: 'grid', sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, completedOf: COMPLETED_OF, archived: ARCHIVED_IDS })
+    renderCard({ sessionView: 'grid', sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS })
     expect(screen.getByText(en.noSessionMatch)).toBeTruthy()
     expect(screen.queryByText(en.noSession)).toBeNull()
   })
@@ -238,27 +232,26 @@ describe('SessionStatusCard', () => {
   })
 
   it('counts every session in the stats view whatever the filter hides', () => {
-    renderCard({ sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, completedOf: COMPLETED_OF, archived: ARCHIVED_IDS })
+    renderCard({ sessionBuckets: [], byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS })
     // No bucket is selected at all, and the tiles still count the whole list:
     // the filter narrows the grid squares, never the statistics.
-    expect(screen.getByText('5', { exact: true })).toBeTruthy()
-    expect(screen.getAllByText('1', { exact: true })).toHaveLength(4)
+    expect(screen.getByText('4', { exact: true })).toBeTruthy()
+    expect(screen.getAllByText('1', { exact: true })).toHaveLength(3)
   })
 })
 
 describe('SessionStatusCard grid filter', () => {
   const grid = (overrides: Parameters<typeof renderCard>[0] = {}) => renderCard({
-    sessionView: 'grid', byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, completedOf: COMPLETED_OF, archived: ARCHIVED_IDS, ...overrides,
+    sessionView: 'grid', byId: FILTER_ROWS, pendingKindOf: PENDING_KIND, archived: ARCHIVED_IDS, ...overrides,
   })
 
   const openFilter = () => { fireEvent.click(screen.getByRole('button', { name: en.sessionFilter })) }
 
-  it('opens on running, awaiting-input and idle squares, leaving completed and archived out', () => {
+  it('opens on running, awaiting-input and idle squares, leaving archived out', () => {
     grid()
     expect(squareOf('sRunning')).toBeTruthy()
     expect(squareOf('sPending')).toBeTruthy()
     expect(squareOf('sIdle')).toBeTruthy()
-    expect(squareOf('sCompleted')).toBeNull()
     expect(squareOf('sArchived')).toBeNull()
   })
 
@@ -276,7 +269,7 @@ describe('SessionStatusCard grid filter', () => {
     openFilter()
     expect(screen.getByRole('button', { name: en.sessionFilter }).getAttribute('aria-expanded')).toBe('true')
     expect(screen.getAllByRole('menuitem').map(entry => entry.textContent)).toEqual([
-      en.sessionRunning, en.sessionPending, en.sessionCompleted, en.sessionIdle, en.sessionArchived,
+      en.sessionRunning, en.sessionPending, en.sessionIdle, en.sessionArchived,
     ])
 
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -304,16 +297,16 @@ describe('SessionStatusCard grid filter', () => {
     const { rerender } = grid()
 
     openFilter()
-    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionCompleted }))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sessionArchived }))
     rerender()
-    expect(squareOf('sCompleted')).toBeTruthy()
+    expect(squareOf('sArchived')).toBeTruthy()
     expect(squareOf('sRunning')).toBeTruthy()
 
     // The list stays open across a toggle, so the next tick lands on it too.
     fireEvent.click(screen.getByRole('menuitem', { name: en.sessionRunning }))
     rerender()
     expect(squareOf('sRunning')).toBeNull()
-    expect(squareOf('sCompleted')).toBeTruthy()
+    expect(squareOf('sArchived')).toBeTruthy()
   })
 
   it('hides archived squares until the archived bucket is ticked', () => {

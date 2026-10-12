@@ -20,13 +20,19 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the sidebar SlotMap merge (the 'sidebar.footer.action' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 // Type-only: pulls the Conversation Context merge (ctx.conversation) and the
-// per-session input machine contract the console composer drives.
-import type { SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
+// per-session input machine contract the console composer drives, plus the
+// draft-attachment intake types the composer projection resolves through the
+// conversation owner.
+import type {
+  IConversation, SessionInput,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: pulls the configForms Context merge so the console-bridge setting can be read.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the uiWorkspace Context merge (session navigation).
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+// Type-only: pulls this package's SlotMap merge (the task-statistics action seat).
+import type {} from './slot-contract.ts'
 import { CONSOLE_PRICING_NAMESPACE, PriceTablePolicy } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { ConsoleButton } from './ConsoleButton.tsx'
@@ -35,6 +41,7 @@ import {
   sameComposerState, UNBOUND_COMPOSER,
 } from './composer.ts'
 import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
+import type { DraftFileUploads } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { createConsoleStore, historyEntries } from './consoleStore.ts'
 import type { ConsoleStoreWrite } from './consoleStore.ts'
 import { deriveTimelineMessages, sameTimelineMessages } from './timelineMessages.ts'
@@ -42,10 +49,12 @@ import type { TimelineMessage } from './timelineMessages.ts'
 import type { ChatFetcher } from './SmartQA.tsx'
 import type { ConsoleServices, NewSessionDraft } from './services.ts'
 import type { LlmChatRequest } from '@deepseek-ai/dsh-llm/types'
-import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionFace, SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionStatsProjection } from '@deepseek-ai/dsh-session-stats/types'
 import { en, zh, type ConsoleKey, NS } from './locales.ts'
+import { createComposerCandidates } from './candidates.ts'
+import type { ComposerCandidateSource } from './candidates.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -54,14 +63,33 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
+declare module '@deepseek-ai/dsh-api-session-controller/client' {
+  interface SessionReferenceSourceMap {
+    /** The console workbench composer holds one reference to the session whose
+     * session-scope permission and model seats it renders. */
+    console: unknown
+  }
+}
+
+export type { ConsoleRenderSlot, TaskStatsActionOwnerProps } from './slot-contract.ts'
+
 /** The console-bridge fields the Smart Q&A panel reads; spelled locally to avoid depending on the settings-plugins package. */
 interface ConsoleBridgeSmartQaSetting {
   /** Model override for the console Smart Q&A panel (`provider/model`). */
   smartQaModel?: string
 }
 
-/** Required services for locale, sidebar slot, sessions/workspaces/navigation, settings, and Remote. */
-export const inject = ['slots', 'locale', 'remote', 'sessions', 'workspaces', 'uiWorkspace', 'configForms']
+/**
+ * Required services for locale, sidebar slot, sessions/workspaces/navigation,
+ * settings, and Remote (command/skill/file-reference candidate catalogs).
+ */
+export const inject = [
+  'slots', 'locale', 'remote', 'sessions', 'workspaces', 'uiWorkspace', 'configForms',
+  'remote.commands', 'remote.skills', 'remote.fileReferences',
+]
+
+/** A stable empty upload map so the composer projection keeps its reference when the scoped conversation exposes no upload store. */
+const NO_UPLOADS: DraftFileUploads = {}
 
 /**
  * Client plugin body: register the dictionaries and the sidebar footer action,
@@ -172,28 +200,83 @@ export function apply(ctx: ClientContext): void {
   // failure, and republishes the narrow projection the card reads; the writers
   // below address whatever machine the swap last resolved.
   const composer = createSnapshotStore<ConsoleComposerState>(UNBOUND_COMPOSER)
+  // A console-owned reference to the session whose composer is currently bound;
+  // the session-scope permission and model seats bind through it under
+  // SessionProvider. It exists only while an already-active binding is followed,
+  // so browsing a session here never starts a fresh open of its own.
+  const composerScope = createSnapshotStore<SessionReference | undefined>(undefined)
   let composerMachine: SessionInput | undefined
+  // The scoped session's conversation owner face and id, captured by the
+  // composer effect whenever a live machine is followed. The draft-attachment
+  // intake (create/resolve/retry/release and the upload store) rides this face;
+  // it is the same controller instance the chat composer drives, so the console
+  // mints drafts the shared machine then owns.
+  let composerConversation: IConversation | undefined
+  let composerSessionId: SessionId | undefined
   const composerActions: ConsoleComposerActions = {
     setDraft: (text) => { composerMachine?.setDraft(text) },
     submit: () => { composerMachine?.submit() },
+    addFiles: (files) => {
+      const conversation = composerConversation
+      const sessionId = composerSessionId
+      if (composerMachine === undefined || conversation === undefined || sessionId === undefined) {
+        return 'addFilesNoSession'
+      }
+      const created = conversation.createDrafts?.(sessionId, files)
+      if (created === undefined || created.length === 0) return 'addFilesUnavailable'
+      composerMachine.addAttachments(created.map(attachment => attachment.id))
+      return null
+    },
+    removeAttachment: (id) => {
+      // Drop the id from the shared machine first (so the projection stops
+      // referencing it), then release the browser-owned object.
+      if (composerMachine?.removeAttachment(id) === true) composerConversation?.releaseDraftAttachment?.(id)
+    },
+    retryUpload: (id) => {
+      if (composerSessionId !== undefined) composerConversation?.retryFileUpload?.(composerSessionId, id)
+    },
   }
   ctx.effect(() => {
     let scoped: string | undefined
     let machine: SessionInput | undefined
     let session: SessionFace | undefined
+    let conversation: IConversation | undefined
+    let reference: SessionReference | undefined
     let stopState: (() => void) | undefined
     let stopSession: (() => void) | undefined
+    let stopUploads: (() => void) | undefined
+    // Release the console's hold and drop the seat scope together, so a scope
+    // swap or teardown leaves no dangling reference behind.
+    const dropReference = (): void => {
+      reference?.release()
+      reference = undefined
+      composerScope.set(undefined)
+    }
     const publish = (): void => {
-      const next: ConsoleComposerState = machine === undefined || session === undefined
-        ? UNBOUND_COMPOSER
-        : {
-          ready: true,
-          draft: machine.state.getSnapshot().draft,
-          // The machine reports a failed plain send through this object-layer
-          // fact alone: its settlement carries no message, and the chat composer
-          // announces the same field in its banner.
-          failed: session.getSnapshot().promptError !== null,
-        }
+      if (machine === undefined || session === undefined || conversation === undefined) {
+        if (!sameComposerState(composer.getSnapshot(), UNBOUND_COMPOSER)) composer.set(UNBOUND_COMPOSER)
+        return
+      }
+      const state = machine.state.getSnapshot()
+      const uploads = conversation.fileUploads?.getSnapshot() ?? NO_UPLOADS
+      const attachments = conversation.resolveDraftAttachments?.(state.attachmentIds) ?? []
+      // A file-kind draft blocks send until its upload reaches 'ready'; images
+      // never enter the upload store, so they never gate. This mirrors the chat
+      // composer's own pending-upload gate over the same machine state.
+      const uploadsPending = attachments.some(attachment =>
+        attachment.kind === 'file' && uploads[attachment.id]?.status !== 'ready')
+      const next: ConsoleComposerState = {
+        ready: true,
+        draft: state.draft,
+        // The machine reports a failed plain send through this object-layer
+        // fact alone: its settlement carries no message, and the chat composer
+        // announces the same field in its banner.
+        failed: session.getSnapshot().promptError !== null,
+        attachmentIds: state.attachmentIds,
+        attachments,
+        uploads,
+        uploadsPending,
+      }
       if (!sameComposerState(composer.getSnapshot(), next)) composer.set(next)
     }
     // Swapping the console's scope disposes the previous session's subscriptions
@@ -204,23 +287,39 @@ export function apply(ctx: ClientContext): void {
       scoped = sessionId
       stopState?.()
       stopSession?.()
+      stopUploads?.()
       stopState = undefined
       stopSession = undefined
+      stopUploads = undefined
       machine = undefined
       session = undefined
+      conversation = undefined
+      composerConversation = undefined
+      composerSessionId = undefined
+      dropReference()
       const scope = sessionId === undefined ? undefined : ctx.sessions.scope(sessionId as SessionId)
       const binding = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId as SessionId)
-      const input = scope?.get('conversation')?.input
-      if (scope === undefined || input === undefined || binding === undefined) {
+      const resolved = scope?.get('conversation')
+      const input = resolved?.input
+      if (scope === undefined || input === undefined || binding === undefined || resolved === undefined) {
         composerMachine = undefined
         publish()
         return
       }
       machine = input.for(scope)
       session = binding.session
+      conversation = resolved
       composerMachine = machine
+      composerConversation = resolved
+      composerSessionId = sessionId as SessionId
+      // The binding is already retained (that is why it is live); retain borrows
+      // the same generation under the console source rather than opening a new
+      // one, giving the session-scope seats a reference to bind through.
+      reference = ctx.sessions.retain(sessionId as SessionId, { source: 'console' })
+      composerScope.set(reference)
       stopState = machine.state.subscribe(publish)
       stopSession = session.subscribe(publish)
+      stopUploads = conversation.fileUploads?.subscribe(publish)
       publish()
     }
     const stopStore = store.subscribe(following)
@@ -229,9 +328,18 @@ export function apply(ctx: ClientContext): void {
       stopStore()
       stopState?.()
       stopSession?.()
+      stopUploads?.()
       composerMachine = undefined
+      composerConversation = undefined
+      composerSessionId = undefined
+      dropReference()
     }
   }, 'ui-console: selected session composer')
+
+  // The composer's `/` and `@` candidate catalogs, bound to the client Remote.
+  // The renderer holds no context, so these fetchers are handed down and the
+  // local menu calls them with the scoped session id and an abort signal.
+  const candidates: ComposerCandidateSource = createComposerCandidates(ctx)
 
   // Resolve the Smart Q&A default model once at load from the console-bridge
   // setting (`provider/model`); an unset or malformed override leaves it null,
@@ -296,13 +404,25 @@ export function apply(ctx: ClientContext): void {
       label: () => t('console'),
       locale: NS,
       inject: (): ConsoleInjectFace => ({
-        hooks: { console: store.store, prices: priceTable.prices, messages, composer },
+        hooks: { console: store.store, prices: priceTable.prices, messages, composer, composerScope },
         store: write,
         services,
         composerActions,
+        candidates,
         chat: ((request: LlmChatRequest, signal: AbortSignal) => ctx.remote.llm.chat(request, signal)) as ChatFetcher,
         defaultModel,
       }),
+      // Declaring is claiming: this entry is the only one that may render the
+      // task-statistics action seat, and the seat exists exactly while it does.
+      // The permission and model seats are session-scope, so declaring them here
+      // also hands this entry a SessionProvider and a renderSlot bound to those
+      // keys; the composer wraps its scoped session in that Provider to render
+      // the chat composer's own controls without owning a second editor.
+      children: {
+        'console.task-stats.action': { kind: 'list', scope: 'root' },
+        'console.input.permission': { kind: 'single', scope: 'session' },
+        'console.input.model': { kind: 'single', scope: 'session' },
+      },
     }, ConsoleButton),
   )
 }

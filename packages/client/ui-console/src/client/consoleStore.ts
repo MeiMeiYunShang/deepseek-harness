@@ -93,8 +93,8 @@ export interface ConsoleStoreState {
 const TIMELINE_LIMIT = 200
 
 /**
- * Buckets the grid opens on: everything except completed and archived, so the
- * operator starts with the sessions still in flight.
+ * Buckets the grid opens on: everything except archived, so the operator
+ * starts with the sessions still in flight.
  */
 const DEFAULT_SESSION_BUCKETS: readonly SessionBucket[] = ['running', 'pending', 'available']
 

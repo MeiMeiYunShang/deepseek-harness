@@ -55,27 +55,26 @@ export function sessionPhaseLabel(phase: SessionPhase): ConsoleKey {
 }
 
 /**
- * A session's grid-filter bucket. Unlike {@link SessionPhase}, the five buckets
+ * A session's grid-filter bucket. Unlike {@link SessionPhase}, the four buckets
  * are disjoint and total — every session belongs to exactly one — because they
  * decide whether the grid shows its square rather than how that square is drawn.
  */
-export type SessionBucket = 'running' | 'pending' | 'completed' | 'available' | 'archived'
+export type SessionBucket = 'running' | 'pending' | 'available' | 'archived'
 
 /** The grid-filter buckets, in the order the filter lists them. */
-export const SESSION_BUCKETS: readonly SessionBucket[] = ['running', 'pending', 'completed', 'available', 'archived']
+export const SESSION_BUCKETS: readonly SessionBucket[] = ['running', 'pending', 'available', 'archived']
 
-/** Dictionary key per bucket: the four counted status labels plus the idle one. */
+/** Dictionary key per bucket: the three counted status labels plus the idle one. */
 const BUCKET_LABEL: Record<SessionBucket, ConsoleKey> = {
   running: 'sessionRunning',
   pending: 'sessionPending',
-  completed: 'sessionCompleted',
   available: 'sessionIdle',
   archived: 'sessionArchived',
 }
 
 /**
  * Assign a session to its grid-filter bucket, in precedence order
- * archived > running > pending > completed > available. Every arm below is
+ * archived > running > pending > available. Every arm below is
  * tried in that order and the last one takes whatever is left, so the buckets
  * partition the session list: no session is left unbucketed, and none is
  * claimed by two. A pending interaction of any kind awaits operator input —
@@ -84,25 +83,20 @@ const BUCKET_LABEL: Record<SessionBucket, ConsoleKey> = {
  * the grid then leaves out of that bucket. The predicate is the kind's
  * presence alone and not an enumeration: `sessionPhase` is where each kind
  * takes its own phase — `plan-review`, `question`, `approval` — because it
- * draws the square rather than deciding whether the grid shows it. `completed`
- * is the status feed's unacknowledged-completion bit rather than a phase, which
- * is why it can be a bucket without changing {@link sessionPhase}.
+ * draws the square rather than deciding whether the grid shows it.
  * @param summary - session summary.
  * @param pendingKind - the pending interaction kind for this session, if any.
  * @param archived - whether the session id is in the archived set.
- * @param completed - whether the session carries an unacknowledged completion.
  * @returns the single bucket this session belongs to.
  */
 export function sessionBucket(
   summary: SessionSummary,
   pendingKind: string | undefined,
   archived: boolean,
-  completed: boolean,
 ): SessionBucket {
   if (archived) return 'archived'
   if (summary.running) return 'running'
   if (pendingKind !== undefined) return 'pending'
-  if (completed) return 'completed'
   return 'available'
 }
 

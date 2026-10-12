@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { collectSlotEntries, oversizedSlotReports, resolveSlotEntries, validateSlotContracts } from './gen-client-catalog.ts'
+import { collectSlotEntries, oversizedSlotReports, renderClientCatalog, resolveSlotEntries, validateSlotContracts } from './gen-client-catalog.ts'
 import type { SlotDeclaration, SlotRegistration, TypeDeclaration } from './slot-walk.ts'
 
 /** A declaration with every field the catalog needs, overridable per case. */
@@ -260,5 +260,25 @@ describe('the real workspace surface', () => {
     expect(owner).not.toContain('truncated')
     expect(tool.ownerPropsReferences).not.toContain('ToolCallCommonProps')
     expect(tool.ownerPropsReferences).not.toContain('ToolCallPhaseProps')
+  })
+})
+
+describe('the generated module source', () => {
+  it('escapes a carriage return instead of ending the literal it sits in', () => {
+    // A contract file saved with CRLF reaches the renderer as declaration text
+    // carrying `\r`. Written raw, that byte starts a new line inside the
+    // single-quoted literal holding the owner props, and the generated module
+    // no longer parses.
+    const types = new Map(OWNER_TYPES)
+    types.set('CrlfOwner', {
+      name: 'CrlfOwner',
+      text: 'export interface CrlfOwner {\r\n  width: number\r\n}',
+      source: 'packages/client/demo/src/client/contract/slots.ts:40',
+    })
+    const source = renderClientCatalog(resolveSlotEntries(
+      [declaration({ ownerType: 'CrlfOwner' })], [], types, new Map(),
+    ))
+    expect(source).not.toContain('\r')
+    expect(source).toContain("'export interface CrlfOwner {\\r\\n  width: number\\r\\n}'")
   })
 })

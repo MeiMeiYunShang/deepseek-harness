@@ -7,6 +7,7 @@ export type ConsolePricingLocaleKey =
   | 'readOnly' | 'unavailable' | 'save' | 'saving' | 'saveFailed'
   | 'title' | 'summary' | 'intro' | 'unit' | 'empty'
   | 'addRow' | 'removeRow'
+  | 'entry' | 'close' | 'entryUnpriced' | 'entryUnpricedRoutes' | 'entryAmbiguousRoutes'
   | 'baseUrl' | 'provider' | 'model' | 'peak' | 'offPeak'
   | 'cacheHit' | 'cacheMiss' | 'output'
   | 'invalidBaseUrl' | 'invalidProvider' | 'invalidModel' | 'invalidPrice' | 'invalidDuplicate'
@@ -26,6 +27,11 @@ export const en: Record<ConsolePricingLocaleKey, string> = {
   empty: 'No prices recorded. Every route is reported as unpriced until a row covers it.',
   addRow: 'Add model route',
   removeRow: 'Remove model route',
+  entry: 'Price settings',
+  close: 'Close',
+  entryUnpriced: '{count} routes billed here have no price row, so the figure is reported as unpriced.',
+  entryUnpricedRoutes: 'Routes with no price row',
+  entryAmbiguousRoutes: 'Routes priced by more than one row',
   baseUrl: 'Endpoint',
   provider: 'Provider',
   model: 'Model',
@@ -56,6 +62,11 @@ export const zh: Record<ConsolePricingLocaleKey, string> = {
   empty: '尚未记录价格。在添加对应行之前，所有路由都显示为未定价',
   addRow: '添加模型路由',
   removeRow: '删除模型路由',
+  entry: '费用设定',
+  close: '关闭',
+  entryUnpriced: '本视图计价的 {count} 条路由还没有价格行，因此费用显示为未定价',
+  entryUnpricedRoutes: '没有价格行的路由',
+  entryAmbiguousRoutes: '被多行同时定价的路由',
   baseUrl: '接入地址',
   provider: '提供方',
   model: '模型',

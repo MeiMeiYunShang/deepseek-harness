@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { SessionStatsProjection } from '@deepseek-ai/dsh-session-stats/types'
 import { aggregateSessionStats, TaskStatsCard } from '../src/client/TaskStatsCard.tsx'
+import type { TaskStatsCardProps } from '../src/client/TaskStatsCard.tsx'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { BandTokens, ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { en } from '../src/client/locales.ts'
@@ -11,6 +12,10 @@ import { en } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 const t = (key: string): string => (en as Record<string, string>)[key] ?? key
+
+// These cases own the card's own figures; the contributed actions are the seat's
+// business, so no registration renders beside them here.
+const renderSlot: TaskStatsCardProps['renderSlot'] = () => null
 
 function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
@@ -51,7 +56,7 @@ describe('TaskStatsCard', () => {
     render(<TaskStatsCard t={t} byId={{
       s1: session('s1', { running: true, projectionValues: { sessionStats: STATS } }),
       s2: session('s2', { projectionValues: { sessionStats: { ...STATS, turns: 2, steps: 1, llmMs: 100, toolMs: 200 } } }),
-    }} scope={undefined} titleOf={() => undefined} prices={[]} collapsed={false} onToggleCollapse={() => {}} />)
+    }} scope={undefined} titleOf={() => undefined} prices={[]} collapsed={false} onToggleCollapse={() => {}} renderSlot={renderSlot} />)
     expect(screen.getByText('5')).toBeTruthy() // turns 3+2
     expect(screen.getByText('6')).toBeTruthy() // steps 5+1
     expect(screen.getByText('1.3s')).toBeTruthy() // llm
@@ -64,7 +69,7 @@ describe('TaskStatsCard', () => {
     render(<TaskStatsCard t={t} byId={{
       s1: session('s1', { running: true, projectionValues: { sessionStats: STATS } }),
       s2: session('s2', { projectionValues: { sessionStats: { ...STATS, turns: 99 } } }),
-    }} scope="s1" titleOf={() => 'Selected'} prices={[]} collapsed={false} onToggleCollapse={() => {}} />)
+    }} scope="s1" titleOf={() => 'Selected'} prices={[]} collapsed={false} onToggleCollapse={() => {}} renderSlot={renderSlot} />)
     expect(screen.getByText('3')).toBeTruthy() // only s1 turns
     expect(screen.getByText('1')).toBeTruthy() // running count
     // scope line
@@ -75,7 +80,7 @@ describe('TaskStatsCard', () => {
   it('falls back to the all-sessions label when the scoped title is unknown', () => {
     render(<TaskStatsCard t={t} byId={{
       s1: session('s1', { running: false, projectionValues: { sessionStats: STATS } }),
-    }} scope="s1" titleOf={() => undefined} prices={[]} collapsed={false} onToggleCollapse={() => {}} />)
+    }} scope="s1" titleOf={() => undefined} prices={[]} collapsed={false} onToggleCollapse={() => {}} renderSlot={renderSlot} />)
     expect(screen.getByText(new RegExp(en.taskAllSessions))).toBeTruthy()
     // the scoped session is not running, so the running count is 0.
     expect(screen.getByText('0')).toBeTruthy()
@@ -138,7 +143,7 @@ describe('TaskStatsCard', () => {
   })
 
   it('hides the counts when collapsed', () => {
-    render(<TaskStatsCard t={t} byId={{ s1: session('s1', { projectionValues: { sessionStats: STATS } }) }} scope="s1" titleOf={() => 'Selected'} prices={[]} collapsed onToggleCollapse={() => {}} />)
+    render(<TaskStatsCard t={t} byId={{ s1: session('s1', { projectionValues: { sessionStats: STATS } }) }} scope="s1" titleOf={() => 'Selected'} prices={[]} collapsed onToggleCollapse={() => {}} renderSlot={renderSlot} />)
     expect(screen.getByText(en.taskStats)).toBeTruthy()
     expect(screen.queryByText('3')).toBeNull()
   })
@@ -156,6 +161,7 @@ describe('TaskStatsCard', () => {
       prices={[FLASH]}
       collapsed={false}
       onToggleCollapse={() => {}}
+      renderSlot={renderSlot}
     />)
     // Two sessions on the same route bill as that route: 2M uncached input at 1 each.
     expect(screen.getByText(en.taskCost)).toBeTruthy()
@@ -174,6 +180,7 @@ describe('TaskStatsCard', () => {
       prices={[FLASH]}
       collapsed={false}
       onToggleCollapse={() => {}}
+      renderSlot={renderSlot}
     />)
     // 1M off-peak uncached input at 0.5, not at the peak rate of 1.
     expect(screen.getByText('0.5000')).toBeTruthy()
@@ -191,6 +198,7 @@ describe('TaskStatsCard', () => {
       prices={[]}
       collapsed={false}
       onToggleCollapse={() => {}}
+      renderSlot={renderSlot}
     />)
     expect(screen.getByText(en.taskCostUnpriced)).toBeTruthy()
   })
@@ -207,6 +215,7 @@ describe('TaskStatsCard', () => {
       prices={[FLASH, { ...FLASH, baseUrl: 'https://proxy.example.com' }]}
       collapsed={false}
       onToggleCollapse={() => {}}
+      renderSlot={renderSlot}
     />)
     // A bucket names no endpoint, so neither row's rate may be charged.
     expect(screen.getByText(en.taskCostAmbiguous)).toBeTruthy()
@@ -224,6 +233,7 @@ describe('TaskStatsCard', () => {
       prices={[FLASH]}
       collapsed={false}
       onToggleCollapse={() => {}}
+      renderSlot={renderSlot}
     />)
     expect(screen.getByText(en.taskCost)).toBeTruthy()
     expect(screen.getByText('1.00')).toBeTruthy()
@@ -247,6 +257,7 @@ describe('TaskStatsCard', () => {
       prices={[FLASH]}
       collapsed={false}
       onToggleCollapse={() => {}}
+      renderSlot={renderSlot}
     />)
     // s1's own 1M uncached input at 1 each; the other session's 2M on the same
     // route never enters the scoped accumulator, so the figure is not a share
@@ -267,6 +278,7 @@ describe('TaskStatsCard', () => {
       prices={[]}
       collapsed={false}
       onToggleCollapse={() => {}}
+      renderSlot={renderSlot}
     />)
     expect(screen.getByText(en.taskCostUnpriced)).toBeTruthy()
   })
@@ -283,6 +295,7 @@ describe('TaskStatsCard', () => {
       prices={[FLASH, { ...FLASH, baseUrl: 'https://proxy.example.com' }]}
       collapsed={false}
       onToggleCollapse={() => {}}
+      renderSlot={renderSlot}
     />)
     expect(screen.getByText(en.taskCostAmbiguous)).toBeTruthy()
   })

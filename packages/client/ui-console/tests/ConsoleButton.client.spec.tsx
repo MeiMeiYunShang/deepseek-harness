@@ -14,6 +14,8 @@ import type { ConsoleStoreState } from '../src/client/consoleStore.ts'
 import type { ConsoleServices } from '../src/client/services.ts'
 import type { TimelineMessage } from '../src/client/timelineMessages.ts'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ReactNode } from 'react'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -50,6 +52,18 @@ function session(id: string, overrides: Partial<SessionSummary> = {}): SessionSu
     blank: false,
     updatedAt: 0,
     ...overrides,
+  }
+}
+
+/** A minimal console-retained reference; the composer seats only read its identity. */
+function sessionReference(sessionId: string): SessionReference {
+  const binding = {} as SessionReference['binding']
+  return {
+    sessionId: sessionId as SessionReference['sessionId'],
+    binding,
+    ready: Promise.resolve(binding),
+    release: vi.fn(),
+    [Symbol.dispose]: vi.fn(),
   }
 }
 
@@ -94,6 +108,8 @@ function renderConsole(overrides: {
   prices?: readonly ModelPrice[]
   messages?: readonly TimelineMessage[]
   wide?: boolean
+  composerScope?: SessionReference | undefined
+  renderSlot?: (key: string, owner: unknown) => ReactNode
 } = {}) {
   const snap = createSnapshotStore<ConsoleStoreState>(overrides.store ?? makeStore())
   const prices = createSnapshotStore<readonly ModelPrice[]>(overrides.prices ?? [])
@@ -104,13 +120,28 @@ function renderConsole(overrides: {
     ready: (overrides.store ?? makeStore()).selectedSession !== undefined,
     draft: '',
     failed: false,
+    attachmentIds: [],
+    attachments: [],
+    uploads: {},
+    uploadsPending: false,
   })
   const composerActions: ConsoleComposerActions = {
     setDraft: vi.fn((text: string) => {
       composerSnap.set({ ...composerSnap.getSnapshot(), draft: text })
     }),
     submit: vi.fn(),
+    addFiles: vi.fn(() => null),
+    removeAttachment: vi.fn(),
+    retryUpload: vi.fn(),
   }
+  // The console-owned reference the apply closure publishes while a live
+  // binding is followed; the composer's session-scope seats bind through it.
+  const composerScope = createSnapshotStore<SessionReference | undefined>(overrides.composerScope)
+  // Records each SessionProvider wrap and every renderSlot dispatch, so a case
+  // can assert the permission/model seats reach the composer for a scoped
+  // session and are skipped when none is retained.
+  const providers: (SessionReference | undefined)[] = []
+  const slotCalls: { key: string; owner: unknown }[] = []
   const chat = vi.fn(async function* () { /* no chunks */ })
   const srv = overrides.services === undefined ? services() : services(overrides.services)
   const writers = {
@@ -137,14 +168,13 @@ function renderConsole(overrides: {
     }) => unknown) => selector({
       byId: overrides.byId ?? { s1: session('s1', { running: true }), s2: session('s2') },
     }),
-    // The status feed carries both the pending interaction kind and the
-    // unacknowledged completion bit the grid phases and buckets derive from.
+    // The status feed carries the pending interaction kind the grid phase and
+    // the awaiting-input bucket derive from.
     useSessionStatus: (selector: (value: Map<string, {
       pendingInteraction: { kind: string } | undefined
-      completionUnread: boolean
     }>) => unknown) => selector(new Map([
-      ['s1', { pendingInteraction: { kind: 'question' }, completionUnread: false }],
-      ['s2', { pendingInteraction: undefined, completionUnread: false }],
+      ['s1', { pendingInteraction: { kind: 'question' } }],
+      ['s2', { pendingInteraction: undefined }],
     ])),
     useWorkspaces: (selector: (value: {
       items: readonly { workspaceId: string; title: string }[]
@@ -157,14 +187,35 @@ function renderConsole(overrides: {
     usePrices: bindSnapshotSelector(prices),
     useMessages: bindSnapshotSelector(messages),
     useComposer: bindSnapshotSelector(composerSnap),
+    useComposerScope: bindSnapshotSelector(composerScope),
+    // A passthrough that records the reference the composer wraps the seats in,
+    // standing in for the framework-wired SessionProvider.
+    SessionProvider: (({ session, children }: { session?: SessionReference; children?: ReactNode }) => {
+      providers.push(session)
+      return children ?? null
+    }) as unknown as ConsoleButtonProps['SessionProvider'],
     store: writers,
     services: srv,
     composerActions,
+    // The candidate catalogs the composer's `/` and `@` menus read; these cases
+    // never open a menu, so an empty source satisfies the wiring.
+    candidates: {
+      commands: vi.fn(async () => []),
+      files: vi.fn(async () => []),
+    },
+    // Dispatching the contributed actions is the seat's own business; these
+    // cases pass an empty contribution unless a case installs a spy.
+    renderSlot: overrides.renderSlot === undefined
+      ? (() => null)
+      : ((key: string, owner: unknown) => {
+        slotCalls.push({ key, owner })
+        return overrides.renderSlot?.(key, owner) ?? null
+      }) as unknown as ConsoleButtonProps['renderSlot'],
     chat,
     defaultModel: overrides.defaultModel ?? null,
   } as unknown as ConsoleButtonProps
   render(<ConsoleButton {...props} />)
-  return { snap, prices, messages, composerSnap, composerActions, chat, srv, writers }
+  return { snap, prices, messages, composerSnap, composerScope, composerActions, chat, srv, writers, providers, slotCalls }
 }
 
 describe('ConsoleButton', () => {
@@ -350,5 +401,38 @@ describe('ConsoleButton', () => {
     act(() => { prices.set([FLASH]) })
     expect(screen.getByText('1.00')).toBeTruthy()
     expect(screen.queryByText(en.taskCostUnpriced)).toBeNull()
+  })
+
+  it('renders the permission and model seats through the retained reference for a scoped session', () => {
+    const reference = sessionReference('s2')
+    const { providers, slotCalls } = renderConsole({
+      store: makeStore({ selectedSession: 's2' }),
+      composerScope: reference,
+      renderSlot: () => null,
+    })
+    fireEvent.click(screen.getByRole('button', { name: en.trigger }))
+
+    // The composer wraps the two seats in the reference it was handed, and
+    // dispatches both keys with the machine-ready owner (not locked).
+    expect(providers).toContain(reference)
+    const permission = slotCalls.find(call => call.key === 'console.input.permission')
+    const model = slotCalls.find(call => call.key === 'console.input.model')
+    expect(permission?.owner).toEqual({ locked: false })
+    expect(model?.owner).toEqual({ locked: false })
+  })
+
+  it('renders no composer seat when the console holds no retained session reference', () => {
+    const { providers, slotCalls } = renderConsole({
+      store: makeStore({ selectedSession: undefined }),
+      composerScope: undefined,
+      renderSlot: () => null,
+    })
+    fireEvent.click(screen.getByRole('button', { name: en.trigger }))
+
+    // Absence of a reference short-circuits the wrap: neither SessionProvider nor
+    // the seat keys render, so an unscoped composer shows no permission/model.
+    expect(providers).toHaveLength(0)
+    expect(slotCalls.some(call => call.key === 'console.input.permission')).toBe(false)
+    expect(slotCalls.some(call => call.key === 'console.input.model')).toBe(false)
   })
 })

@@ -101,8 +101,6 @@ export interface SessionStatusCardProps {
   isArchived: (id: string) => boolean
   /** The pending interaction kind for a session, if any. */
   pendingKindOf: (id: string) => string | undefined
-  /** Whether a session carries an unacknowledged completion. */
-  completedOf: (id: string) => boolean
   /** Switch the stats/grid view. */
   setSessionView: (view: SessionView) => void
   /** Toggle one grid-filter bucket. */
@@ -123,17 +121,16 @@ export interface SessionStatusCardProps {
 
 /** Session status card: the header row plus the selected view body. */
 export function SessionStatusCard({
-  t, byId, current, sessionView, sessionBuckets, selected, isArchived, pendingKindOf, completedOf,
+  t, byId, current, sessionView, sessionBuckets, selected, isArchived, pendingKindOf,
   setSessionView, toggleSessionBucket, selectSession, clearScope, onContextMenu, onNewSession,
   collapsed, onToggleCollapse,
 }: SessionStatusCardProps) {
   const sessions = Object.values(byId)
   const running = sessions.filter(session => session.running).length
-  const completed = sessions.filter(session => completedOf(session.id)).length
   const pending = sessions.filter(session => pendingKindOf(session.id) !== undefined).length
   // The filter narrows the squares alone: the counts above stay over the whole list.
   const tiled = sessions.filter(session =>
-    sessionBuckets.includes(sessionBucket(session, pendingKindOf(session.id), isArchived(session.id), completedOf(session.id))))
+    sessionBuckets.includes(sessionBucket(session, pendingKindOf(session.id), isArchived(session.id))))
 
   return (
     <div className={clsx(css.card, sessionView === 'stats' && css.cardAuto, collapsed && css.cardCollapsed)}>
@@ -191,7 +188,6 @@ export function SessionStatusCard({
               <CountItem tone="Current" label={t('sessionCurrent')}>{String(sessions.length)}</CountItem>
               <CountItem tone="Running" label={t('sessionRunning')}>{String(running)}</CountItem>
               <CountItem tone="Waiting" label={t('sessionPending')}>{String(pending)}</CountItem>
-              <CountItem tone="Pending" label={t('sessionCompleted')}>{String(completed)}</CountItem>
               <CountItem tone="Waiting" label={t('sessionArchived')}>{String(sessions.filter(session => isArchived(session.id)).length)}</CountItem>
             </div>
           )

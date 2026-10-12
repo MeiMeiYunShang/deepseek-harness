@@ -15,6 +15,8 @@ import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/typ
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { CommandUiContract, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
+// Type-only: the seat inject's session id (branded) and the shared directory.
+import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.model seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -179,23 +181,31 @@ export function apply(ctx: ClientContext): void {
   ctx.inject(['slots', 'modelDirectories'], (scope: ClientContext) => {
     const models = scope.modelDirectories
     const sessions = scope.sessions
+    const modelSeatInject = (sessionId: SessionId): ModelSelectInjected => {
+      const directory = models.directoryFor(sessionId)
+      const available = sessions.subagentAddress(sessionId) === undefined
+      return {
+        available,
+        directory: directory.store,
+        load: () => {
+          if (available) directory.load().catch(() => { /* surfaced on the store */ })
+        },
+        select: (selection: ModelSelection) => available
+          ? directory.select(selection)
+          : Promise.resolve(undefined),
+      }
+    }
     scope.slots.inject('conversation.input.model', () => scope.slots.register({
       name: 'conversation.input.model',
       locale: NS,
-      inject: (sessionId): ModelSelectInjected => {
-        const directory = models.directoryFor(sessionId)
-        const available = sessions.subagentAddress(sessionId) === undefined
-        return {
-          available,
-          directory: directory.store,
-          load: () => {
-            if (available) directory.load().catch(() => { /* surfaced on the store */ })
-          },
-          select: (selection: ModelSelection) => available
-            ? directory.select(selection)
-            : Promise.resolve(undefined),
-        }
-      },
+      inject: modelSeatInject,
+    }, ModelSelect))
+    // The console composer renders the same model control for its own scoped
+    // session through a second seat: one occupant, one inject face, one component.
+    scope.slots.inject('console.input.model', () => scope.slots.register({
+      name: 'console.input.model',
+      locale: NS,
+      inject: modelSeatInject,
     }, ModelSelect))
   })
 }

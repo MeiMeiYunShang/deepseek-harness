@@ -52,6 +52,11 @@ async function bench() {
   // The runtime owns the Remote double; only the session navigation face the
   // console's open verb injects needs a stub.
   runtime.ctx.provide('uiWorkspace', { openSession: vi.fn(), startSession: vi.fn() } as never)
+  // The composer's candidate catalogs are injected remote.* services; register
+  // empty catalogs so the plugin unparks (this spec never opens a menu).
+  runtime.ctx.provide('remote.commands', { list: vi.fn(async () => ({ ok: true, value: [] })) } as never)
+  runtime.ctx.provide('remote.skills', { list: vi.fn(async () => ({ ok: true, value: { skills: [] } })) } as never)
+  runtime.ctx.provide('remote.fileReferences', { list: vi.fn(async () => ({ ok: true, value: [] })) } as never)
   const locale = new LocaleRuntime(runtime.ctx)
   locale.setLocale('en')
   runtime.ctx.provide('locale', locale)

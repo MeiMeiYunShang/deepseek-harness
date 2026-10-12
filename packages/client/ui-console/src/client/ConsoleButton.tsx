@@ -5,14 +5,18 @@
  */
 
 import { IconCodeOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ReactNode } from 'react'
+import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionReference, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: pulls the useSessions / useSessionStatus standard hooks.
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the useWorkspaces standard hook (GlobalStandardProps merge).
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+// Type-only: pulls this package's SlotMap merge (the task-statistics action seat).
+import type {} from './slot-contract.ts'
 import type { ConsoleStoreState, ConsoleStoreWrite } from './consoleStore.ts'
 import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
+import type { ComposerCandidateSource } from './candidates.ts'
 import type { TimelineMessage } from './timelineMessages.ts'
 import type { ModelPrice } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS } from './locales.ts'
@@ -38,6 +42,8 @@ export interface ConsoleFaces {
   services: ConsoleServices
   /** Writers onto the scoped session's input machine. */
   composerActions: ConsoleComposerActions
+  /** The composer's `/` and `@` candidate catalogs, bound to the client Remote. */
+  candidates: ComposerCandidateSource
   /** Streams Smart Q&A completions over the `chat` Remote. */
   chat: ChatFetcher
   /** Default Smart Q&A model, or null when none is resolvable. */
@@ -60,12 +66,15 @@ export type ConsoleInjectFace = ConsoleFaces & {
     messages: HostObservable<readonly TimelineMessage[]>
     /** The same session's composer projection, from the shared input machine. */
     composer: HostObservable<ConsoleComposerState>
+    /** The retained reference to the scoped session, or absence while none is live; the composer's session-scope seats bind through it. */
+    composerScope: HostObservable<SessionReference | undefined>
   }
 }
 
-/** Composed props: slot runtime + injected face + console dictionary. */
+/** Composed props: slot runtime + the child seats this entry declares + injected face + console dictionary. */
 export type ConsoleButtonProps =
   PropsRuntime<'sidebar.footer.action'>
+  & PropsRenderSlots<'console.task-stats.action' | 'console.input.permission' | 'console.input.model'>
   & InjectFace<ConsoleInjectFace>
   & PropsLocale<typeof NS>
 
@@ -85,6 +94,9 @@ export function ConsoleButton(props: ConsoleButtonProps) {
   const byId = props.useSessions(value => value.byId)
   const workspace = props.useWorkspaces(value => value)
   const status = props.useSessionStatus(value => value)
+  // The retained reference to the console's selected session, published by the
+  // apply closure only while a live binding exists; absence means no session.
+  const composerRef = props.useComposerScope(value => value)
 
   const archived = new Set(workspace.archivedSessionIds)
   const workspaces = workspace.items.map(item => ({ id: item.workspaceId, label: item.title }))
@@ -93,9 +105,21 @@ export function ConsoleButton(props: ConsoleButtonProps) {
   const current = Object.values(byId).find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
   const statusOf = (id: string) => status.get(id as never)
   const pendingKindOf = (id: string): string | undefined => statusOf(id)?.pendingInteraction?.kind
-  // A completion observed outside the main view is the status feed's
-  // unacknowledged bit, which fills the grid's completed bucket and count.
-  const completedOf = (id: string): boolean => statusOf(id)?.completionUnread ?? false
+
+  // The composer's permission and model controls are the chat composer's own
+  // seat occupants, rendered for the console's selected session. The retained
+  // reference (published by the apply closure only while a live binding exists)
+  // binds them through SessionProvider; the console keeps its own text field and
+  // never mounts a second editor for the session.
+  const renderComposerControls = (locked: boolean): ReactNode =>
+    composerRef === undefined
+      ? null
+      : (
+        <props.SessionProvider session={composerRef}>
+          {props.renderSlot('console.input.permission', { locked })}
+          {props.renderSlot('console.input.model', { locked })}
+        </props.SessionProvider>
+      )
 
   const workbench: WorkbenchProps = {
     t,
@@ -105,7 +129,6 @@ export function ConsoleButton(props: ConsoleButtonProps) {
     archived,
     titleOf: id => titleOf(byId, id),
     pendingKindOf,
-    completedOf,
     workspaces,
     useConsole: props.useConsole,
     store: props.store,
@@ -116,6 +139,9 @@ export function ConsoleButton(props: ConsoleButtonProps) {
     messages,
     useComposer: props.useComposer,
     composerActions: props.composerActions,
+    candidates: props.candidates,
+    renderSlot: props.renderSlot,
+    renderComposerControls,
   }
   return (
     <>

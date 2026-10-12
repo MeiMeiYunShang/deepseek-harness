@@ -80,6 +80,59 @@ export const CLIENT_NOTES: readonly string[] = [
 // detection is told to skip the data rather than the file.
 export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
   {
+    key: 'console.task-stats.action',
+    kind: 'list',
+    scope: 'root',
+    summary: 'Action area beside the task-statistics card\'s fold toggle, rendered while the card renders.',
+    doc: 'Action area beside the task-statistics card\'s fold toggle, rendered while\nthe card renders. Without a registrant the area renders nothing.',
+    registerOptions: [
+      {
+        name: 'id',
+        requirement: 'required',
+        type: 'string',
+        doc: 'Your cell key. Use an id of your own: a fresh id is added beside the shipped entries, while reusing a shipped id puts you in THAT cell and replaces it. Owners that filter by id address you by it.',
+      },
+      {
+        name: 'order',
+        requirement: 'optional',
+        type: 'number',
+        doc: 'Position among the entries, ascending (default 0).',
+      },
+      {
+        name: 'label',
+        requirement: 'optional',
+        type: 'string | (() => string)',
+        doc: 'Display text where the owner projects one (nav rows, tabs). A thunk is re-read on every projection, so localized text follows the active locale without re-registering.',
+      },
+    ],
+    ownerProps: [
+      '/** Owner share of one task-statistics action. */\nexport interface TaskStatsActionOwnerProps {\n  /** The route buckets the card\'s scope reported, merged across its sessions. */\n  routes: readonly SessionStatsRoute[]\n  /** The operator\'s price table the card charged; an empty table leaves every route unpriced. */\n  prices: readonly ModelPrice[]\n}',
+    ],
+    ownerPropsReferences: [
+      'ModelPrice',
+      'SessionStatsRoute',
+    ],
+    standardProps: [
+      'useResource: UseResource',
+      'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
+      'usePanelInfo: UsePanelInfo',
+      'useSessions: UseSessions',
+      'useSessionStatus: UseSessionStatus',
+      'useSessionRetainInfo: UseSessionRetainInfo',
+      'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
+    ],
+    keyDomain: '',
+    hookContext: '',
+    slotInject: '',
+    declaredBy: 'an entry in \'sidebar.footer.action\' (client-ui-console), so it exists while that entry is mounted',
+    occupants: [
+      'client-ui-settings-console-pricing ConsolePricingEntry id \'console-pricing\'',
+    ],
+    replaceRisk: 'none',
+    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'console.task-stats.action\', () => ctx.slots.register(\n      { name: \'console.task-stats.action\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
+    source: 'packages/client/ui-console/src/client/slot-contract.ts:27',
+  },
+  {
     key: 'conversation.approval.detail',
     kind: 'single',
     scope: 'session',

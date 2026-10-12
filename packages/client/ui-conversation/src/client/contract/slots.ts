@@ -223,6 +223,21 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * --dsh-composer-model-icon-display to block for an occupant's compact display.
      */
     'conversation.input.model': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
+    /**
+     * Permission control the console composer renders for its own scoped session.
+     * TYPE HOME: the console owns and renders this seat, but it is a second seat
+     * over the SAME occupant and owner as the chat permission control. Both the
+     * registrant (`ui-permission-presets`) and the console already depend on this
+     * composer contract type-only, so the key lives here beside its chat twin
+     * rather than forcing a new console edge from the filling package.
+     */
+    'console.input.permission': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
+    /**
+     * Model control the console composer renders for its own scoped session; a
+     * second seat over the SAME occupant and owner as {@link 'conversation.input.model'},
+     * typed beside it for the same TYPE HOME reason as {@link 'console.input.permission'}.
+     */
+    'console.input.model': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
   }
 
   interface SlotFactoryMap {
