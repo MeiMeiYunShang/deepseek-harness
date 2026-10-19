@@ -1,6 +1,31 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-ui-console-workbench-seams.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-01-ui-console-workbench-seams.md
-2026-09-01-ui-console-workbench-seams.md: c01eabce1ae1e3d750f074bfa82fa9d623733926
-2026-09-01-ui-console-workbench-seams.zh.md: 906d17ea1beba107c7f85f1134b53db09663deb5
+/agent-note-console-workbench-onto-the-target-seams:
+  en: e1ffbda746fad74e
+  zh: a0e58a7b67d69d5b
+/agent-note-console-workbench-onto-the-target-seams/problem:
+  en: 4ff9543f13205117
+  zh: 561ce2fe201d57cc
+/agent-note-console-workbench-onto-the-target-seams/decision:
+  en: 25724ff9279f75c2
+  zh: 41b1868fa4f08281
+/agent-note-console-workbench-onto-the-target-seams/alternatives-considered:
+  en: 6119e2aff3b6be5a
+  zh: 6119e2aff3b6be5a
+/agent-note-console-workbench-onto-the-target-seams/alternatives-considered/port-the-full-source-workbench-including-its-dialogs-and-inline-answer-card:
+  en: cd53a91cf0bd12da
+  zh: 0d1dc8ec02840820
+/agent-note-console-workbench-onto-the-target-seams/alternatives-considered/expose-the-store-to-the-component-through-a-rendered-inject-value:
+  en: a5978938404c5177
+  zh: d4941c474fbdf17c
+/agent-note-console-workbench-onto-the-target-seams/alternatives-considered/price-the-flat-token-totals-at-the-session-s-current-model:
+  en: 1e36c6bd4202fdb7
+  zh: 8f0f0bd363fd5090
+/agent-note-console-workbench-onto-the-target-seams/alternatives-considered/show-an-unpriced-route-as-zero:
+  en: bd074af8809c9e6e
+  zh: 02425f859ad4af6a
+/agent-note-console-workbench-onto-the-target-seams/consequences:
+  en: 93f3c70e876c49d6
+  zh: 47c61878704248dd

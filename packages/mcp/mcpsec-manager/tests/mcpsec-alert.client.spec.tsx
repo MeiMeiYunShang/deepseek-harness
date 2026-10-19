@@ -23,6 +23,7 @@ const unused = (): never => { throw new Error('McpSecAlert does not consume glob
 const globals: GlobalStandardProps = {
   usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
   useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
+  useRemoteAccess: unused, useSessionAccess: unused, useWorkspaceAccess: unused,
 }
 
 const ALERTS = [{

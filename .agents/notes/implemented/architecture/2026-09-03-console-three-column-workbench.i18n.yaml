@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-03-console-three-column-workbench.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-console-three-column-workbench.md
-2026-09-03-console-three-column-workbench.md: 485e48b738f448e7733a864dcad0d9fdd61a61bd
-2026-09-03-console-three-column-workbench.zh.md: 1a8ce0a023277aacecb7e49b4916c22c81dbcb57
+/agent-note-fullscreen-three-column-console-workbench:
+  en: 0e7b5c2ea62fb5ec
+  zh: 02dd14385bd5479b
+/agent-note-fullscreen-three-column-console-workbench/problem:
+  en: cbe9f2f5cf2e10b6
+  zh: 157a17c312065bd4
+/agent-note-fullscreen-three-column-console-workbench/decision:
+  en: 914c04d415677ee6
+  zh: 65979702bc4e667b
+/agent-note-fullscreen-three-column-console-workbench/alternatives-considered:
+  en: 3be7e93f66878311
+  zh: c3b1b19fc0ab5590
+/agent-note-fullscreen-three-column-console-workbench/consequences:
+  en: 79ce456e2f230009
+  zh: 1ea48356ba896513

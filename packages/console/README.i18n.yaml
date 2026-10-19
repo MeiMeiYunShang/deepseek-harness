@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/console/README.md
-README.md: 20c7c71ae7eaf3ad12b374e9ded852aea0c3fb95
-README.zh.md: 88b53b39b279f874d41b9624fbbf6f57c4c9fa89
+/:
+  en: ef63fc9df4baa35d
+  zh: 53e99ea3db0701c5
+/console-agent-console-integration:
+  en: 649d624244f289cb
+  zh: 3ce843f2bcdeac05
+/console-agent-console-integration/summary:
+  en: d01e3f38a817b01d
+  zh: 14eef50f7aa31abe
+/console-agent-console-integration/table-of-contents:
+  en: 1eb35b015a6c423f
+  zh: 2d2d8d96ce5b964a
+/console-agent-console-integration/packages:
+  en: 9815d2c18f83a164
+  zh: b581ef94f05021da
+/console-agent-console-integration/related-documentation:
+  en: d8a5dc045a56dff9
+  zh: 55d66aa65d87aadc
+/console-agent-console-integration/dev-note:
+  en: 5de1d6304e00c58f
+  zh: 20825004ca0b49eb

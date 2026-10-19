@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-01-llm-chat-remote.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-01-llm-chat-remote.md
-2026-09-01-llm-chat-remote.md: ab0c2779d57dff173d17b8ec6d470f7d0a08019b
-2026-09-01-llm-chat-remote.zh.md: c7679b625b9bb597ba44dfc1ac4cfd5a2c0f4afd
+/agent-note-llmruntime-streaming-chat-remote-for-one-shot-completions:
+  en: 421f7c19c5dd29a0
+  zh: cea54423764aa360
+/agent-note-llmruntime-streaming-chat-remote-for-one-shot-completions/problem:
+  en: 76f705df7bbbeb29
+  zh: cbb79859edd0f7d5
+/agent-note-llmruntime-streaming-chat-remote-for-one-shot-completions/decision:
+  en: 8176e8f91f40ac63
+  zh: c155c4978b7ffaa4
+/agent-note-llmruntime-streaming-chat-remote-for-one-shot-completions/alternatives-considered:
+  en: 6119e2aff3b6be5a
+  zh: 6119e2aff3b6be5a
+/agent-note-llmruntime-streaming-chat-remote-for-one-shot-completions/alternatives-considered/reuse-the-public-streamchunk-directly:
+  en: 7a9aaf731a3d3aed
+  zh: fc468ed4be467313
+/agent-note-llmruntime-streaming-chat-remote-for-one-shot-completions/alternatives-considered/add-a-block-adapter-translating-contentblock-to-the-wire:
+  en: eb4052e8d2efd04e
+  zh: c72e7759c051804b
+/agent-note-llmruntime-streaming-chat-remote-for-one-shot-completions/consequences:
+  en: e42a8d7883029475
+  zh: 2fedcda78f3dc85e

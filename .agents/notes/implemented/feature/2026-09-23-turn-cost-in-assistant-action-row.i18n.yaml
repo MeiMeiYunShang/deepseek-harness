@@ -1,6 +1,37 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-23-turn-cost-in-assistant-action-row.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-23-turn-cost-in-assistant-action-row.md
-2026-09-23-turn-cost-in-assistant-action-row.md: 499986def449b694c7a02e3bba061c12bf7f7a3e
-2026-09-23-turn-cost-in-assistant-action-row.zh.md: 1388560697a7896db4d2daf6bf19036f5dc42a29
+/agent-note-per-turn-cost-in-the-assistant-action-row:
+  en: 92e566c7c4ed49bb
+  zh: ace8f776cc6f4e18
+/agent-note-per-turn-cost-in-the-assistant-action-row/problem:
+  en: 2d877b139bde5a62
+  zh: 8a4c316555ab8fe8
+/agent-note-per-turn-cost-in-the-assistant-action-row/decision:
+  en: 8e44cb6d4e276492
+  zh: 883657a95619ac60
+/agent-note-per-turn-cost-in-the-assistant-action-row/alternatives-considered:
+  en: 6119e2aff3b6be5a
+  zh: 6119e2aff3b6be5a
+/agent-note-per-turn-cost-in-the-assistant-action-row/alternatives-considered/price-the-turn-from-deriveturntokenusage-with-the-client-deciding-the-band:
+  en: b8c08e40ceb674d3
+  zh: d7fb2e286e8514d0
+/agent-note-per-turn-cost-in-the-assistant-action-row/alternatives-considered/price-the-turn-from-the-session-wide-routes-buckets:
+  en: 6b2c4f5a3046be41
+  zh: 3ffab7911ced2777
+/agent-note-per-turn-cost-in-the-assistant-action-row/alternatives-considered/guess-the-route-from-the-session-s-current-model:
+  en: 4d4ccb45afbb8609
+  zh: 094f64ba450b2a3e
+/agent-note-per-turn-cost-in-the-assistant-action-row/alternatives-considered/add-a-second-projection-key-for-per-turn-buckets:
+  en: 9bf40ec419c406e0
+  zh: a0fe4e50aa2abc57
+/agent-note-per-turn-cost-in-the-assistant-action-row/alternatives-considered/duplicate-the-pricing-arithmetic-in-ui-chat:
+  en: 3663b762550fbf9b
+  zh: ff43feca697f14a4
+/agent-note-per-turn-cost-in-the-assistant-action-row/consequences:
+  en: 3fe42700d4a8601f
+  zh: be755a6de27e81e3
+/agent-note-per-turn-cost-in-the-assistant-action-row/testing:
+  en: cee81325642f7547
+  zh: af9bbc9efcd1beb2

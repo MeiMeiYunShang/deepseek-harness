@@ -17,7 +17,6 @@ vi.mock('node:os', () => ({
 }))
 
 const { sampleCpu, sampleMemory, apply, name } = await import('../src/index.ts')
-const { apply: invariantApply, name: invariantName, inject: invariantInject } = await import('../src/invariant.ts')
 
 describe('@deepseek-ai/dsh-host-metrics', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -93,25 +92,6 @@ describe('@deepseek-ai/dsh-host-metrics', () => {
       vi.advanceTimersByTime(500)
       expect(emit).toHaveBeenCalledTimes(1)
       vi.useRealTimers()
-    })
-  })
-
-  describe('invariant companion', () => {
-    it('registers the package invariant', async () => {
-      const register = vi.fn((_name: string, install: () => void) => {
-        install()
-        return () => undefined
-      })
-      const ctx = { invariants: { register } } as unknown as Context
-      const disposer = await invariantApply(ctx)
-      expect(register).toHaveBeenCalledWith('@deepseek-ai/dsh-host-metrics', expect.any(Function))
-      expect(typeof disposer).toBe('function')
-      disposer()
-    })
-
-    it('exposes the companion name and injection', () => {
-      expect(invariantName).toBe('host-metrics-invariant')
-      expect(invariantInject).toEqual(['invariants'])
     })
   })
 })

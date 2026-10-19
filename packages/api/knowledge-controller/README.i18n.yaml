@@ -1,6 +1,49 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/api/knowledge-controller/README.md
-README.md: 6f122d5696db711076cea33aab67ee433ab49757
-README.zh.md: 12af517e52c3c3d4cebb88f93e0f130cbbcb1f8b
+/:
+  en: 2babf93a1ad3404f
+  zh: 64b4d57ef9959db9
+/deepseek-ai-dsh-api-knowledge-controller:
+  en: f177ccbbea28e40c
+  zh: 373d8667d89e088b
+/deepseek-ai-dsh-api-knowledge-controller/summary:
+  en: 51d36141aa076fd0
+  zh: cd3afbc90680d03f
+/deepseek-ai-dsh-api-knowledge-controller/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-api-knowledge-controller/use-this-package:
+  en: 015856838e04765b
+  zh: 852a34e1127a4e3d
+/deepseek-ai-dsh-api-knowledge-controller/use-this-package/what-the-source-offers:
+  en: c12c103bb2d67dd3
+  zh: a4bc9f3a72f3b44e
+/deepseek-ai-dsh-api-knowledge-controller/understand-the-implementation:
+  en: 84558e15d7538de1
+  zh: f9b661c84b6066ae
+/deepseek-ai-dsh-api-knowledge-controller/further-exploration:
+  en: 756d680d2c44a43a
+  zh: b988ed5effa7b2fd
+/deepseek-ai-dsh-api-knowledge-controller/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-api-knowledge-controller/model-experience/knowledge-catalog-over-the-wire:
+  en: 18464d5991c67ebb
+  zh: f3470ad8f6eef0bb
+/deepseek-ai-dsh-api-knowledge-controller/model-experience/knowledge-catalog-over-the-wire/what-the-model-sees:
+  en: 8e6dc322bcede018
+  zh: ce1af95575ed1948
+/deepseek-ai-dsh-api-knowledge-controller/model-experience/knowledge-catalog-over-the-wire/token-effect:
+  en: 92b5187e4619f345
+  zh: ae0a115b067b9542
+/deepseek-ai-dsh-api-knowledge-controller/model-experience/knowledge-catalog-over-the-wire/kv-cache-effect:
+  en: 56c934a8dd3b64b0
+  zh: b89e12e90909880f
+/deepseek-ai-dsh-api-knowledge-controller/known-limitations-and-deferred-work:
+  en: 8626379f4f424b64
+  zh: ace76eeb97fcb83f
+/deepseek-ai-dsh-api-knowledge-controller/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

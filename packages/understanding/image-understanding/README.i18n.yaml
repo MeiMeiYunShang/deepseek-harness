@@ -1,6 +1,52 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/understanding/image-understanding/README.md
-README.md: bf93d5c84fc0cdcb802a3773db719e4b24746090
-README.zh.md: 8c6ac113355bcede7eedcffc646c4b209fd736a5
+/:
+  en: 87b139f70d3150a1
+  zh: a8f82a12404d4314
+/deepseek-ai-dsh-image-understanding:
+  en: 5b9367730717a469
+  zh: 031207d9b418a0e2
+/deepseek-ai-dsh-image-understanding/summary:
+  en: 84053946d1fd5a7b
+  zh: dbc78848245d44c0
+/deepseek-ai-dsh-image-understanding/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-image-understanding/use-this-package:
+  en: 8e2a9f605c8646d2
+  zh: 6557b834eb1dd034
+/deepseek-ai-dsh-image-understanding/use-this-package/what-the-source-offers:
+  en: fa3ae24b7d0e8512
+  zh: d8d7394ef27ebb6f
+/deepseek-ai-dsh-image-understanding/understand-the-implementation:
+  en: a0d881ba04d732b5
+  zh: 515dc184e59d4b84
+/deepseek-ai-dsh-image-understanding/understand-the-implementation/registration:
+  en: 622395f1ccdcb115
+  zh: b5e7c53c85e39a43
+/deepseek-ai-dsh-image-understanding/further-exploration:
+  en: a03be60ed70d9c05
+  zh: a0def3ece3acb364
+/deepseek-ai-dsh-image-understanding/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-image-understanding/model-experience/image-prompts-projected-to-text-for-a-text-only-route:
+  en: a43e40e1b753a23a
+  zh: ef584d768a4eb234
+/deepseek-ai-dsh-image-understanding/model-experience/image-prompts-projected-to-text-for-a-text-only-route/what-the-model-sees:
+  en: ec3a3bad38ae069e
+  zh: c7ac34e14f934a8a
+/deepseek-ai-dsh-image-understanding/model-experience/image-prompts-projected-to-text-for-a-text-only-route/token-effect:
+  en: 3d8c2353858b205d
+  zh: 4dfebf13b3abcd13
+/deepseek-ai-dsh-image-understanding/model-experience/image-prompts-projected-to-text-for-a-text-only-route/kv-cache-effect:
+  en: 80466afb3c78563d
+  zh: 2527c3bc74c3bb6b
+/deepseek-ai-dsh-image-understanding/known-limitations-and-deferred-work:
+  en: ab6cfbf1f6df5af0
+  zh: a75b0a3526b705d5
+/deepseek-ai-dsh-image-understanding/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

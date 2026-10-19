@@ -1,6 +1,52 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/console/console-bridge/README.md
-README.md: 6852406c107318d953bb1483db4f9fe7de3a20e0
-README.zh.md: 1f10b05a9fc4b219a81feda6e348b4f17fa507d9
+/:
+  en: 57976b6e82d642fd
+  zh: 7b3561028919b461
+/dsh-console-bridge:
+  en: 21c4b0d99be9a034
+  zh: 16b123c5f0c845e9
+/dsh-console-bridge/summary:
+  en: 27f62349a80c8cd0
+  zh: b517ade82d16ede8
+/dsh-console-bridge/table-of-contents:
+  en: 523a3e30c0020aac
+  zh: b6886d1696206b89
+/dsh-console-bridge/what-it-does:
+  en: d43bec1fd909d289
+  zh: bd2a592b92698c2c
+/dsh-console-bridge/transport:
+  en: 10e53159ccad4b70
+  zh: 31bb93feb6cf1b8e
+/dsh-console-bridge/configuration:
+  en: a52cf4aac8ff0669
+  zh: 4c3225baa9cdc329
+/dsh-console-bridge/settings-page:
+  en: 80fe4d3b6f8bebf7
+  zh: 2260342803e99ee6
+/dsh-console-bridge/extension-points:
+  en: 046e795cb3b2402d
+  zh: 072435f30c0cf6bd
+/dsh-console-bridge/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/dsh-console-bridge/model-experience/console-command-relay:
+  en: 701b487ca0d7a841
+  zh: 46100ef9fb58c299
+/dsh-console-bridge/model-experience/console-command-relay/what-the-model-sees:
+  en: 7046937601cb3086
+  zh: 6e27a157c1b514de
+/dsh-console-bridge/model-experience/console-command-relay/token-effect:
+  en: 7e453f983cec4ed9
+  zh: 5ab90ef530b35f38
+/dsh-console-bridge/model-experience/console-command-relay/kv-cache-effect:
+  en: 0f467668a419aab3
+  zh: 82df337285f02b87
+/dsh-console-bridge/known-limitations-and-deferred-work:
+  en: 6034ae8d4a15f5d4
+  zh: 25aac5c45c861d00
+/dsh-console-bridge/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: b23ea3e6cbd56734

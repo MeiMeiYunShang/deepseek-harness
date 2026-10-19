@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/understanding/README.md
-README.md: 32436b24d42f7f474397271c8786c3328b8ab19d
-README.zh.md: 6d276c5f9a920f6116d6b1a04567b2ca3cf8347d
+/:
+  en: 2d18edb38ec26171
+  zh: 5af124e8d102f2cd
+/understanding-understanding-capability-family:
+  en: f49429db95583f86
+  zh: b5f457f7244e2602
+/understanding-understanding-capability-family/summary:
+  en: af0dab7bc1260980
+  zh: e849196a1c6a01d5
+/understanding-understanding-capability-family/table-of-contents:
+  en: 1eb35b015a6c423f
+  zh: a8a3dceee2c9e943
+/understanding-understanding-capability-family/packages:
+  en: 26abb2029fbf8cf6
+  zh: 877b914dda374ce0
+/understanding-understanding-capability-family/related-documentation:
+  en: 5a4ed612fb5b41df
+  zh: 7a8c90daed4f5144
+/understanding-understanding-capability-family/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

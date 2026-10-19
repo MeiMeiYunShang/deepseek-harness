@@ -1,6 +1,49 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/mcp/mcpsec-manager/README.md
-README.md: d4daa8580496342df7ec9b6146493d9d23979594
-README.zh.md: a5ffcb8ee0f1b3095869a43cfaf7f9ae8961f554
+/:
+  en: 32e26f3a898f8e38
+  zh: 7455e318a55f27e0
+/deepseek-ai-dsh-mcpsec-manager:
+  en: b246e2620e28dfb2
+  zh: 5aef29b3e7b3f6fd
+/deepseek-ai-dsh-mcpsec-manager/summary:
+  en: 6d6fb33a2425c18d
+  zh: b93a0e3014ff6af1
+/deepseek-ai-dsh-mcpsec-manager/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-mcpsec-manager/use-this-package:
+  en: 95fd30731d0c7466
+  zh: 051ca183fb3be861
+/deepseek-ai-dsh-mcpsec-manager/use-this-package/what-the-source-offers:
+  en: 4ffa50b2e14a41d8
+  zh: 38095338cf74f336
+/deepseek-ai-dsh-mcpsec-manager/understand-the-implementation:
+  en: 8c749ea75ecaa0a7
+  zh: f965166f76c1b129
+/deepseek-ai-dsh-mcpsec-manager/further-exploration:
+  en: c4b7f1eace45b1b7
+  zh: 35f6f0a95d349413
+/deepseek-ai-dsh-mcpsec-manager/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-mcpsec-manager/model-experience/write-capable-tool-denial-on-a-locked-down-server:
+  en: 032bb4a19df591a6
+  zh: 2eb2a00152a0e729
+/deepseek-ai-dsh-mcpsec-manager/model-experience/write-capable-tool-denial-on-a-locked-down-server/what-the-model-sees:
+  en: 5b6038c10fe53f41
+  zh: e14ad65a4bd155fb
+/deepseek-ai-dsh-mcpsec-manager/model-experience/write-capable-tool-denial-on-a-locked-down-server/token-effect:
+  en: 277125d1c0231aa7
+  zh: df39e08ced55373c
+/deepseek-ai-dsh-mcpsec-manager/model-experience/write-capable-tool-denial-on-a-locked-down-server/kv-cache-effect:
+  en: 4fba0e692453f39b
+  zh: d72f1012172f4345
+/deepseek-ai-dsh-mcpsec-manager/known-limitations-and-deferred-work:
+  en: 6287ae14cbfb4848
+  zh: 13d2a47efedd2464
+/deepseek-ai-dsh-mcpsec-manager/known-limitations-and-deferred-work/dev-note:
+  en: 2ba38caf3618a96d
+  zh: 99e0ce18dc3f509b

@@ -18,7 +18,7 @@ Status: implemented
 
 归属只是决定的一半；这条规则还必须能被找到。[ui-primitives README](../../../../packages/client/ui-primitives/README.zh.md) 里有一行目录条目列出全部五个费用导出，还有一节计费算术说明「未定价 / 价格不唯一」规则，因此新增第三个费用面的作者只需读一个文件，而不必翻遍各个功能包。`packages/client/AGENTS.md` 把 `ui-primitives` 列为共享客户端运行时代码应归属的狭窄静态归属方之一，与 `client/store` 和浏览器安全的工具包并列。
 
-这是对该包既有规则的一次延伸。第二个客户端包需要的控件住在 `ui-primitives`（[决策](2026-09-05-shared-client-control-primitives.zh.md)）；两个客户端包需要的值模块出于同样的理由住在那里。`ui-primitives` 是一个库而不是功能插件——零 Cordis、零 slot——因此 import 它并不是导出纪律所禁止的那种跨功能取值。
+这是对该包既有规则的一次延伸。第二个客户端包需要的控件住在 `ui-primitives`（[新组件清单](../../../../packages/client/AGENTS.md#new-component-checklist)）；两个客户端包需要的值模块出于同样的理由住在那里。`ui-primitives` 是一个库而不是功能插件——零 Cordis、零 slot——因此 import 它并不是导出纪律所禁止的那种跨功能取值。
 
 ## Why ui-primitives
 

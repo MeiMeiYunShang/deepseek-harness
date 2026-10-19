@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-23-shared-client-cost-primitives.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-23-shared-client-cost-primitives.md
-2026-09-23-shared-client-cost-primitives.md: eb96c42e71e9f0d03c5e94243b9aa913922a0894
-2026-09-23-shared-client-cost-primitives.zh.md: dd14a6c4c79bd006bdfd6cf741aac881e4147863
+/agent-note-shared-client-cost-primitives:
+  en: 5de6e1b1984fd587
+  zh: 56539053f6f370f6
+/agent-note-shared-client-cost-primitives/problem:
+  en: b15e7a7aa11c3023
+  zh: c8f92c7158861ca3
+/agent-note-shared-client-cost-primitives/decision:
+  en: b7d31ecf84dca6a8
+  zh: a3c4b15c043175ac
+/agent-note-shared-client-cost-primitives/why-ui-primitives:
+  en: 5ddafe7ea0d23dfe
+  zh: 944cf40c7f2633ac
+/agent-note-shared-client-cost-primitives/alternatives-considered:
+  en: 6c9d52421615bf99
+  zh: d3a59e3e862ab131
+/agent-note-shared-client-cost-primitives/consequences:
+  en: 77613c3ee7afc5b2
+  zh: 689cfb264e3d654c
+/agent-note-shared-client-cost-primitives/testing:
+  en: ef68fd1913cf203b
+  zh: 802718b247b94952

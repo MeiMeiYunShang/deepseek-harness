@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-04-knowledge-web-surface-migration.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-04-knowledge-web-surface-migration.md
-2026-09-04-knowledge-web-surface-migration.md: b622df990c99daaf38228158dbd61227698e0d43
-2026-09-04-knowledge-web-surface-migration.zh.md: e1c938a7c2c58abc6699c9e52f6f344f3195156e
+/agent-note-web-knowledge-surface-over-the-knowledge-remote:
+  en: c7e5fbaacf2334b0
+  zh: 06b6014284033124
+/agent-note-web-knowledge-surface-over-the-knowledge-remote/problem:
+  en: ce8292a4d131a114
+  zh: 580dad8f7c046f44
+/agent-note-web-knowledge-surface-over-the-knowledge-remote/decision:
+  en: 11d0f092b1654126
+  zh: 767be85de3db1c1e
+/agent-note-web-knowledge-surface-over-the-knowledge-remote/alternatives-considered:
+  en: d66d3e81e2b131cd
+  zh: c6d746f830a38d52
+/agent-note-web-knowledge-surface-over-the-knowledge-remote/consequences:
+  en: 9f962a78683333d6
+  zh: 2b07c456c100cf1c

@@ -26,6 +26,7 @@ const unused = (): never => { throw new Error('McpSecSection does not consume gl
 const globals: GlobalStandardProps = {
   usePanelInfo: unused, useSessions: unused, useSessionStatus: unused,
   useSessionRetainInfo: unused, useResource: unused, useWorkspaces: unused,
+  useRemoteAccess: unused, useSessionAccess: unused, useWorkspaceAccess: unused,
 }
 
 type Instance = ReturnType<ReturnType<typeof createMcpSecStore>['create']>

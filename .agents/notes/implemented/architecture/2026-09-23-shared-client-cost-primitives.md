@@ -18,7 +18,7 @@ Size is not what made the copy dangerous. The two policy copies were byte-identi
 
 Ownership is half the decision; the rule also has to be findable. The [ui-primitives README](../../../../packages/client/ui-primitives/README.md) carries one catalog row naming all five cost exports and a cost-arithmetic section stating the unpriced/ambiguous rule, so an author adding a third money surface reads one file instead of searching feature packages. `packages/client/AGENTS.md` names `ui-primitives` as the narrow static owner shared client runtime code belongs in, beside `client/store` and a browser-safe utility package.
 
-This extends a rule the package already had. A control that a second client package needs lives in `ui-primitives` ([decision](2026-09-05-shared-client-control-primitives.md)); a value module two client packages need lives there for the same reason. `ui-primitives` is a library rather than a feature plugin — zero Cordis, zero slots — so importing it is not the cross-feature value import the export discipline forbids.
+This extends a rule the package already had. A control that a second client package needs lives in `ui-primitives` ([new-component checklist](../../../../packages/client/AGENTS.md#new-component-checklist)); a value module two client packages need lives there for the same reason. `ui-primitives` is a library rather than a feature plugin — zero Cordis, zero slots — so importing it is not the cross-feature value import the export discipline forbids.
 
 ## Why ui-primitives
 

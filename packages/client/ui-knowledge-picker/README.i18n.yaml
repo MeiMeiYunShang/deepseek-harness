@@ -1,6 +1,52 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-knowledge-picker/README.md
-README.md: 8128bdd389f521bcb28b4f0a665e7ffcc431cd7d
-README.zh.md: 85f9b54c7a29af15f27c14ae665782ecc66ac471
+/:
+  en: 45a126be29259a30
+  zh: 25460817ef68fd91
+/deepseek-ai-dsh-client-ui-knowledge-picker:
+  en: 2a45c15eaf712896
+  zh: 1a0845a83d828a37
+/deepseek-ai-dsh-client-ui-knowledge-picker/summary:
+  en: 031755e14bb14327
+  zh: e962d626ead1a770
+/deepseek-ai-dsh-client-ui-knowledge-picker/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-client-ui-knowledge-picker/use-this-package:
+  en: 8dfe01db087a2260
+  zh: b544e531fe125a24
+/deepseek-ai-dsh-client-ui-knowledge-picker/use-this-package/what-the-source-offers:
+  en: 33354c0a1e70e318
+  zh: 8a726d4f0ca1c13f
+/deepseek-ai-dsh-client-ui-knowledge-picker/understand-the-implementation:
+  en: 3113c55e9fa363ae
+  zh: 4e50228b8f4eb1f6
+/deepseek-ai-dsh-client-ui-knowledge-picker/understand-the-implementation/registration:
+  en: 8f6b220d0b14da2b
+  zh: bcb9f9e3d74599cc
+/deepseek-ai-dsh-client-ui-knowledge-picker/further-exploration:
+  en: cdef0064ef3eb6f0
+  zh: 0837ccbd0861c2fd
+/deepseek-ai-dsh-client-ui-knowledge-picker/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-client-ui-knowledge-picker/model-experience/staged-knowledge-selection:
+  en: 2cc1945cf47526ad
+  zh: 069eed55225061d3
+/deepseek-ai-dsh-client-ui-knowledge-picker/model-experience/staged-knowledge-selection/what-the-model-sees:
+  en: 6ec0a26c2dc2a39f
+  zh: 56b2b142130a94cb
+/deepseek-ai-dsh-client-ui-knowledge-picker/model-experience/staged-knowledge-selection/token-effect:
+  en: 7fd9392c5554f7a0
+  zh: caba8616f494c628
+/deepseek-ai-dsh-client-ui-knowledge-picker/model-experience/staged-knowledge-selection/kv-cache-effect:
+  en: 56c934a8dd3b64b0
+  zh: b89e12e90909880f
+/deepseek-ai-dsh-client-ui-knowledge-picker/known-limitations-and-deferred-work:
+  en: 1041492c4b9cb314
+  zh: 236f7832440987db
+/deepseek-ai-dsh-client-ui-knowledge-picker/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

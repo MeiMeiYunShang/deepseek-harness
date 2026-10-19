@@ -1,6 +1,52 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-settings-knowledge/README.md
-README.md: d3b5318c64e13a672676448acb07573cf3eebe55
-README.zh.md: 532cc0eb31f6f578e491d68874076efab4a7c676
+/:
+  en: 5b1b37487abb42f0
+  zh: 2804bd53e1ad53f6
+/deepseek-ai-dsh-client-ui-settings-knowledge:
+  en: 9bd7e70e02766a1b
+  zh: 43a024305affbe49
+/deepseek-ai-dsh-client-ui-settings-knowledge/summary:
+  en: 4453a96d92879838
+  zh: 4f940262014b8ebf
+/deepseek-ai-dsh-client-ui-settings-knowledge/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-client-ui-settings-knowledge/use-this-package:
+  en: b87d69fc9e5f2d5d
+  zh: 9946374ff3002650
+/deepseek-ai-dsh-client-ui-settings-knowledge/use-this-package/what-the-source-offers:
+  en: 52cfaadc808159a3
+  zh: c3fd89a7d11236bc
+/deepseek-ai-dsh-client-ui-settings-knowledge/understand-the-implementation:
+  en: 936dd7d85fc3b26c
+  zh: aaae9b9daad3b345
+/deepseek-ai-dsh-client-ui-settings-knowledge/understand-the-implementation/registration:
+  en: 14e4ea2a77c1501f
+  zh: 4f015bd890977154
+/deepseek-ai-dsh-client-ui-settings-knowledge/further-exploration:
+  en: aa06f980e713673e
+  zh: 55e9f984f27cfa33
+/deepseek-ai-dsh-client-ui-settings-knowledge/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-client-ui-settings-knowledge/model-experience/knowledge-catalog-management:
+  en: d3d126cb1e119d0e
+  zh: 91bbf34c59718a85
+/deepseek-ai-dsh-client-ui-settings-knowledge/model-experience/knowledge-catalog-management/what-the-model-sees:
+  en: fd9344541f291b59
+  zh: c3bbfb667b8e7122
+/deepseek-ai-dsh-client-ui-settings-knowledge/model-experience/knowledge-catalog-management/token-effect:
+  en: 0392bedfd83d9c8b
+  zh: a8bd7f1b251a6fd8
+/deepseek-ai-dsh-client-ui-settings-knowledge/model-experience/knowledge-catalog-management/kv-cache-effect:
+  en: 56c934a8dd3b64b0
+  zh: b89e12e90909880f
+/deepseek-ai-dsh-client-ui-settings-knowledge/known-limitations-and-deferred-work:
+  en: a366d142032d4722
+  zh: 2a0c9a6b79dac09d
+/deepseek-ai-dsh-client-ui-settings-knowledge/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98
