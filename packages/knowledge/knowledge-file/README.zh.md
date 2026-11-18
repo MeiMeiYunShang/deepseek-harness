@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### source 提供什么
 
-激活时它会确保 `<root>/entries` 与 `<root>/groups` 存在，填充 store，并把 `knowledge/change` 的突发合并为一个 flush 循环，使重叠的变更不会丢失最终磁盘状态。一次 flush 重写完整 store，并移除 id 已不在注册表中的 JSON 文件。
+激活时它会确保 `<root>/entries` 与 `<root>/groups` 存在，填充 store，并把 `knowledge/change` 的突发合并为一个 flush 循环，使重叠的变更不会丢失最终磁盘状态。仅在首次启动时，它通过 `groupUngroupedByCategory` 将任何未分组条目归入分类分组，刷新结果，并在根目录记录一个 `.groups-initialized` 标记，使该流程仅跑一次，后续手动删除分组不会在重启时被撤销。一次 flush 重写完整 store，并移除 id 已不在注册表中的 JSON 文件。
 
 -----
 

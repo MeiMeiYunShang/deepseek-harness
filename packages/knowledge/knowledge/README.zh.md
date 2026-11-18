@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### store 提供什么
 
-条目拥有 `KNOWLEDGE_CATEGORIES` 中的分类、自由标签、可选分组与可选来源会话。分组携带名称、描述与所含条目 id 的有序列表。id 是品牌类型（`KnowledgeEntryId`/`KnowledgeGroupId`）；store 指定 `createdAt`/`updatedAt`，并把条目 id 追加到其分组的 `entryIds`。
+条目拥有 `KNOWLEDGE_CATEGORIES` 中的分类、自由标签、分组与可选来源会话。分组携带名称、描述与所含条目 id 的有序列表。id 是品牌类型（`KnowledgeEntryId`/`KnowledgeGroupId`）；store 指定 `createdAt`/`updatedAt`，并把条目 id 追加到其分组的 `entryIds`。分组名称唯一：创建一个去空格后同名已存在的分组会返回该分组而非重复创建。未提供 `groupId` 保存的条目会自动归入以其 `category` 命名的分组（`groupUngroupedByCategory` 对早于此规则的条目应用同一规则）。
 
 -----
 
@@ -39,7 +39,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-store 是一个普通 `Service`，拥有两个 `Map`（entries、groups）与单调计数器。变更在边界处校验输入、应用改动，并发出无过滤的 `knowledge/change` 失效通知，且对每个监听器进行隔离（抛错的监听器不能否决该变更）。`updateEntry` 只合并提供的字段并刷新 `updatedAt`；`deleteGroup` 清除每个成员的 `groupId`。`hydrate` 整体替换注册表，并从最大的 `k_`/`g_` id 重新推算计数器，因此持久化提供方可以重新填充而不破坏 id 单调性。
+store 是一个普通 `Service`，拥有两个 `Map`（entries、groups）与单调计数器。变更在边界处校验输入、应用改动，并发出无过滤的 `knowledge/change` 失效通知，且对每个监听器进行隔离（抛错的监听器不能否决该变更）。`updateEntry` 合并提供的字段、刷新 `updatedAt`，并保持被移动条目的分组 `entryIds` 同步。`deleteGroup` 以条目权威的 `groupId` 匹配，因此漂移的成员关系不会留下悬空 id。`hydrate` 整体替换注册表，从条目的 `groupId` 重建每个分组的 `entryIds`，丢弃指向不存在分组的 `groupId`，并从最大的 `k_`/`g_` id 重新推算计数器，因此持久化提供方可以重新填充而不破坏 id 单调性。
 
 </details>
 

@@ -4,7 +4,9 @@
  * Reads and writes knowledge entries and groups as individual JSON files under
  * a configurable root directory (default: `$DSH_HOME/knowledge/`). On boot it
  * hydrates the in-memory store from disk; on every `knowledge/change` event it
- * writes the changed entry or group back.
+ * writes the changed entry or group back. On the first boot it also assigns any
+ * ungrouped entry to a category group, recording a marker so that pass runs once
+ * and a later group deletion is never undone on the next start.
  *
  * Storage layout:
  * ```
@@ -18,12 +20,15 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { KnowledgeEntry, KnowledgeGroup } from '@deepseek-ai/dsh-knowledge'
-import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 
 export const name = 'knowledge-file'
 export const inject = ['knowledge']
+
+/** Sentinel in the storage root recording that the one-time init grouping pass ran. */
+const GROUPS_INIT_MARKER = '.groups-initialized'
 
 /** Deployment configuration for the file persistence provider. */
 export interface Config {
@@ -37,8 +42,9 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * Wire the file persistence provider: hydrate the store from disk, then
- * listen for `knowledge/change` to write mutations back.
+ * Wire the file persistence provider: hydrate the store from disk, run the
+ * one-time init grouping pass, then listen for `knowledge/change` to write
+ * mutations back.
  * @param ctx - plugin context carrying the knowledge store.
  * @param config - deployment configuration with the storage root path.
  */
@@ -55,6 +61,16 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   const entries = await loadEntries(entriesDir)
   const groups = await loadGroups(groupsDir)
   ctx.knowledge.hydrate(entries, groups)
+
+  // One-time initialization grouping: assign entries that predate auto-grouping
+  // to category groups, persist the result, then record the marker so a later
+  // manual group deletion is not silently undone on the next boot.
+  const marker = join(root, GROUPS_INIT_MARKER)
+  if (!await fileExists(marker)) {
+    ctx.knowledge.groupUngroupedByCategory()
+    await flushAll(ctx, entriesDir, groupsDir)
+    await writeFile(marker, '', 'utf8')
+  }
 
   // Coalesce bursts of `knowledge/change`: a change arriving mid-flush marks the
   // store dirty and the running flush loop re-runs, so the final disk state is
@@ -151,6 +167,19 @@ async function flushAll(ctx: Context, entriesDir: string, groupsDir: string): Pr
   } catch (error) {
     ctx.logger.warn('knowledge-file: flush failed')
     ctx.logger.warn(error)
+  }
+}
+
+/** Whether a path exists (gates the one-time init grouping pass). */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch (error: unknown) {
+    // Absent marker is the expected first-boot case; any other access failure
+    // is treated as absent so the idempotent init pass simply runs again.
+    void error
+    return false
   }
 }
 

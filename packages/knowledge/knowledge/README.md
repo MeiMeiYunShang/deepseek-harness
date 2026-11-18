@@ -29,7 +29,7 @@ A consumer reads and writes the knowledge catalog exclusively through `ctx.knowl
 
 ### What the store offers
 
-Entries have a category from `KNOWLEDGE_CATEGORIES`, free-form tags, an optional group, and an optional originating session. Groups carry a name, description, and the ordered entry ids they contain. Ids are branded (`KnowledgeEntryId`/`KnowledgeGroupId`); the store assigns `createdAt`/`updatedAt` and appends an entry id to its group's `entryIds`.
+Entries have a category from `KNOWLEDGE_CATEGORIES`, free-form tags, a group, and an optional originating session. Groups carry a name, description, and the ordered entry ids they contain. Ids are branded (`KnowledgeEntryId`/`KnowledgeGroupId`); the store assigns `createdAt`/`updatedAt` and appends an entry id to its group's `entryIds`. Group names are unique: creating a group whose trimmed name already exists returns that group instead of duplicating it. An entry saved without a `groupId` is auto-grouped under a group named after its `category` (`groupUngroupedByCategory` applies the same rule to entries that predate it).
 
 -----
 
@@ -39,7 +39,7 @@ Entries have a category from `KNOWLEDGE_CATEGORIES`, free-form tags, an optional
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The store is a plain `Service` owning two `Map`s (entries, groups) plus monotonic counters. Mutations validate input at the boundary, apply the change, and emit the unfiltered `knowledge/change` invalidation notification with per-listener containment (a throwing listener cannot veto the mutation). `updateEntry` only merges supplied fields and refreshes `updatedAt`; `deleteGroup` clears each member's `groupId`. `hydrate` replaces the whole registry and reprobes the counters from the highest `k_`/`g_` id, so a persistence provider can rehydrate without losing id monotonicity.
+The store is a plain `Service` owning two `Map`s (entries, groups) plus monotonic counters. Mutations validate input at the boundary, apply the change, and emit the unfiltered `knowledge/change` invalidation notification with per-listener containment (a throwing listener cannot veto the mutation). `updateEntry` merges supplied fields, refreshes `updatedAt`, and keeps the moved entry's group `entryIds` in sync. `deleteGroup` matches entries by their authoritative `groupId`, so drifted membership cannot strand a dangling id. `hydrate` replaces the whole registry, rebuilds each group's `entryIds` from the entries' `groupId`, drops a `groupId` that references a missing group, and reprobes the counters from the highest `k_`/`g_` id, so a persistence provider can rehydrate without losing id monotonicity.
 
 </details>
 

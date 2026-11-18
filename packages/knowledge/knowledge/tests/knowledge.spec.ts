@@ -159,10 +159,91 @@ describe('dsh-knowledge', () => {
 
       const deleted = ctx.knowledge.deleteGroup(group.id)
       expect(deleted).toBe(true)
-      expect(ctx.knowledge.listGroups()).toHaveLength(0)
+      expect(ctx.knowledge.getGroup(group.id)).toBeUndefined()
 
       const updatedEntry = ctx.knowledge.getEntry(entry.id)
       expect(updatedEntry!.groupId).toBeUndefined()
+    })
+
+    it('reuses a group instead of creating a same-named duplicate', async () => {
+      const ctx = await setup()
+      const first = ctx.knowledge.createGroup({ name: 'Ops', description: 'First.' })
+      const second = ctx.knowledge.createGroup({ name: ' Ops ', description: 'Second.' })
+      expect(second.id).toBe(first.id)
+      expect(ctx.knowledge.listGroups()).toHaveLength(1)
+    })
+
+    it('auto-groups an entry under a group named after its category', async () => {
+      const ctx = await setup()
+      const entry = ctx.knowledge.saveEntry({ title: 'E', content: 'C.', category: 'debugging' })
+      expect(entry.groupId).toBeDefined()
+      const group = ctx.knowledge.getGroup(entry.groupId!)
+      expect(group!.name).toBe('debugging')
+      expect(group!.entryIds).toContain(entry.id)
+    })
+
+    it('shares one category group across auto-grouped entries', async () => {
+      const ctx = await setup()
+      const a = ctx.knowledge.saveEntry({ title: 'A', content: 'C.', category: 'api' })
+      const b = ctx.knowledge.saveEntry({ title: 'B', content: 'C.', category: 'api' })
+      expect(a.groupId).toBe(b.groupId)
+      expect(ctx.knowledge.listGroups().filter(g => g.name === 'api')).toHaveLength(1)
+    })
+
+    it('keeps group membership in sync when an entry moves groups via update', async () => {
+      const ctx = await setup()
+      const entry = ctx.knowledge.saveEntry({ title: 'E', content: 'C.', category: 'general' })
+      const auto = entry.groupId!
+      const target = ctx.knowledge.createGroup({ name: 'Ops', description: 'Ops.' })
+      ctx.knowledge.updateEntry(entry.id, { groupId: target.id })
+      expect(ctx.knowledge.getGroup(auto)!.entryIds).not.toContain(entry.id)
+      expect(ctx.knowledge.getGroup(target.id)!.entryIds).toContain(entry.id)
+    })
+
+    it('ungroups entries that point at a deleted group regardless of stale entryIds', async () => {
+      const ctx = await setup()
+      const entry = ctx.knowledge.saveEntry({ title: 'E', content: 'C.', category: 'general' })
+      const target = ctx.knowledge.createGroup({ name: 'Ops', description: 'Ops.' })
+      // Move the entry to the target group without registering it in target.entryIds,
+      // simulating drifted membership; deleteGroup must still ungroup it.
+      ctx.knowledge.updateEntry(entry.id, { groupId: target.id })
+      const before = ctx.knowledge.getGroup(target.id)!.entryIds.length
+      expect(before).toBeGreaterThan(0)
+      ctx.knowledge.deleteGroup(target.id)
+      expect(ctx.knowledge.getEntry(entry.id)!.groupId).toBeUndefined()
+    })
+  })
+
+  describe('KnowledgeStore group initialization', () => {
+    it('assigns ungrouped entries to category groups once', async () => {
+      const ctx = await setup()
+      const id = KnowledgeEntryId('k_1')
+      ctx.knowledge.hydrate(
+        [{ id, title: 'Legacy', content: 'C.', category: 'workflow', tags: [], createdAt: 1, updatedAt: 1 }],
+        [],
+      )
+      ctx.knowledge.groupUngroupedByCategory()
+      const entry = ctx.knowledge.getEntry(id)
+      expect(entry!.groupId).toBeDefined()
+      expect(ctx.knowledge.getGroup(entry!.groupId!)!.name).toBe('workflow')
+      expect(ctx.knowledge.getGroup(entry!.groupId!)!.entryIds).toContain(id)
+    })
+
+    it('normalizes group membership and drops dangling group ids on hydrate', async () => {
+      const ctx = await setup()
+      const e1 = KnowledgeEntryId('k_1')
+      const e2 = KnowledgeEntryId('k_2')
+      const g1 = KnowledgeGroupId('g_1')
+      const gone = KnowledgeGroupId('g_9')
+      ctx.knowledge.hydrate(
+        [
+          { id: e1, title: 'E1', content: 'C.', category: 'general', tags: [], groupId: g1, createdAt: 1, updatedAt: 1 },
+          { id: e2, title: 'E2', content: 'C.', category: 'general', tags: [], groupId: gone, createdAt: 2, updatedAt: 2 },
+        ],
+        [{ id: g1, name: 'G1', description: 'D.', entryIds: [] }],
+      )
+      expect(ctx.knowledge.getGroup(g1)!.entryIds).toEqual([e1])
+      expect(ctx.knowledge.getEntry(e2)!.groupId).toBeUndefined()
     })
   })
 

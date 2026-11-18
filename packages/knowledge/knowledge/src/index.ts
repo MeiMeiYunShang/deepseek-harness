@@ -60,7 +60,9 @@ declare module '@deepseek-ai/cordis' {
 /**
  * In-memory knowledge store. Providers attach a persistence backend by
  * listening to `knowledge/change` and hydrating entries on boot. The store
- * itself owns the runtime registry, id minting, and change notification.
+ * itself owns the runtime registry, id minting, and change notification. Group
+ * names are unique, and an entry saved without a group joins a group named
+ * after its category.
  */
 export class KnowledgeStore extends Service {
   private readonly entries = new Map<KnowledgeEntryId, KnowledgeEntry>()
@@ -101,8 +103,9 @@ export class KnowledgeStore extends Service {
 
   /**
    * Create a new knowledge entry. The store assigns the id, createdAt, and
-   * updatedAt timestamps. If a `groupId` is supplied, the group must exist and
-   * the entry id is appended to its `entryIds`.
+   * updatedAt timestamps. A `groupId` joins the entry to that group; when none
+   * is supplied the entry is auto-grouped under a group named after its
+   * `category`, reusing the existing group for that category.
    * @param input - the entry content and metadata.
    * @returns the newly created entry.
    */
@@ -110,21 +113,20 @@ export class KnowledgeStore extends Service {
     validateEntryInput(input)
     const now = Date.now()
     const id = KnowledgeEntryId(`k_${++this.entryCounter}`)
+    const groupId = input.groupId ?? this.ensureGroupByName(input.category, categoryGroupDescription(input.category)).id
     const entry: KnowledgeEntry = {
       id,
       title: input.title,
       content: input.content,
       category: input.category,
       tags: input.tags ? [...input.tags] : [],
-      ...input.groupId !== undefined ? { groupId: input.groupId } : {},
+      groupId,
       ...input.sourceSessionId !== undefined ? { sourceSessionId: input.sourceSessionId } : {},
       createdAt: now,
       updatedAt: now,
     }
     this.entries.set(id, entry)
-    if (input.groupId !== undefined) {
-      this.addEntryToGroup(input.groupId, id)
-    }
+    this.addEntryToGroup(groupId, id)
     this.notifyChange()
     return entry
   }
@@ -153,6 +155,10 @@ export class KnowledgeStore extends Service {
       updatedAt: Date.now(),
     }
     this.entries.set(id, updated)
+    if (patch.groupId !== undefined && patch.groupId !== existing.groupId) {
+      if (existing.groupId !== undefined) this.removeEntryFromGroup(existing.groupId, id)
+      this.addEntryToGroup(patch.groupId, id)
+    }
     this.notifyChange()
     return updated
   }
@@ -193,39 +199,33 @@ export class KnowledgeStore extends Service {
   }
 
   /**
-   * Create a new knowledge group.
+   * Create a knowledge group, reusing an existing group whose trimmed name
+   * matches `input.name` so a name is never duplicated. Only a newly created
+   * group changes the store.
    * @param input - the group name and description.
-   * @returns the newly created group.
+   * @returns the created group, or the existing same-named group.
    */
   createGroup(input: KnowledgeGroupInput): KnowledgeGroup {
     validateGroupInput(input)
-    const id = KnowledgeGroupId(`g_${++this.groupCounter}`)
-    const group: KnowledgeGroup = {
-      id,
-      name: input.name,
-      description: input.description,
-      entryIds: [],
-    }
-    this.groups.set(id, group)
-    this.notifyChange()
+    const before = this.groups.size
+    const group = this.ensureGroupByName(input.name, input.description)
+    if (this.groups.size !== before) this.notifyChange()
     return group
   }
 
   /**
-   * Delete a knowledge group. Entries belonging to the group have their
-   * `groupId` cleared.
+   * Delete a knowledge group. Every entry whose `groupId` points at the group
+   * is ungrouped, matching on the entry's authoritative `groupId` rather than
+   * the group's `entryIds` so drifted membership cannot strand a dangling id.
    * @param id - the group to delete.
    * @returns whether the group existed and was removed.
    */
   deleteGroup(id: KnowledgeGroupId): boolean {
-    const group = this.groups.get(id)
-    if (group === undefined) return false
-    for (const entryId of group.entryIds) {
-      const entry = this.entries.get(entryId)
-      if (entry !== undefined) {
-        const { groupId: _removed, ...rest } = entry
-        this.entries.set(entryId, { ...rest, updatedAt: Date.now() })
-      }
+    if (this.groups.get(id) === undefined) return false
+    for (const [entryId, entry] of this.entries) {
+      if (entry.groupId !== id) continue
+      const { groupId: _removed, ...rest } = entry
+      this.entries.set(entryId, { ...rest, updatedAt: Date.now() })
     }
     this.groups.delete(id)
     this.notifyChange()
@@ -255,11 +255,31 @@ export class KnowledgeStore extends Service {
     return true
   }
 
+  /**
+   * Assign every currently-ungrouped entry to a group named after its
+   * `category`, creating the category group when absent. Idempotent; a
+   * persistence provider calls it once to initialize grouping for entries that
+   * predate auto-grouping.
+   */
+  groupUngroupedByCategory(): void {
+    let changed = false
+    for (const [entryId, entry] of this.entries) {
+      if (entry.groupId !== undefined) continue
+      const groupId = this.ensureGroupByName(entry.category, categoryGroupDescription(entry.category)).id
+      this.entries.set(entryId, { ...entry, groupId, updatedAt: Date.now() })
+      this.addEntryToGroup(groupId, entryId)
+      changed = true
+    }
+    if (changed) this.notifyChange()
+  }
+
   // ── Bulk hydration (for providers) ────────────────────────────────
 
   /**
    * Replace the entire in-memory store with externally loaded data. Used by
-   * providers during boot to hydrate from disk. Notifies change once.
+   * providers during boot to hydrate from disk. Rebuilds each group's `entryIds`
+   * from the entries' `groupId` and drops a `groupId` that references a missing
+   * group, so persisted membership drift is repaired on load. Notifies once.
    * @param entries - the full entry set.
    * @param groups - the full group set.
    */
@@ -280,10 +300,42 @@ export class KnowledgeStore extends Service {
     }
     this.entryCounter = maxEntryNum
     this.groupCounter = maxGroupNum
+    this.normalizeGroupMembership()
     this.notifyChange()
   }
 
   // ── Internals ─────────────────────────────────────────────────────
+
+  /** Return the group whose trimmed name equals `name`, creating it when absent. */
+  private ensureGroupByName(name: string, description: string): KnowledgeGroup {
+    const key = name.trim()
+    for (const group of this.groups.values()) {
+      if (group.name.trim() === key) return group
+    }
+    const id = KnowledgeGroupId(`g_${++this.groupCounter}`)
+    const group: KnowledgeGroup = { id, name, description, entryIds: [] }
+    this.groups.set(id, group)
+    return group
+  }
+
+  /**
+   * Rebuild each group's `entryIds` from the entries' authoritative `groupId`,
+   * clearing a `groupId` that references a group absent from the store.
+   */
+  private normalizeGroupMembership(): void {
+    for (const [groupId, group] of this.groups) {
+      this.groups.set(groupId, { ...group, entryIds: [] })
+    }
+    for (const [entryId, entry] of this.entries) {
+      if (entry.groupId === undefined) continue
+      if (this.groups.get(entry.groupId) === undefined) {
+        const { groupId: _removed, ...rest } = entry
+        this.entries.set(entryId, rest)
+        continue
+      }
+      this.addEntryToGroup(entry.groupId, entryId)
+    }
+  }
 
   /** Add an entry id to a group's entryIds list. */
   private addEntryToGroup(groupId: KnowledgeGroupId, entryId: KnowledgeEntryId): void {
@@ -344,6 +396,11 @@ function validateGroupInput(input: KnowledgeGroupInput): void {
   if (typeof input.description !== 'string') {
     throw new Error('knowledge group description must be a string')
   }
+}
+
+/** Description for a group auto-created from an entry's category. */
+function categoryGroupDescription(category: KnowledgeCategory): string {
+  return `Auto-generated group for ${category} entries.`
 }
 
 /** Apply a filter to an entry list. */

@@ -29,7 +29,7 @@ Configure `knowledge-file` as a plugin of the knowledge composition with a `root
 
 ### What the source offers
 
-On activate it ensures `<root>/entries` and `<root>/groups`, hydrates the store, and coalesces bursts of `knowledge/change` into one flush loop so overlapping mutations never drop the final disk state. A flush rewrites the full store and removes JSON files whose id no longer exists in the registry.
+On activate it ensures `<root>/entries` and `<root>/groups`, hydrates the store, and coalesces bursts of `knowledge/change` into one flush loop so overlapping mutations never drop the final disk state. On the first boot only, it assigns any ungrouped entry to a category group via `groupUngroupedByCategory`, flushes the result, and records a `.groups-initialized` marker in the root so the pass runs once and a later manual group deletion is not undone on restart. A flush rewrites the full store and removes JSON files whose id no longer exists in the registry.
 
 -----
 
