@@ -77,7 +77,7 @@ async function runPreStep({
   const { agent, append, send } = fakeAgent(agentOptions)
   const result = await ctx.waterfall(
     'agent/pre-step',
-    { agent, messages, turn: 1, step, signal: new AbortController().signal },
+    { agent, messages, turn: 1, step, signal: new AbortController().signal, modelSelection: { provider: 'test', model: 'test' } },
     () => defaultDecision(messages),
   )
   return { result, append, send }
@@ -89,7 +89,7 @@ describe('agent/pre-step image understanding', () => {
     const ctx = new Context()
     apply(ctx, { backend: 'ollama' } as never)
     const { agent } = fakeAgent()
-    await ctx.waterfall('agent/pre-step', { agent, messages: [], turn: 1, step: 0, signal: new AbortController().signal }, next)
+    await ctx.waterfall('agent/pre-step', { agent, messages: [], turn: 1, step: 0, signal: new AbortController().signal, modelSelection: { provider: 'test', model: 'test' } }, next)
     expect(next).toHaveBeenCalledTimes(1)
   })
 
@@ -137,7 +137,7 @@ describe('agent/pre-step image understanding', () => {
     ctx.provide('llm', { resolveModelInfo: async () => ({ inputModalities: ['text'] }) } as never)
     apply(ctx, { backend: 'ollama' } as never)
     const { agent, append } = fakeAgent()
-    await ctx.waterfall('agent/pre-step', { agent, messages: [imageMessage()], turn: 1, step: 0, signal: new AbortController().signal }, () => Promise.resolve({ kind: 'enter' as const, messages: [] }))
+    await ctx.waterfall('agent/pre-step', { agent, messages: [imageMessage()], turn: 1, step: 0, signal: new AbortController().signal, modelSelection: { provider: 'test', model: 'test' } }, () => Promise.resolve({ kind: 'enter' as const, messages: [] }))
     expect(append).toHaveBeenCalledWith('user/image-understanding-failed', expect.objectContaining({ reason: 'ATTACHMENT_READ_ERROR' }))
   })
 

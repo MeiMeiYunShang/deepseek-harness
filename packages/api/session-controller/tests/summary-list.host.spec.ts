@@ -1,9 +1,10 @@
 /**
  * Session-list summary payloads: a `session.list` row carries every registered
  * wire projection except the units that declare `summary: false`
- * (`turnOutline`, `sessionStats`, `todos`, `imageLimits`, `contextPressure`,
+ * (`turnOutline`, `todos`, `imageLimits`, `contextPressure`,
  * `contextBreakdown`), while an opened Session's
- * `session/follow` opening snapshot keeps serving them.
+ * `session/follow` opening snapshot keeps serving them. `sessionStats` stays in
+ * the list payload: the console aggregates it across scoped Sessions.
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -25,7 +26,7 @@ import {
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import { createSessionTestRemote } from './test-remote.ts'
 
-const SUMMARY_EXCLUDED_KEYS = ['turnOutline', 'sessionStats', 'todos', 'imageLimits', 'contextPressure', 'contextBreakdown'] as const
+const SUMMARY_EXCLUDED_KEYS = ['turnOutline', 'todos', 'imageLimits', 'contextPressure', 'contextBreakdown'] as const
 
 const ownedContexts = new Set<Context>()
 afterEach(async () => {
@@ -110,6 +111,8 @@ describe('session.list summary payload', () => {
       key as (typeof SUMMARY_EXCLUDED_KEYS)[number],
     )).sort())
     for (const key of SUMMARY_EXCLUDED_KEYS) expect(served).not.toContain(key)
+    // The stats unit rides the list payload for the console's aggregate card.
+    expect(row?.projections?.values.sessionStats).toBeDefined()
     // An ordinary wire unit is still there with its value.
     expect(row?.projections?.values.sessionListMetadata).toMatchObject({ blank: false })
   })
@@ -140,7 +143,7 @@ describe('session.list summary payload', () => {
       if (!response.ok) throw new Error('unreachable')
       const row = response.value.items.find(item => item.sessionId === id)
       expect(row?.projections?.values, `attempt ${String(attempt)}`).not.toHaveProperty('turnOutline')
-      expect(row?.projections?.values, `attempt ${String(attempt)}`).not.toHaveProperty('sessionStats')
+      expect(row?.projections?.values, `attempt ${String(attempt)}`).toHaveProperty('sessionStats')
       expect(row?.projections?.values, `attempt ${String(attempt)}`).not.toHaveProperty('todos')
       expect(row?.projections?.values, `attempt ${String(attempt)}`).not.toHaveProperty('imageLimits')
     }

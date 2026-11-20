@@ -20,20 +20,20 @@ import type { SessionProjectionSnapshot } from '../src/client/sessions/manager.t
 function contract(summary: SessionSummary, full: SessionProjectionSnapshot): void {
   // @ts-expect-error turnOutline is excluded from Session summary values
   void summary.projectionValues?.turnOutline
-  // @ts-expect-error sessionStats is excluded from Session summary values
-  void summary.projectionValues?.sessionStats
   // @ts-expect-error todos is excluded from Session summary values
   void summary.projectionValues?.todos
   // @ts-expect-error imageLimits is excluded from Session summary values
   void summary.projectionValues?.imageLimits
 
-  // Included keys stay readable, and the full snapshot keeps the excluded ones
-  // (with `todos` still nullable).
+  // Included keys stay readable (the console aggregates `sessionStats` across
+  // list rows), and the full snapshot keeps the excluded ones (with `todos`
+  // still nullable).
   const title: string | null | undefined = summary.projectionValues?.title
+  const stats = summary.projectionValues?.sessionStats
   const outline: readonly unknown[] | undefined = full.values.turnOutline
   const todos: readonly TodoItem[] | null | undefined = full.values.todos
   const limits = full.values.imageLimits
-  void [title, outline, todos, limits]
+  void [title, stats, outline, todos, limits]
 }
 
 describe('session summary projection types', () => {

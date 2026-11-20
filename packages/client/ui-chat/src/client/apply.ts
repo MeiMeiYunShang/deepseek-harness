@@ -28,7 +28,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {
   ChatFlowDataInjected, ChatFlowInjected, ChatNodeInjected, ChatScrollPosition, ChatViewInjected,
-  QuotaNoticeInjected, QuotaNoticeState, TurnTailOwnerProps,
+  QuotaNoticeInjected, QuotaNoticeState,
 } from './contract/slots.ts'
 import type { ChatSnapshot } from './contract/snapshot.ts'
 import { EMPTY_CHAT_SNAPSHOT } from './contract/snapshot.ts'
@@ -280,7 +280,7 @@ export function apply(ctx: Context): void {
         const chat = chatSource(binding)
         return {
           ...nodeSources(binding),
-          fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner, sessionId),
+          fileMentions: (owner, getFileTriggerProps) => ctx.get('chatFileMentions')?.forClosing(owner, sessionId, getFileTriggerProps),
           fileDrag: ctx.fileDrag.actions,
           hooks: { presentation, prices: priceTable.prices, interactionIds: ctx.uiConversation.interactions },
           dispatchInteraction: gesture => ctx.uiConversation.interactions.dispatch(sessionId, gesture),

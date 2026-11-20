@@ -61,7 +61,7 @@ async function bootComposition(config: Record<string, unknown>): Promise<Context
     installAnchor: join(home, 'package.json'),
     cwd: home,
     home,
-    overlays: [],
+    overlayPaths: [],
     telemetryDisabledEnv: undefined,
   }
   const ctx = await boot('test', join(dir, 'cordis.yml'), readProfilePatches('test', profile), (booted) => {

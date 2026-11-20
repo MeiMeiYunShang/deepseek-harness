@@ -63,6 +63,12 @@ export interface TurnTailOwnerProps {
   openFile: (path: string) => void
 }
 
+/** Resolve one closing Turn's prose mentions with an ordinary file-gesture binding. */
+export type FileMentionResolver = (
+  owner: TurnTailOwnerProps,
+  getFileTriggerProps: (path: string) => ContextMenuTriggerProps,
+) => MarkdownFileMentions | undefined
+
 /** Owner currency of finalized-assistant actions. */
 export interface AssistantActionOwnerProps {
   messageId: MessageId
@@ -244,7 +250,7 @@ export interface ChatNodeOwnerProps {
   forkAt: (seq: number) => void
   /** Session-authorized image loader supplied by the Chat view. */
   loadImage: MessageImageLoader
-  fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
+  fileMentions: FileMentionResolver
   /**
    * The operator's model price table, read from the `console-pricing` settings
    * namespace by the Chat target. A renderer that shows a charge prices the
@@ -337,7 +343,7 @@ export interface ChatViewInjected {
   /** Dispatch one gesture to the Conversation plugin registry. */
   dispatchInteraction: (gesture: TextInteractionGesture) => string | null
   /** File references written in a Turn tail message, resolved by the Chat view. */
-  fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
+  fileMentions: FileMentionResolver
   hooks: {
     /** Live plugin IDs; removed plugins dismiss their active surface. */
     interactionIds: ObservableSnapshot<readonly string[]>
