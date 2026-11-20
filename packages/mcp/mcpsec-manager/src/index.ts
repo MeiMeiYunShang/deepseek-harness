@@ -21,8 +21,8 @@ import type { PreToolDecision, ToolExecution, ToolExecutionResult } from '@deeps
 /** Stable plugin id for loader rows. */
 export const name = 'mcpsec-manager'
 
-/** Required services: the Connection RPC registry, the loader tree, tools. */
-export const inject = ['connection', 'loader', 'tools']
+/** Required services: the Connection RPC registry, the Web carrier serving its channel, the loader tree, tools. */
+export const inject = ['connection', 'webServer', 'loader', 'tools']
 
 /** Package-private RPC channel (loopback-only). */
 const RPC_CHANNEL = '/mcpsec'

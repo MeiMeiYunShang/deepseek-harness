@@ -335,7 +335,7 @@
     - id: tool-skill
       name: '@deepseek-ai/dsh-tool-skill'
 
-- id: knowledge
+    - id: knowledge
       name: '@deepseek-ai/dsh-knowledge'
 
     - id: knowledge-file
