@@ -26,7 +26,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.knowledge` — `KnowledgeStore`
 
-In-memory knowledge store. Providers attach a persistence backend by listening to `knowledge/change` and hydrating entries on boot. The store itself owns the runtime registry, id minting, and change notification.
+In-memory knowledge store. Providers attach a persistence backend by listening to `knowledge/change` and hydrating entries on boot. The store itself owns the runtime registry, id minting, and change notification. Group names are unique, and an entry saved without a group joins a group named after its category.
 
 ```ts cordis-catalog
 /**
@@ -47,8 +47,9 @@ getEntry(id: KnowledgeEntryId): KnowledgeEntry | undefined
 
 /**
  * Create a new knowledge entry. The store assigns the id, createdAt, and
- * updatedAt timestamps. If a `groupId` is supplied, the group must exist and
- * the entry id is appended to its `entryIds`.
+ * updatedAt timestamps. A `groupId` joins the entry to that group; when none
+ * is supplied the entry is auto-grouped under a group named after its
+ * `category`, reusing the existing group for that category.
  * @param input - the entry content and metadata.
  * @returns the newly created entry.
  */
@@ -85,15 +86,18 @@ listGroups(): KnowledgeGroup[]
 getGroup(id: KnowledgeGroupId): KnowledgeGroup | undefined
 
 /**
- * Create a new knowledge group.
+ * Create a knowledge group, reusing an existing group whose trimmed name
+ * matches `input.name` so a name is never duplicated. Only a newly created
+ * group changes the store.
  * @param input - the group name and description.
- * @returns the newly created group.
+ * @returns the created group, or the existing same-named group.
  */
 createGroup(input: KnowledgeGroupInput): KnowledgeGroup
 
 /**
- * Delete a knowledge group. Entries belonging to the group have their
- * `groupId` cleared.
+ * Delete a knowledge group. Every entry whose `groupId` points at the group
+ * is ungrouped, matching on the entry's authoritative `groupId` rather than
+ * the group's `entryIds` so drifted membership cannot strand a dangling id.
  * @param id - the group to delete.
  * @returns whether the group existed and was removed.
  */
@@ -109,8 +113,18 @@ deleteGroup(id: KnowledgeGroupId): boolean
 assignToGroup(entryId: KnowledgeEntryId, groupId: KnowledgeGroupId): boolean
 
 /**
+ * Assign every currently-ungrouped entry to a group named after its
+ * `category`, creating the category group when absent. Idempotent; a
+ * persistence provider calls it once to initialize grouping for entries that
+ * predate auto-grouping.
+ */
+groupUngroupedByCategory(): void
+
+/**
  * Replace the entire in-memory store with externally loaded data. Used by
- * providers during boot to hydrate from disk. Notifies change once.
+ * providers during boot to hydrate from disk. Rebuilds each group's `entryIds`
+ * from the entries' `groupId` and drops a `groupId` that references a missing
+ * group, so persisted membership drift is repaired on load. Notifies once.
  * @param entries - the full entry set.
  * @param groups - the full group set.
  */

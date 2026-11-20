@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import type { KeyboardEventHandler, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
-import { IconCloseOutlineRegular } from './icons/index.tsx'
+import { IconCloseOutlineRegular, IconWarningOutlineRegular } from './icons/index.tsx'
 import { useModalLayer } from './useModalLayer.ts'
 import css from './Modal.module.css'
 
@@ -17,6 +17,7 @@ export type ModalSize = 'compact' | 'panel'
 interface ModalCommonProps {
   open: boolean
   onClose: () => void
+  tone?: 'warning'
   description?: string
   children?: ReactNode
   footer?: ReactNode
@@ -51,8 +52,9 @@ type ModalProps = ModalHeadlessProps | ModalChromeProps
  * @param props.open - whether the dialog is showing.
  * @param props.onClose - application close command, Escape, or mask click; while a menu is open inside the
  * dialog, Escape belongs to that menu first.
- * @param props.title - dialog heading; also the accessible name unless `labelledBy` names a node.
+* @param props.title - dialog heading; also the accessible name unless `labelledBy` names a node.
  * @param props.labelledBy - id of the node that names the dialog, for headless surfaces whose title is slot content.
+ * @param props.tone - warning adds an amber title icon and compact title-to-body spacing; ignored for headless dialogs.
  * @param props.closeLabel - localized accessible close-button label.
  * @param props.description - optional supporting sentence under the title.
  * @param props.children - dialog body; mark its initial-focus control with
@@ -90,7 +92,7 @@ export function Modal({
         ref={dialog}
         tabIndex={-1}
         data-shortcut-modal={shortcutModal}
-        className={clsx(css.dialog, css[size], className)}
+        className={clsx(css.dialog, css[size], !headless && props.tone === 'warning' && css.warning, className)}
         role="dialog"
         aria-modal="true"
         {...name}
@@ -101,7 +103,10 @@ export function Modal({
             <>
               <div className={clsx(css.content, contentClassName)}>
                 <div className={css.header}>
-                  <h2 className={css.title}>{title}</h2>
+                  <h2 className={css.title}>
+                    {props.tone === 'warning' && <IconWarningOutlineRegular size={18} className={css.warningIcon} aria-hidden="true" />}
+                    {title}
+                  </h2>
                   <button type="button" className={css.close} aria-label={props.closeLabel} onClick={onClose}>
                     <IconCloseOutlineRegular size={14} />
                   </button>

@@ -13,7 +13,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { createMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
+import { createMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import type { StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
@@ -32,7 +33,7 @@ async function harness(withStatsPlugin: boolean): Promise<{ ctx: Context; sessio
   await ctx.plugin(SessionStore)
   await ctx.plugin(SessionProjectionRegistry)
   if (withStatsPlugin) await ctx.plugin(SessionStatsPlugin)
-  return { ctx, session: ctx.sessions.create(SessionId('counted')) }
+  return { ctx, session: ctx.sessions.create(brandString<SessionId>('counted')) }
 }
 
 /** Close one step; returns the counted `step/end` seq. */
@@ -478,10 +479,10 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
     expect(fold([
       at(1_000, 'step/start', { turn: 1, step: 1 }),
       messageAt(2_000, [
-        { time: 1_100, chunk: { type: 'tool-call-delta', index: 0, id: ToolCallId('call-1'), argumentsDelta: '' } },
+        { time: 1_100, chunk: { type: 'tool-call-delta', index: 0, id: brandString<ToolCallId>('call-1'), argumentsDelta: '' } },
         {
           time: 1_200,
-          chunk: { type: 'tool-call-delta', index: 0, id: ToolCallId('call-1'), name: 'read', argumentsDelta: '' },
+          chunk: { type: 'tool-call-delta', index: 0, id: brandString<ToolCallId>('call-1'), name: 'read', argumentsDelta: '' },
         },
       ]),
       at(2_100, 'step/end', { turn: 1, step: 1 }),
@@ -491,7 +492,7 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
       at(1_000, 'step/start', { turn: 1, step: 1 }),
       messageAt(2_000, [{
         time: 1_300,
-        chunk: { type: 'tool-call-delta', index: 0, id: ToolCallId('call-1'), argumentsDelta: '{' },
+        chunk: { type: 'tool-call-delta', index: 0, id: brandString<ToolCallId>('call-1'), argumentsDelta: '{' },
       }]),
       at(2_100, 'step/end', { turn: 1, step: 1 }),
     ])).toEqual(totals({ turns: 1, steps: 1, llmMs: 1_000, ttftMs: 300, ttftSteps: 1 }))
@@ -807,6 +808,11 @@ describe('sessionStats off-peak window wiring', () => {
     return ctx.sessionProjections.checkpoint(session).sessionStats?.ver as number
   }
 
+  /** Let the plugin's serialized re-registration settle; registration is asynchronous. */
+  async function settle(): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+
   it('registers the unit when no settings service is composed', async () => {
     const ctx = await boot(false)
     const session = ctx.sessions.create(SessionId('headless'))
@@ -825,6 +831,7 @@ describe('sessionStats off-peak window wiring', () => {
     // The next session is when the plugin notices: registration is re-read, the
     // previous unit's cells are dropped, and every fold refolds under the window.
     ctx.sessions.create(SessionId('late'))
+    await settle()
     const windowed = installedVersion(ctx, session)
     expect(windowed).toBe(sessionStatsStateVersion(nineToSix))
     // A row folded under the peak-only unit is discarded rather than reused.
@@ -837,6 +844,7 @@ describe('sessionStats off-peak window wiring', () => {
     const night: OffPeakWindow = { start: '22:00', end: '06:00', timezone: 'Asia/Kolkata' }
     section = { offPeak: night }
     ctx.emit('settings/document-updated', CONSOLE_PRICING_NAMESPACE as SettingsNamespace, 1)
+    await settle()
     const edited = installedVersion(ctx, session)
     expect(edited).toBe(sessionStatsStateVersion(night))
     expect(edited).not.toBe(windowed)
@@ -846,6 +854,7 @@ describe('sessionStats off-peak window wiring', () => {
     // refold, so only an actual change does it.
     ctx.emit('settings/document-updated', 'ui-settings' as SettingsNamespace, 1)
     ctx.sessions.create(SessionId('unchanged'))
+    await settle()
     expect(installedVersion(ctx, session)).toBe(edited)
   })
 
@@ -856,7 +865,9 @@ describe('sessionStats off-peak window wiring', () => {
     // this fiber just like the first, or an unload would leave the key behind.
     section = { offPeak: { start: '09:00', end: '18:00', timezone: 'UTC' } }
     ctx.sessions.create(SessionId('windowed'))
+    await settle()
     await fiber.dispose()
+    await settle()
     expect(ctx.sessionProjections.checkpoint(ctx.sessions.create(SessionId('after'))).sessionStats).toBeUndefined()
   })
 })

@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
-import { contextAnchorRect, contextMenuItems } from '../src/client/ContextMenu.tsx'
+import { contextMenuItems } from '../src/client/ContextMenu.tsx'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -14,14 +14,6 @@ describe('contextMenuItems', () => {
   it('builds open, rename, fork, and archive rows in that order', () => {
     const items = contextMenuItems(t, false)
     expect(items.map(item => ('id' in item ? item.id : null))).toEqual(['open', 'rename', 'fork', 'archive'])
-  })
-})
-
-describe('contextAnchorRect', () => {
-  it('returns the cursor-derived dropdown rect', () => {
-    const rect = contextAnchorRect(10, 20)()
-    expect(rect.x).toBe(10)
-    expect(rect.y).toBe(20)
   })
 })
 

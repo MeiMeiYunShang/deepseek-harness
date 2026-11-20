@@ -110,7 +110,11 @@ export interface SessionStatsProjection {
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
-    /** Whole-log turn/step counts and wall times; see {@link SessionStatsProjection}. */
+    /**
+     * Whole-log turn/step counts and wall times; see
+     * {@link SessionStatsProjection}. Carried in Session summary payloads so
+     * the console's task-statistics card can aggregate every scoped session.
+     */
     sessionStats: SessionStatsProjection
   }
 }

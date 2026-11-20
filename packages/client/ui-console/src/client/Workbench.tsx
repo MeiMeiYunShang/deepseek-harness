@@ -12,7 +12,7 @@ import { IconCloseOutlineRegular, isBehindModal, Menu } from '@deepseek-ai/dsh-c
 import type { PropsLocale, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { contextMenuItems, contextAnchorRect } from './ContextMenu.tsx'
+import { contextMenuItems } from './ContextMenu.tsx'
 import type { ConsoleCardKey, ConsoleStoreState, ConsoleStoreWrite, LayoutPreset } from './consoleStore.ts'
 import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
 import type { ComposerCandidateSource } from './candidates.ts'
@@ -232,7 +232,8 @@ export function Workbench({
             open
             anchor={null}
             portal
-            getAnchorRect={contextAnchorRect(contextMenu.x, contextMenu.y)}
+            contextual
+            anchorPoint={{ x: contextMenu.x, y: contextMenu.y }}
             items={contextMenuItems(t, contextMenu.archived)}
             onSelect={(action) => { dispatchContext(action, contextMenu.id, { setRenameTarget, closeContextMenu, services }) }}
             onClose={closeContextMenu}

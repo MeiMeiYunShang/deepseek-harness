@@ -41,25 +41,43 @@ export const inject = ['sessionProjections']
  * sessions refold under the new window, and the new unit's window-derived
  * `stateVersion` makes every cached row folded under the old window unusable.
  * @param ctx - registrant context carrying the projection registry.
+ * @returns when the plugin is ready.
  */
-export function apply(ctx: Context): void {
+export async function apply(ctx: Context): Promise<void> {
   let installedVersion: number | undefined
-  let unregister: (() => void) | undefined
-  const install = (): void => {
-    const section = ctx.get('settings')
-      ?.describe()
-      .find(descriptor => String(descriptor.ns) === CONSOLE_PRICING_NAMESPACE)
-      ?.value
-    const window = offPeakWindowOf(section)
-    const version = sessionStatsStateVersion(window)
-    if (version === installedVersion) return
-    unregister?.()
-    installedVersion = version
-    unregister = ctx.sessionProjections.register(sessionStatsProjectionDefinition(window))
+  let handle: { dispose: () => Promise<void> } | undefined
+  let alive = true
+  let pending = Promise.resolve()
+  const install = (): Promise<void> => {
+    pending = pending.then(async () => {
+      if (!alive) return
+      const section = ctx.get('settings')
+        ?.describe()
+        .find(descriptor => String(descriptor.ns) === CONSOLE_PRICING_NAMESPACE)
+        ?.value
+      const window = offPeakWindowOf(section)
+      const version = sessionStatsStateVersion(window)
+      if (version === installedVersion) return
+      await handle?.dispose()
+      const registered = await ctx.sessionProjections.register(sessionStatsProjectionDefinition(window))
+      if (!alive) {
+        await registered.dispose()
+        return
+      }
+      installedVersion = version
+      handle = registered
+    })
+    return pending
   }
-  install()
-  ctx.on('session/created', install)
+  await install()
+  ctx.effect(() => () => {
+    alive = false
+    return pending.then(async () => {
+      if (handle !== undefined) await handle.dispose()
+    })
+  }, 'session-stats: release the installed unit')
+  ctx.on('session/created', () => { install().catch(error => ctx.logger.error(error)) })
   ctx.on('settings/document-updated', (ns) => {
-    if (String(ns) === CONSOLE_PRICING_NAMESPACE) install()
+    if (String(ns) === CONSOLE_PRICING_NAMESPACE) install().catch(error => ctx.logger.error(error))
   })
 }

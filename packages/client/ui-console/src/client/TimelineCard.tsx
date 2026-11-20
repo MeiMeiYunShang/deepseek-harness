@@ -7,9 +7,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  formatAmount, IconPlusOutlineMedium, IconSendOutlineRegular, MarkdownText, rankByName, totalCost,
+  formatAmount, IconPlusOutlineMedium, IconSendOutlineRegular, MarkdownText, totalCost,
   type CostTotal, type MarkdownLabels, type ModelPrice,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { TextSearchIndex } from '@deepseek-ai/dsh-util-text-search'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ConsoleComposerActions, ConsoleComposerState } from './composer.ts'
 import type { ComposerCandidateSource, ComposerCommandCandidate } from './candidates.ts'
@@ -467,7 +468,10 @@ export function Composer({ t, composer, composerActions, candidates, selectedSes
     if (menu.source === 'mention') {
       return fileCandidates.map(path => ({ id: path, label: path }))
     }
-    const commandRows = rankByName(commandCandidates, menu.query)
+    const commandRows = new TextSearchIndex(commandCandidates, candidate => ({
+      fuzzy: [candidate.name],
+      ...(candidate.description === undefined ? {} : { substring: [candidate.description] }),
+    })).search(menu.query)
       .map(candidate => ({ id: candidate.name, label: `/${candidate.name}`, description: candidate.description }))
     // The `+` launcher leads with the file-pick action, then the same roster.
     return menu.source === 'plus'

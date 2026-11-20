@@ -34,8 +34,3 @@ export function contextMenuItems(
     { id: 'archive', label: <span className={css.menuItem}>{t('archive')}</span>, icon: <IconArchiveOutlineRegular size={14} />, danger: archived },
   ]
 }
-
-/** Placeholder for the Menu anchor: the cursor-anchored list only needs a rect. */
-export function contextAnchorRect(x: number, y: number): () => DOMRect {
-  return () => new DOMRect(x, y, 0, 0)
-}

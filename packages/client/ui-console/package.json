@@ -64,6 +64,7 @@
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-session-projection": "workspace:*",
     "@deepseek-ai/dsh-session-stats": "workspace:*",
+    "@deepseek-ai/dsh-util-text-search": "workspace:*",
     "react": "^18.2.0",
     "clsx": "^2.0.0"
   },
