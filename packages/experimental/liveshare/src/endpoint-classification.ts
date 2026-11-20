@@ -224,6 +224,15 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'permissionPresets/catalog': 'owner-only', // owner permission presets
   'permissionPresets/set': 'owner-only', // owner switches the sandbox and approval preset; a viewer may not call it at any tier
   'llm/discoverModels': 'owner-only', // owner discovers models
+  'llm/chat': 'owner-only', // owner console streams Smart Q&A through the owner's provider credentials
+  'consoleBridge/testConnection': 'owner-only', // owner console tests a model connection
+  'knowledge/list': 'owner-only', // owner knowledge store
+  'knowledge/get': 'owner-only', // owner knowledge store
+  'knowledge/create': 'owner-only', // owner knowledge store
+  'knowledge/update': 'owner-only', // owner knowledge store
+  'knowledge/delete': 'owner-only', // owner knowledge store
+  'knowledge/createGroup': 'owner-only', // owner knowledge store groups
+  'knowledge/deleteGroup': 'owner-only', // owner knowledge store groups
   'web/listProviders': 'owner-only', // owner web search and fetch settings
   'agentPresets/list': 'owner-only', // owner agent presets
   'agentPresets/read': 'owner-only', // owner agent presets
